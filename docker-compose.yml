@@ -1,0 +1,22 @@
+# Этот файл больше не нужен для локальной разработки.
+# Бот использует SQLite — база данных создаётся автоматически как файл arthaos.db
+#
+# Если в будущем захочешь перейти на PostgreSQL (для высоких нагрузок),
+# раскомментируй код ниже и смени DATABASE_URL в .env на:
+# postgresql+asyncpg://arthaos:arthaos_pass@localhost:5432/arthaos
+
+# version: "3.9"
+# services:
+#   db:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_USER: arthaos
+#       POSTGRES_PASSWORD: arthaos_pass
+#       POSTGRES_DB: arthaos
+#     ports:
+#       - "5432:5432"
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#     restart: unless-stopped
+# volumes:
+#   postgres_data:

@@ -1,0 +1,35 @@
+# Секреты — НИКОГДА не коммитить
+.env
+credentials.json
+
+# База данных
+arthaos.db
+arthaos_backup_*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+*.db
+*.sqlite
+
+service_account.json
+check_drive.py
+
+# Логи
+*.log
+bot.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
