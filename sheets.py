@@ -24,12 +24,22 @@ sheets.py — работа с Google Таблицей.
   edit_booking()   → обновляет поля в «Бронирования»
 """
 
+import logging
 import os
 import re
 from datetime import date, datetime, timedelta
 
 import gspread
 from google.oauth2.service_account import Credentials
+
+# SQLite-зеркало (необязательная зависимость)
+try:
+    import database as _db
+    _DB_AVAILABLE = True
+except ImportError:
+    _DB_AVAILABLE = False
+
+_sh_log = logging.getLogger("SHEETS")
 
 SCOPES   = ["https://www.googleapis.com/auth/spreadsheets"]
 DATE_FMT = "%d.%m.%Y"
@@ -261,6 +271,18 @@ def add_booking(
     _rewrite_sheet(ws, HEADERS_BOOKINGS, rows)
     _remove_from_free(target)
 
+    # ── Зеркало → SQLite ──────────────────────────────────────────────────────
+    if _DB_AVAILABLE:
+        try:
+            _db.upsert_booking(
+                target, guests=guests, name=name, phone=phone,
+                source=source, client_type=client_type, comment=comment,
+                weekday=_weekday(target), changed_by=changed_by,
+            )
+            _db.remove_free_date(target)
+        except Exception as _e:
+            _sh_log.warning("SQLite upsert_booking error: %s", _e)
+
 
 def remove_booking(target: date) -> bool:
     """
@@ -276,6 +298,16 @@ def remove_booking(target: date) -> bool:
         return False
     _rewrite_sheet(ws, HEADERS_BOOKINGS, new_rows)
     _add_to_free(target)
+
+    # ── Зеркало → SQLite ──────────────────────────────────────────────────────
+    if _DB_AVAILABLE:
+        try:
+            _db.delete_booking(target)
+            if target >= date.today():
+                _db.add_free_date(target, _weekday(target))
+        except Exception as _e:
+            _sh_log.warning("SQLite delete_booking error: %s", _e)
+
     return True
 
 
@@ -304,6 +336,14 @@ def edit_booking(target: date, changed_by: str = "", **fields) -> bool:
         row[9] = datetime.now().strftime("%d.%m.%Y %H:%M")
         rows[i] = row
         _rewrite_sheet(ws, HEADERS_BOOKINGS, rows)
+
+        # ── Зеркало → SQLite ──────────────────────────────────────────────────
+        if _DB_AVAILABLE:
+            try:
+                _db.update_booking_fields(target, changed_by=changed_by, **fields)
+            except Exception as _e:
+                _sh_log.warning("SQLite update_booking_fields error: %s", _e)
+
         return True
     return False
 
@@ -353,3 +393,10 @@ def add_lead(name: str, phone: str = "", nick: str = "", source: str = "Авит
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
     ws.append_row([now, name, phone, nick, source], value_input_option="USER_ENTERED")
     _invalidate(ws.title)
+
+    # ── Зеркало → SQLite ──────────────────────────────────────────────────────
+    if _DB_AVAILABLE:
+        try:
+            _db.add_lead(name=name, phone=phone, nick=nick, source=source)
+        except Exception as _e:
+            _sh_log.warning("SQLite add_lead error: %s", _e)

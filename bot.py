@@ -873,8 +873,14 @@ async def export_month_callback(update: Update, context: ContextTypes.DEFAULT_TY
     """Выводит отчёт за выбранный месяц."""
     query = update.callback_query
     await query.answer()
-    _, year_s, month_s = query.data.split(":")
-    year, month = int(year_s), int(month_s)
+    parts = query.data.split(":")
+    if len(parts) != 3:
+        return
+    _, year_s, month_s = parts
+    try:
+        year, month = int(year_s), int(month_s)
+    except ValueError:
+        return
 
     try:
         await query.edit_message_reply_markup(reply_markup=None)
@@ -1451,7 +1457,23 @@ def main() -> None:
     log.info("=" * 60)
 
     async def post_init(application) -> None:
-        """Запускаем Авито поллер как фоновую задачу."""
+        """Инициализируем SQLite и запускаем Авито поллер."""
+        # ── SQLite: инициализация схемы + синхронизация из Sheets ────────────
+        try:
+            from database import init_db, sync_from_sheets
+            init_db()
+            log.info("  SQLite         : ✅ схема готова")
+            try:
+                sync_from_sheets()
+                log.info("  SQLite sync    : ✅ данные из Sheets загружены")
+            except Exception as _sync_err:
+                log.warning("  SQLite sync    : ⚠️  %s — работаем из кеша", _sync_err)
+        except ImportError:
+            log.info("  SQLite         : ⏭  database.py не найден, пропускаем")
+        except Exception as _db_err:
+            log.warning("  SQLite         : ⚠️  init_db ошибка: %s", _db_err)
+
+        # ── Авито поллер ──────────────────────────────────────────────────────
         if _avito_client:
             asyncio.create_task(avito_polling_loop(_avito_client, application))
 
