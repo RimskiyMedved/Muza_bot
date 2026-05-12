@@ -82,6 +82,10 @@ STALE_CHECK_EVERY  = int(os.getenv("AVITO_POLL_STALE_CHECK_EVERY", "2"))
 # 0 — отключить. Лимит — сколько чатов за один такой запрос (каждый потом get_messages).
 BROAD_CHATS_EVERY    = int(os.getenv("AVITO_POLL_BROAD_CHATS_EVERY", "3"))
 BROAD_CHATS_LIMIT    = int(os.getenv("AVITO_POLL_BROAD_CHATS_LIMIT", "50"))
+# Сколько последних сообщений чата запрашивать (несколько исходящих подряд не должны «выдавливать» входящие).
+MESSAGES_FETCH_LIMIT = int(os.getenv("AVITO_POLL_MESSAGES_LIMIT", "100"))
+# За один вызов _process_chat максимум новых входящих подряд (защита от бесконечного цикла).
+MAX_INBOUND_BURST    = int(os.getenv("AVITO_POLL_MAX_INBOUND_BURST", "15"))
 
 STATE_FILE = os.path.join(os.path.dirname(__file__), "bot_state.json")
 
@@ -728,12 +732,12 @@ async def _sync_missed_inbound_for_chat_ids(
         if not chat_id:
             continue
         try:
-            messages = await client.get_messages(chat_id, limit=20)
+            messages = await client.get_messages(chat_id, limit=MESSAGES_FETCH_LIMIT)
         except Exception as e:
             log.warning("[%s] %s get_messages %s: %s", account_name, log_label, chat_id[:16], e)
             continue
 
-        incoming = [m for m in messages if m.get("direction") == "in"]
+        incoming = [m for m in messages if _is_client_incoming(m)]
         if not incoming:
             continue
 
@@ -809,6 +813,43 @@ async def _sync_missed_from_broad_chat_list(
     )
 
 
+def _is_client_incoming(m: dict) -> bool:
+    """Входящее от покупателя (учёт разных регистров в API)."""
+    return (m.get("direction") or "").lower() == "in"
+
+
+def _pending_incoming_messages(chat_id: str, incoming: list[dict]) -> list[dict]:
+    """
+    Входящие, которые ещё не отражены в _last_handled, по времени по возрастанию.
+    Если в ответе API нет last_handled (выпало из окна) — только самое новое входящее.
+    """
+    if not incoming:
+        return []
+    prev_id = str(_last_handled.get(chat_id, ""))
+    inc_sorted = sorted(
+        incoming,
+        key=lambda m: (m.get("created", 0), str(m.get("id", ""))),
+    )
+    if not prev_id:
+        return inc_sorted[-1:] if inc_sorted else []
+    idx = None
+    for i, m in enumerate(inc_sorted):
+        if str(m.get("id", "")) == prev_id:
+            idx = i
+            break
+    if idx is None:
+        newest = inc_sorted[-1]
+        nid = str(newest.get("id", ""))
+        if nid == prev_id:
+            return []
+        log.warning(
+            "   [dbg] last_handled не в окне из %d сообщений — берём только последнее входящее",
+            len(inc_sorted),
+        )
+        return [newest]
+    return inc_sorted[idx + 1 :]
+
+
 # ─── Обработка одного чата ───────────────────────────────────────────────────
 
 async def _process_chat(
@@ -817,9 +858,22 @@ async def _process_chat(
     application,
     uid_self:     int,
     account_name: str,
+    *,
+    _burst_depth: int = 0,
 ) -> None:
     chat_id = chat.get("id", "")
     if not chat_id:
+        return
+
+    if _burst_depth > MAX_INBOUND_BURST:
+        log.error(
+            "[%s] лимит цепочки обработки входящих (%d), чат %s… — mark_read и стоп",
+            account_name, MAX_INBOUND_BURST, chat_id[:16],
+        )
+        try:
+            await client.mark_read(chat_id)
+        except Exception:
+            pass
         return
 
     try:
@@ -829,7 +883,7 @@ async def _process_chat(
         chat_info = chat
 
     try:
-        messages = await client.get_messages(chat_id, limit=20)
+        messages = await client.get_messages(chat_id, limit=MESSAGES_FETCH_LIMIT)
     except Exception as e:
         log.error("[%s] get_messages %s: %s", account_name, chat_id, e)
         return
@@ -843,7 +897,7 @@ async def _process_chat(
         return
 
     # Все входящие от клиента (не только text — иначе голос/фото теряются)
-    incoming = [m for m in messages if m.get("direction") == "in"]
+    incoming = [m for m in messages if _is_client_incoming(m)]
     log.info(
         "   [dbg] incoming_in=%d (все типы), из них с непустым text=%d",
         len(incoming),
@@ -857,10 +911,62 @@ async def _process_chat(
             pass
         return
 
-    # Самое новое входящее по времени
-    last_in = max(incoming, key=lambda m: m.get("created", 0))
-    msg_id   = last_in.get("id", "")
-    msg_ts   = last_in.get("created", 0)
+    buyer      = _find_buyer(chat_info.get("users", []), uid_self)
+    buyer_name = buyer.get("name", "")
+
+    pending = _pending_incoming_messages(chat_id, incoming)
+    latest_in = max(incoming, key=lambda m: m.get("created", 0))
+
+    # ── Нет новых относительно last_handled: дубликат опроса или редактирование ─
+    if not pending:
+        last_in = latest_in
+        msg_id = str(last_in.get("id", ""))
+        msg_ts = last_in.get("created", 0)
+        msg_kind = last_in.get("type", "?")
+        body_for_card = _display_text_for_msg(last_in)
+        msg_text = _raw_incoming_text(last_in)
+
+        if _last_handled.get(chat_id) != msg_id:
+            log.warning(
+                "   [dbg] нет очереди входящих, last_handled=%s latest_in=%s — пропуск",
+                str(_last_handled.get(chat_id, ""))[:24],
+                msg_id[:24],
+            )
+            return
+
+        if _msg_content.get(msg_id) == body_for_card:
+            log.info(
+                "   [dbg] пропуск: то же входящее msg_id=%s (уже обработано, тело не менялось)",
+                str(msg_id)[:24],
+            )
+            return
+
+        log.info(
+            "[%s] ✏️ Редактирование: %s | «%s»",
+            account_name, buyer_name or "?", body_for_card[:80],
+        )
+        _msg_content[msg_id] = body_for_card
+        edited_card = _format_client_msg(
+            chat_info, last_in, uid_self, account_name, messages,
+            include_meta=True, edited=True,
+        )
+        await _update_tg_msg(application, msg_id, edited_card, keyboard=_build_keyboard(chat_id))
+        try:
+            await client.mark_read(chat_id)
+        except Exception:
+            pass
+        return
+
+    if len(pending) > 1:
+        log.info(
+            "[%s] 📨 очередь: %d новых входящих подряд (обрабатываем по одному)",
+            account_name,
+            len(pending),
+        )
+
+    last_in = pending[0]
+    msg_id = str(last_in.get("id", ""))
+    msg_ts = last_in.get("created", 0)
     msg_kind = last_in.get("type", "?")
     body_for_card = _display_text_for_msg(last_in)
     msg_text = _raw_incoming_text(last_in)
@@ -874,45 +980,15 @@ async def _process_chat(
         msg_ts, int(_start_ts), msg_ts - _start_ts,
     )
 
-    # Пропускаем сообщения до запуска бота
     if msg_ts < _start_ts:
-        log.info("   [dbg] → сообщение старее запуска, пропуск (только учёт last_handled)")
-        if _last_handled.get(chat_id) != msg_id:
-            _last_handled[chat_id] = msg_id
-            _msg_content[msg_id]   = body_for_card
-            try:
-                await client.mark_read(chat_id)
-            except Exception:
-                pass
-        return
-
-    buyer      = _find_buyer(chat_info.get("users", []), uid_self)
-    buyer_name = buyer.get("name", "")
-
-    # ══ Определяем: новое сообщение или редактирование ══════════════════════
-
-    if _last_handled.get(chat_id) == msg_id:
-        # Тот же msg_id — дубликат опроса или редактирование
-        if _msg_content.get(msg_id) == body_for_card:
-            log.info(
-                "   [dbg] пропуск: то же входящее msg_id=%s (уже обработано, тело не менялось)",
-                str(msg_id)[:24],
-            )
-            return
-        # ── Клиент отредактировал сообщение ─────────────────────────────────
-        log.info(
-            "[%s] ✏️ Редактирование: %s | «%s»",
-            account_name, buyer_name or "?", body_for_card[:80],
-        )
+        log.info("   [dbg] → сообщение старее запуска — только last_handled и следующий в очереди")
+        _last_handled[chat_id] = msg_id
         _msg_content[msg_id] = body_for_card
-
-        edited_card = _format_client_msg(
-            chat_info, last_in, uid_self, account_name, messages,
-            include_meta=True, edited=True,
+        _save_state()
+        await _process_chat(
+            client, {"id": chat_id}, application, uid_self, account_name,
+            _burst_depth=_burst_depth + 1,
         )
-        await _update_tg_msg(application, msg_id, edited_card, keyboard=_build_keyboard(chat_id))
-        try: await client.mark_read(chat_id)
-        except: pass
         return
 
     # ══ Новое входящее сообщение ═════════════════════════════════════════════
@@ -1146,6 +1222,22 @@ async def _process_chat(
 
     _last_handled[chat_id] = msg_id
     _save_state()
+
+    try:
+        messages_tail = await client.get_messages(chat_id, limit=MESSAGES_FETCH_LIMIT)
+    except Exception as e:
+        log.warning("   ↳ повторный get_messages после ответа: %s", e)
+        messages_tail = []
+
+    incoming_tail = [m for m in messages_tail if _is_client_incoming(m)]
+    if incoming_tail and _pending_incoming_messages(chat_id, incoming_tail):
+        log.info("   [dbg] в том же чате ещё необработанные входящие — продолжаем цепочку")
+        await _process_chat(
+            client, {"id": chat_id}, application, uid_self, account_name,
+            _burst_depth=_burst_depth + 1,
+        )
+        return
+
     try:
         await client.mark_read(chat_id)
     except Exception as e:
