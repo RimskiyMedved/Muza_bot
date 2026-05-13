@@ -213,6 +213,7 @@ def _load_state() -> None:
                 "date":   d,
                 "guests": v.get("guests", ""),
                 "event":  v.get("event", ""),
+                "phone":  v.get("phone", ""),
             }
         log.info("✅ Состояние загружено: %d чатов, %d с контекстом", len(_greeted_chats), len(_chat_context))
     except FileNotFoundError:
@@ -230,6 +231,7 @@ def _save_state() -> None:
                 "date":   v["date"].isoformat() if v.get("date") else None,
                 "guests": v.get("guests", ""),
                 "event":  v.get("event", ""),
+                "phone":  v.get("phone", ""),
             }
             for cid, v in _chat_context.items()
         }
@@ -1110,9 +1112,9 @@ async def _process_chat(
         ctx["guests"] = msg_text
     if not ctx["event"] and _has_event_type(msg_text):
         ctx["event"] = msg_text
-    if not ctx["phone"] and _has_phone(msg_text):
+    if not ctx.get("phone") and _has_phone(msg_text):
         ctx["phone"] = _extract_phone(msg_text)
-    if not ctx["phone"] and _has_tg_nick(msg_text):
+    if not ctx.get("phone") and _has_tg_nick(msg_text):
         ctx["phone"] = _extract_tg_nick(msg_text)
 
     # ══ Определяем авто-ответы ═══════════════════════════════════════════════
