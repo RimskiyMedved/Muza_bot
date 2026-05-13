@@ -181,6 +181,44 @@ _chat_context: dict[str, dict] = {}
 _logged_tg_skip_no_group: bool = False
 # Сколько подряд циклов поллера без непрочитанных чатов (для логов)
 _poll_idle_cycles: int = 0
+# Дедупликация уведомлений об ошибках
+_last_error_ts:  float = 0.0
+_last_error_txt: str   = ""
+
+
+# ─── Уведомление об ошибках в TG ─────────────────────────────────────────────
+
+async def _notify_critical_error(application, error: Exception, context: str = "") -> None:
+    """
+    Отправляет уведомление об ошибке в TG-группу.
+    Дедупликация: одна и та же ошибка не шлётся чаще раза в 60 секунд.
+    """
+    global _last_error_ts, _last_error_txt
+    if not AVITO_NOTIFY_GROUP:
+        return
+    import traceback
+    err_txt = f"{type(error).__name__}: {error}"
+    now = time.time()
+    if err_txt == _last_error_txt and now - _last_error_ts < 60:
+        return   # та же ошибка — молчим
+    _last_error_ts  = now
+    _last_error_txt = err_txt
+    tb = traceback.format_exc()
+    tb_short = tb[-600:] if len(tb) > 600 else tb
+    ctx_line = f"\n📍 {_e(context)}" if context else ""
+    try:
+        await application.bot.send_message(
+            chat_id=AVITO_NOTIFY_GROUP,
+            text=(
+                f"🚨 <b>Ошибка бота</b>{ctx_line}\n"
+                f"<code>{_e(err_txt)}</code>\n\n"
+                f"<pre>{_e(tb_short)}</pre>"
+            ),
+            parse_mode="HTML",
+        )
+        log.info("   ↳ Уведомление об ошибке отправлено в TG")
+    except Exception as tg_err:
+        log.warning("   ↳ Не удалось отправить ошибку в TG: %s", tg_err)
 
 
 # ─── Сохранение / загрузка состояния ─────────────────────────────────────────
@@ -1576,6 +1614,10 @@ async def avito_polling_loop(client: AvitoClient, application) -> None:
                     except Exception as e:
                         log.error("[%s] Ошибка чата %s: %s",
                                   client.name, chat.get("id","?"), e, exc_info=True)
+                        await _notify_critical_error(
+                            application, e,
+                            context=f"чат {chat.get('id','?')[:20]}",
+                        )
             else:
                 _poll_idle_cycles += 1
                 # None — не удалось получить список; [] — успех, просто нет непрочитанных
@@ -1600,6 +1642,7 @@ async def avito_polling_loop(client: AvitoClient, application) -> None:
                     )
                 except Exception as e:
                     log.error("[%s] Ошибка stale-check: %s", client.name, e, exc_info=True)
+                    await _notify_critical_error(application, e, context="stale-check")
 
             if BROAD_CHATS_EVERY and _poll_iteration % BROAD_CHATS_EVERY == 0:
                 try:
@@ -1608,9 +1651,11 @@ async def avito_polling_loop(client: AvitoClient, application) -> None:
                     )
                 except Exception as e:
                     log.error("[%s] Ошибка broad-check: %s", client.name, e, exc_info=True)
+                    await _notify_critical_error(application, e, context="broad-check")
 
         except Exception as e:
             log.error("[%s] Ошибка цикла: %s", client.name, e, exc_info=True)
+            await _notify_critical_error(application, e, context="главный цикл поллера")
 
         await asyncio.sleep(POLL_INTERVAL)
 
