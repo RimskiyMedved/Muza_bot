@@ -32,7 +32,7 @@ from datetime import date, datetime, timedelta
 from enum import Enum, auto
 
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, WebAppInfo
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -57,6 +57,7 @@ from sheets import (
 load_dotenv()
 TOKEN               = os.getenv("TELEGRAM_BOT_TOKEN")
 NOTIFY_USERNAME     = os.getenv("NOTIFY_USERNAME", "@rimskiymedved")
+WEBAPP_URL          = os.getenv("WEBAPP_URL", "")   # https://yourdomain.com — URL мини-апп
 ADMIN_IDS: set[int] = {
     int(x.strip())
     for x in os.getenv("ADMIN_CHAT_ID", "0").split(",")
@@ -476,6 +477,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if is_adm:
         text = (
             "<b>Команды бота</b>\n\n"
+            "/app — 📅 открыть мини-приложение (календарь)\n\n"
             "/add — добавить бронь  (или «бронь»)\n"
             "/edit — редактировать бронь  (или «ред»)\n"
             "/cancel_booking — снять бронь\n"
@@ -490,6 +492,40 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         text = "<b>Команды бота</b>\n\nНапишите дату — я проверю, свободна ли она."
     await update.message.reply_text(text, parse_mode="HTML")
+
+
+async def cmd_app(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    /app — открыть мини-приложение «Муза» (только для администраторов).
+    Кнопка типа WebApp открывает встроенный браузер Telegram.
+    WEBAPP_URL задаётся в .env — это HTTPS-адрес сервера muza_api.
+    """
+    if not is_admin(update):
+        await update.message.reply_text("🔒 Эта команда только для администраторов.")
+        return
+
+    if not WEBAPP_URL:
+        await update.message.reply_text(
+            "⚠️ <b>WEBAPP_URL не задан</b>\n\n"
+            "Добавьте в <code>.env</code> на сервере:\n"
+            "<code>WEBAPP_URL=https://ваш-домен.ru</code>\n\n"
+            "После этого перезапустите бота: <code>docker compose restart muza_bot</code>",
+            parse_mode="HTML",
+        )
+        return
+
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            "📅 Открыть календарь",
+            web_app=WebAppInfo(url=WEBAPP_URL),
+        )
+    ]])
+    await update.message.reply_text(
+        "📅 <b>Муза — управление бронированиями</b>\n\n"
+        "Нажмите кнопку, чтобы открыть календарь.",
+        parse_mode="HTML",
+        reply_markup=kb,
+    )
 
 
 async def cmd_free(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1542,6 +1578,7 @@ def main() -> None:
 
     app.add_handler(CommandHandler("help",     cmd_help))
     app.add_handler(CommandHandler("start",    cmd_help))
+    app.add_handler(CommandHandler("app",      cmd_app))
     app.add_handler(CommandHandler("free",     cmd_free))
     app.add_handler(CommandHandler("today",    cmd_today))
     app.add_handler(CommandHandler("upcoming", cmd_upcoming))

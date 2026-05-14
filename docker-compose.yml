@@ -1,22 +1,56 @@
-# Этот файл больше не нужен для локальной разработки.
-# Бот использует SQLite — база данных создаётся автоматически как файл arthaos.db
-#
-# Если в будущем захочешь перейти на PostgreSQL (для высоких нагрузок),
-# раскомментируй код ниже и смени DATABASE_URL в .env на:
-# postgresql+asyncpg://arthaos:arthaos_pass@localhost:5432/arthaos
+version: "3.9"
 
-# version: "3.9"
-# services:
-#   db:
-#     image: postgres:16-alpine
-#     environment:
-#       POSTGRES_USER: arthaos
-#       POSTGRES_PASSWORD: arthaos_pass
-#       POSTGRES_DB: arthaos
-#     ports:
-#       - "5432:5432"
-#     volumes:
-#       - postgres_data:/var/lib/postgresql/data
-#     restart: unless-stopped
-# volumes:
-#   postgres_data:
+# ─── Сеть ─────────────────────────────────────────────────────────────────────
+networks:
+  muza_net:
+    driver: bridge
+
+# ─── Тома для Caddy ───────────────────────────────────────────────────────────
+volumes:
+  caddy_data:     # сертификаты Let's Encrypt (сохраняются между перезапусками)
+  caddy_config:   # внутренний конфиг Caddy
+
+services:
+
+  # ── Telegram-бот ────────────────────────────────────────────────────────────
+  muza_bot:
+    build: .
+    command: python bot.py
+    env_file: .env
+    restart: unless-stopped
+    networks: [muza_net]
+    volumes:
+      - ./muza.db:/app/muza.db
+      - ./credentials.json:/app/credentials.json
+      - ./bot_state.json:/app/bot_state.json
+
+  # ── FastAPI для Mini App ─────────────────────────────────────────────────────
+  muza_api:
+    build: .
+    command: >
+      uvicorn api:app
+      --host 0.0.0.0
+      --port 8001
+      --workers 1
+      --log-level info
+    env_file: .env
+    restart: unless-stopped
+    networks: [muza_net]
+    # Порт 8001 не выставляем наружу — к нему обращается только Caddy изнутри сети
+    volumes:
+      - ./muza.db:/app/muza.db
+      - ./credentials.json:/app/credentials.json
+
+  # ── Caddy — HTTPS reverse proxy ──────────────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    networks: [muza_net]
+    ports:
+      - "80:80"      # нужен для HTTP-challenge Let's Encrypt
+      - "443:443"    # HTTPS
+      - "443:443/udp"  # HTTP/3 (опционально, можно убрать)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile   # наш конфиг
+      - caddy_data:/data                   # сертификаты (персистентны)
+      - caddy_config:/config               # кэш конфига
