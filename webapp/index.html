@@ -163,20 +163,16 @@
       display: none;
       padding: 12px 14px;
     }
-    .stats-title {
-      font-size: 17px; font-weight: 700;
-      margin-bottom: 14px;
-    }
     .stats-cards {
       display: grid; grid-template-columns: 1fr 1fr;
-      gap: 10px; margin-bottom: 18px;
+      gap: 10px; margin-bottom: 16px;
     }
     .stat-card {
       background: var(--bg2); border-radius: 14px;
       padding: 14px 12px; text-align: center;
     }
     .stat-number {
-      font-size: 32px; font-weight: 700;
+      font-size: 30px; font-weight: 700;
       line-height: 1; color: var(--btn);
     }
     .stat-label {
@@ -184,23 +180,67 @@
       margin-top: 4px; line-height: 1.3;
     }
     .stats-section-title {
-      font-size: 13px; font-weight: 600;
+      font-size: 12px; font-weight: 600;
       color: var(--hint); text-transform: uppercase;
-      letter-spacing: .5px; margin-bottom: 8px;
+      letter-spacing: .5px; margin-bottom: 8px; margin-top: 16px;
     }
+    /* ── График по месяцам ───────────────────────────────────── */
+    .month-chart {
+      display: flex; align-items: flex-end;
+      gap: 4px; height: 80px;
+      margin-bottom: 4px; overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .month-bar-wrap {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 2px; min-width: 32px; flex: 1;
+    }
+    .month-bar {
+      width: 100%; background: var(--btn);
+      border-radius: 4px 4px 0 0;
+      transition: height .3s; min-height: 2px;
+    }
+    .month-bar.empty { background: var(--bg2); }
+    .month-label {
+      font-size: 9px; color: var(--hint);
+      white-space: nowrap; text-align: center;
+    }
+    .month-val {
+      font-size: 10px; font-weight: 600;
+      color: var(--btn); min-height: 14px;
+    }
+    /* ── Фильтр по источнику ─────────────────────────────────── */
+    .source-filter-wrap {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-bottom: 10px;
+    }
+    .src-chip {
+      padding: 4px 10px; border-radius: 20px;
+      font-size: 12px; cursor: pointer;
+      border: 1.5px solid var(--bg2);
+      background: var(--bg); color: var(--text);
+      transition: all .15s;
+    }
+    .src-chip.active {
+      background: var(--btn); color: var(--btn-text);
+      border-color: var(--btn);
+    }
+    /* ── Список источников ───────────────────────────────────── */
     .source-row {
       display: flex; align-items: center;
       gap: 8px; padding: 6px 0;
       border-bottom: 1px solid var(--bg2);
+      cursor: pointer;
     }
     .source-row:last-child { border-bottom: none; }
+    .source-row.active-filter { background: var(--free-bg); border-radius: 6px; padding: 6px 6px; }
     .source-name { font-size: 14px; flex: 1; }
     .source-count {
       font-size: 14px; font-weight: 600;
       color: var(--btn); min-width: 24px; text-align: right;
     }
     .source-bar-wrap {
-      width: 80px; height: 6px;
+      width: 70px; height: 6px;
       background: var(--bg2); border-radius: 3px; overflow: hidden;
     }
     .source-bar {
@@ -538,28 +578,55 @@ function renderCalendar() {
 }
 
 // ─── Статистика ──────────────────────────────────────────────────────────────
-async function loadStats() {
+let _activeSource = "";
+
+async function loadStats(source) {
+  if (source !== undefined) _activeSource = source;
   const el = document.getElementById("statsContent");
   el.innerHTML = '<div class="stats-loading"><div class="small-spinner"></div>Загружаем…</div>';
   try {
-    const s = await apiFetch("GET", "/api/stats");
-    const maxSrc = Math.max(1, ...Object.values(s.by_source));
-    const srcRows = Object.entries(s.by_source)
-      .map(([src, cnt]) => `
-        <div class="source-row">
-          <div class="source-name">${escHtml(src)}</div>
-          <div class="source-bar-wrap">
-            <div class="source-bar" style="width:${Math.round(cnt/maxSrc*100)}%"></div>
-          </div>
-          <div class="source-count">${cnt}</div>
-        </div>`)
-      .join("");
+    const qs = _activeSource ? `?source=${encodeURIComponent(_activeSource)}` : "";
+    const s = await apiFetch("GET", "/api/stats" + qs);
+
+    // ── График по месяцам ─────────────────────────────────────────────────
+    const maxM = Math.max(1, ...s.by_month.counts);
+    const monthBars = s.by_month.labels.map((lbl, i) => {
+      const cnt = s.by_month.counts[i];
+      const h = Math.max(4, Math.round(cnt / maxM * 70));
+      return `
+        <div class="month-bar-wrap">
+          <div class="month-val">${cnt || ""}</div>
+          <div class="month-bar${cnt === 0 ? " empty" : ""}" style="height:${h}px"></div>
+          <div class="month-label">${escHtml(lbl)}</div>
+        </div>`;
+    }).join("");
+
+    // ── Источники — чипы для фильтрации ──────────────────────────────────
+    const srcEntries = Object.entries(s.by_source);
+    const maxSrc = Math.max(1, ...srcEntries.map(e => e[1]));
+    const chips = [["", "Все"]].concat(srcEntries.map(([k]) => [k, k])).map(([val, lbl]) => `
+      <span class="src-chip${_activeSource === val ? " active" : ""}"
+            onclick="loadStats(${JSON.stringify(val)})">${escHtml(lbl)}</span>`
+    ).join("");
+
+    const srcRows = srcEntries.map(([src, cnt]) => `
+      <div class="source-row${_activeSource === src ? " active-filter" : ""}"
+           onclick="loadStats(${_activeSource === src ? '""' : JSON.stringify(src)})">
+        <div class="source-name">${escHtml(src)}</div>
+        <div class="source-bar-wrap">
+          <div class="source-bar" style="width:${Math.round(cnt/maxSrc*100)}%"></div>
+        </div>
+        <div class="source-count">${cnt}</div>
+      </div>`).join("");
+
+    const filterLabel = _activeSource
+      ? `<span style="font-size:12px;color:var(--btn)"> · ${escHtml(_activeSource)}</span>` : "";
 
     el.innerHTML = `
       <div class="stats-cards">
         <div class="stat-card">
           <div class="stat-number">${s.total}</div>
-          <div class="stat-label">Всего броней</div>
+          <div class="stat-label">Всего${filterLabel}</div>
         </div>
         <div class="stat-card">
           <div class="stat-number">${s.future}</div>
@@ -574,7 +641,13 @@ async function loadStats() {
           <div class="stat-label">${escHtml(s.next_month_name)}</div>
         </div>
       </div>
-      ${srcRows ? `<div class="stats-section-title">По источникам</div>${srcRows}` : ""}
+
+      <div class="stats-section-title">По месяцам</div>
+      <div class="month-chart">${monthBars}</div>
+
+      <div class="stats-section-title">По источникам</div>
+      <div class="source-filter-wrap">${chips}</div>
+      ${srcRows}
     `;
   } catch (e) {
     el.innerHTML = `<div class="stats-loading" style="color:var(--booked)">Ошибка: ${e.message}</div>`;

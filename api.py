@@ -386,19 +386,23 @@ async def get_sources(user: dict = Depends(_require_admin)):
 # ─── Stats ────────────────────────────────────────────────────────────────────
 
 @app.get("/api/stats")
-async def get_stats(user: dict = Depends(_require_admin)):
-    """Статистика бронирований."""
-    from collections import Counter
-    from datetime import date
+async def get_stats(source: str = None, user: dict = Depends(_require_admin)):
+    """Статистика бронирований. ?source= фильтрует по источнику."""
+    from collections import Counter, defaultdict
+    from datetime import date as date_cls
 
-    today  = date.today()
-    # Следующий месяц
+    today  = date_cls.today()
     if today.month == 12:
         next_m, next_y = 1, today.year + 1
     else:
         next_m, next_y = today.month + 1, today.year
 
     all_bk = database.get_all_bookings()
+
+    # Фильтр по источнику (опционально)
+    filtered = all_bk
+    if source:
+        filtered = [b for b in all_bk if (b.get("source") or "") == source]
 
     def _month_key(d_str: str) -> str:
         """'15.06.2026' → '06.2026'"""
@@ -407,20 +411,44 @@ async def get_stats(user: dict = Depends(_require_admin)):
     this_month_key = today.strftime("%m.%Y")
     next_month_key = f"{next_m:02d}.{next_y}"
 
-    this_month = [b for b in all_bk if _month_key(b["date"]) == this_month_key]
-    next_month = [b for b in all_bk if _month_key(b["date"]) == next_month_key]
-    future     = [b for b in all_bk if b.get("future")]
+    this_month = [b for b in filtered if _month_key(b["date"]) == this_month_key]
+    next_month = [b for b in filtered if _month_key(b["date"]) == next_month_key]
+    future     = [b for b in filtered if b.get("future")]
 
+    # По источникам (всегда по полному списку, не по фильтру)
     source_counts = Counter(b.get("source") or "Не указан" for b in all_bk)
 
+    # По месяцам — ближайшие 12 месяцев (только будущие + текущий)
+    by_month: dict = defaultdict(int)
+    for b in filtered:
+        try:
+            d = b["date_obj"]
+            key = f"{d.month:02d}.{d.year}"
+            by_month[key] += 1
+        except Exception:
+            pass
+
+    # Сортируем месяцы хронологически и берём ±6 от текущего
+    month_labels, month_counts = [], []
+    for delta in range(-1, 12):
+        m = today.month + delta
+        y = today.year + (m - 1) // 12
+        m = ((m - 1) % 12) + 1
+        key = f"{m:02d}.{y}"
+        if by_month.get(key, 0) > 0 or delta >= 0:
+            month_labels.append(MONTH_NAMES[m - 1][:3] + f" {y}")
+            month_counts.append(by_month.get(key, 0))
+
     return {
-        "total":      len(all_bk),
+        "total":      len(filtered),
         "future":     len(future),
         "this_month": len(this_month),
         "next_month": len(next_month),
-        "by_source":  dict(source_counts.most_common(10)),
+        "by_source":  dict(source_counts.most_common(20)),
+        "by_month":   {"labels": month_labels, "counts": month_counts},
         "this_month_name": MONTH_NAMES[today.month - 1],
         "next_month_name": MONTH_NAMES[next_m - 1],
+        "active_source": source or "",
     }
 
 
