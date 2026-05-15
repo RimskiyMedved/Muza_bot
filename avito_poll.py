@@ -332,6 +332,10 @@ _DECLINE_KEYWORDS = {
     "спасибо нет", "спасибо не надо", "другие не подходят",
     "нет спасибо", "нет не надо", "не актуально", "уже не нужно",
     "нет", "всё",
+    # Вежливые прощания/подтверждения — клиент принял к сведению и завершает диалог
+    "поняла", "понял", "понятно", "ясно", "ладно", "хорошо",
+    "спасибо", "благодарю", "ок", "окей", "ok",
+    "буду иметь в виду", "учту", "до свидания", "пока",
 }
 
 # Клиент хочет общаться в Авито
@@ -1207,8 +1211,12 @@ async def _process_chat(
     auto_replies: list[str] = []
 
     prefers_here     = _prefers_avito_chat(msg_text)
-    is_first         = chat_id not in _greeted_chats
+    # Дополнительная защита: если у чата уже есть накопленный контекст (дата/телефон)
+    # или лид уже получен — не считаем его «первым», даже если _greeted_chats не содержит id
+    # (это защищает от перезапуска контейнера с потерей bot_state.json).
     lead_already_got = chat_id in _lead_received
+    _ctx_has_data    = bool(ctx.get("date") or ctx.get("phone"))
+    is_first         = chat_id not in _greeted_chats and not lead_already_got and not _ctx_has_data
     # Запоминаем ДО обработки — нужно для напоминания о контакте в конце
     was_awaiting_contact = chat_id in _awaiting_contact
 
@@ -1266,10 +1274,19 @@ async def _process_chat(
         # Есть дата в контексте — проверяем её
         known_date = ctx.get("date")
         if known_date:
-            log.info("   ↳ дата из контекста %s — проверяем доступность", known_date)
-            auto_replies.append(REPLY_THANKS)  # подтверждаем получение телефона
-            # _check_dates_reply увидит lead_received=True и тегнет менеджера если свободна
-            await _check_dates_reply([known_date])
+            if chat_id in _offered_alternatives:
+                # Мы уже говорили клиенту что эта дата занята и предложили альтернативы.
+                # Повторно проверять её не нужно — просто благодарим за контакт.
+                log.info(
+                    "   ↳ дата %s уже была занята (alternatives offered) — не дублируем ответ",
+                    known_date,
+                )
+                auto_replies.append(REPLY_THANKS)
+            else:
+                log.info("   ↳ дата из контекста %s — проверяем доступность", known_date)
+                auto_replies.append(REPLY_THANKS)  # подтверждаем получение телефона
+                # _check_dates_reply увидит lead_received=True и тегнет менеджера если свободна
+                await _check_dates_reply([known_date])
         else:
             if skip_date_ask:
                 log.info("   ↳ даты нет, но приветствие уже спросило — только благодарим")
@@ -1508,7 +1525,14 @@ async def _process_chat(
                 # Ни FAQ, ни даты, ни контакта
                 if not msg_text.strip():
                     log.info("   ↳ нет текста (вложение type=%s) — пропуск", msg_kind)
-                if chat_id not in _asked_date:
+                elif chat_id in _offered_alternatives:
+                    # Клиент что-то написал после того как мы предложили альтернативные даты,
+                    # но _is_declining не сработал (например, короткий ответ "ладно" — уже
+                    # обработан выше через elif). Если мы дошли сюда — молчим, не спрашиваем дату снова.
+                    log.info(
+                        "   ↳ alternatives уже предложены, дата не распознана — молчим"
+                    )
+                elif chat_id not in _asked_date:
                     log.info("   ↳ повторное без даты — спрашиваем дату")
                     auto_replies.append(REPLY_ASK_DATE)
                     _asked_date.add(chat_id)
