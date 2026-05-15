@@ -162,12 +162,10 @@ def check_date(target: date) -> dict:
 
 
 def get_all_bookings() -> list[dict]:
-    """Все бронирования из SQLite, отсортированные по дате."""
+    """Все бронирования из SQLite, отсортированные по дате (сортировка через Python)."""
     today = date.today()
     with _conn() as con:
-        rows = con.execute(
-            "SELECT * FROM bookings ORDER BY date"
-        ).fetchall()
+        rows = con.execute("SELECT * FROM bookings").fetchall()
     result = []
     for row in rows:
         try:
@@ -186,6 +184,7 @@ def get_all_bookings() -> list[dict]:
             })
         except ValueError:
             pass
+    result.sort(key=lambda x: x["date_obj"])
     return result
 
 
@@ -248,14 +247,20 @@ def update_booking_fields(target: date, changed_by: str = "", **fields) -> bool:
 # ─── Свободные даты ───────────────────────────────────────────────────────────
 
 def get_free_dates(limit: int = 10) -> list[str]:
-    """Ближайшие свободные даты из SQLite."""
-    today = date.today().strftime(DATE_FMT)
+    """Ближайшие свободные даты из SQLite (сортировка и фильтр через Python, т.к. формат ДД.ММ.ГГГГ не сортируется лексикографически)."""
+    today = date.today()
     with _conn() as con:
-        rows = con.execute(
-            "SELECT date FROM free_dates WHERE date >= ? ORDER BY date LIMIT ?",
-            (today, limit)
-        ).fetchall()
-    return [row["date"] for row in rows]
+        rows = con.execute("SELECT date FROM free_dates").fetchall()
+    parsed = []
+    for row in rows:
+        try:
+            d = datetime.strptime(row["date"], DATE_FMT).date()
+            if d >= today:
+                parsed.append((d, row["date"]))
+        except ValueError:
+            pass
+    parsed.sort(key=lambda x: x[0])
+    return [d_str for _, d_str in parsed[:limit]]
 
 
 def add_free_date(target: date, weekday: str) -> None:
