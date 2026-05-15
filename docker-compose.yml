@@ -36,7 +36,8 @@ services:
     env_file: .env
     restart: unless-stopped
     networks: [muza_net]
-    # Порт 8001 не выставляем наружу — к нему обращается только Caddy изнутри сети
+    ports:
+      - "8001:8001"   # нужен для ngrok (до появления домена + Caddy)
     volumes:
       - ./database.db:/app/database.db
       - ./credentials.json:/app/credentials.json
