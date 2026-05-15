@@ -8,6 +8,9 @@ api.py — FastAPI бэкенд для Telegram Mini App «Муза».
   POST /api/booking             → создать бронь
   PUT  /api/booking/{date}      → изменить бронь
   DELETE /api/booking/{date}    → отменить бронь
+  GET  /api/sources             → уникальные источники из реальных броней
+  GET  /api/stats               → статистика бронирований
+  POST /api/sync                → принудительная синхронизация из Google Sheets
 
 Аутентификация: заголовок X-Init-Data с initData от Telegram WebApp SDK.
 Доступ только для пользователей из ADMIN_CHAT_ID.
@@ -360,3 +363,75 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
     except Exception as e:
         log.error("Sheets error (%s): %s", action, e)
         raise HTTPException(502, f"Google Sheets error: {e}")
+
+
+# ─── Sources ──────────────────────────────────────────────────────────────────
+
+@app.get("/api/sources")
+async def get_sources(user: dict = Depends(_require_admin)):
+    """Уникальные источники из реальных броней в базе."""
+    try:
+        import sqlite3
+        con = sqlite3.connect(database.DB_PATH)
+        con.row_factory = sqlite3.Row
+        rows = con.execute(
+            "SELECT DISTINCT source FROM bookings WHERE source != '' ORDER BY source"
+        ).fetchall()
+        con.close()
+        return [row["source"] for row in rows]
+    except Exception:
+        return []
+
+
+# ─── Stats ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/stats")
+async def get_stats(user: dict = Depends(_require_admin)):
+    """Статистика бронирований."""
+    from collections import Counter
+    from datetime import date
+
+    today  = date.today()
+    # Следующий месяц
+    if today.month == 12:
+        next_m, next_y = 1, today.year + 1
+    else:
+        next_m, next_y = today.month + 1, today.year
+
+    all_bk = database.get_all_bookings()
+
+    def _month_key(d_str: str) -> str:
+        """'15.06.2026' → '06.2026'"""
+        return d_str[3:10]
+
+    this_month_key = today.strftime("%m.%Y")
+    next_month_key = f"{next_m:02d}.{next_y}"
+
+    this_month = [b for b in all_bk if _month_key(b["date"]) == this_month_key]
+    next_month = [b for b in all_bk if _month_key(b["date"]) == next_month_key]
+    future     = [b for b in all_bk if b.get("future")]
+
+    source_counts = Counter(b.get("source") or "Не указан" for b in all_bk)
+
+    return {
+        "total":      len(all_bk),
+        "future":     len(future),
+        "this_month": len(this_month),
+        "next_month": len(next_month),
+        "by_source":  dict(source_counts.most_common(10)),
+        "this_month_name": MONTH_NAMES[today.month - 1],
+        "next_month_name": MONTH_NAMES[next_m - 1],
+    }
+
+
+# ─── Force sync ───────────────────────────────────────────────────────────────
+
+@app.post("/api/sync")
+async def force_sync(user: dict = Depends(_require_admin)):
+    """Принудительная синхронизация из Google Sheets → SQLite."""
+    try:
+        database.sync_from_sheets()
+        log.info("🔄 Ручная синхронизация выполнена пользователем %s", _username(user))
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(502, f"Sync error: {e}")

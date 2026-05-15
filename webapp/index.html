@@ -6,360 +6,35 @@
   <title>Муза — Календарь</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    /* ─── Переменные ─────────────────────────────────────────────── */
     :root {
-      --bg:        var(--tg-theme-bg-color,         #ffffff);
-      --bg2:       var(--tg-theme-secondary-bg-color,#f4f4f5);
-      --text:      var(--tg-theme-text-color,        #111111);
-      --hint:      var(--tg-theme-hint-color,        #888888);
-      --link:      var(--tg-theme-link-color,        #2481cc);
-      --btn:       var(--tg-theme-button-color,      #2481cc);
-      --btn-text:  var(--tg-theme-button-text-color, #ffffff);
-      --radius:    12px;
+      --bg:        var(--tg-theme-bg-color,          #ffffff);
+      --bg2:       var(--tg-theme-secondary-bg-color, #f4f4f5);
+      --text:      var(--tg-theme-text-color,         #111111);
+      --hint:      var(--tg-theme-hint-color,         #888888);
+      --btn:       var(--tg-theme-button-color,       #2481cc);
+      --btn-text:  var(--tg-theme-button-text-color,  #ffffff);
       --booked:    #ff3b30;
       --booked-bg: #fff1f0;
       --free:      #34c759;
       --free-bg:   #f0fff4;
-      --today-border: var(--btn);
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
+      padding-bottom: 60px; /* bottom nav height */
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ─── Заголовок ──────────────────────────────────────────────── */
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 16px 10px;
-      background: var(--bg);
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      border-bottom: 1px solid var(--bg2);
-    }
-    .nav-btn {
-      background: var(--bg2);
-      border: none;
-      border-radius: 8px;
-      padding: 6px 14px;
-      font-size: 18px;
-      cursor: pointer;
-      color: var(--text);
-      transition: opacity .15s;
-    }
-    .nav-btn:active { opacity: .6; }
-    .month-title {
-      font-size: 17px;
-      font-weight: 600;
-      letter-spacing: -.3px;
-    }
-
-    /* ─── Легенда ────────────────────────────────────────────────── */
-    .legend {
-      display: flex;
-      gap: 12px;
-      padding: 8px 16px;
-      font-size: 12px;
-      color: var(--hint);
-    }
-    .legend-item { display: flex; align-items: center; gap: 4px; }
-    .legend-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .dot-booked { background: var(--booked); }
-    .dot-free   { background: var(--free); }
-    .dot-neutral { background: var(--bg2); border: 1px solid #ccc; }
-
-    /* ─── Дни недели ─────────────────────────────────────────────── */
-    .weekdays {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      padding: 0 8px;
-      margin-bottom: 2px;
-    }
-    .weekday-label {
-      text-align: center;
-      font-size: 11px;
-      color: var(--hint);
-      padding: 4px 0;
-      font-weight: 500;
-    }
-    .weekday-label.weekend { color: var(--booked); }
-
-    /* ─── Сетка календаря ────────────────────────────────────────── */
-    .calendar-grid {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 3px;
-      padding: 0 8px 16px;
-    }
-
-    .day-cell {
-      aspect-ratio: 1;
-      border-radius: 8px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      position: relative;
-      transition: transform .1s, box-shadow .1s;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-      min-height: 44px;
-    }
-    .day-cell:active { transform: scale(.93); }
-
-    .day-cell.empty { cursor: default; }
-
-    .day-cell.neutral {
-      background: var(--bg2);
-    }
-    .day-cell.booked {
-      background: var(--booked-bg);
-      border: 1.5px solid var(--booked);
-    }
-    .day-cell.free {
-      background: var(--free-bg);
-      border: 1.5px solid var(--free);
-    }
-    .day-cell.past { opacity: .45; }
-    .day-cell.today {
-      box-shadow: 0 0 0 2px var(--today-border);
-    }
-
-    .day-number {
-      font-size: 15px;
-      font-weight: 600;
-      line-height: 1;
-    }
-    .day-cell.booked .day-number { color: var(--booked); }
-    .day-cell.free   .day-number { color: var(--free); }
-
-    .day-name {
-      font-size: 9px;
-      color: var(--hint);
-      margin-top: 2px;
-      max-width: 90%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      text-align: center;
-    }
-    .day-cell.booked .day-name { color: var(--booked); opacity: .8; }
-    .day-cell.free   .day-name { color: var(--free);   opacity: .8; }
-
-    /* ─── Кнопка + добавить ──────────────────────────────────────── */
-    .fab {
-      position: fixed;
-      bottom: 20px;
-      right: 16px;
-      background: var(--btn);
-      color: var(--btn-text);
-      border: none;
-      border-radius: 50px;
-      padding: 12px 20px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 4px 16px rgba(0,0,0,.18);
-      z-index: 20;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: opacity .15s;
-    }
-    .fab:active { opacity: .8; }
-
-    /* ─── Bottom Sheet ────────────────────────────────────────────── */
-    .sheet-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,.45);
-      z-index: 30;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .22s;
-    }
-    .sheet-overlay.visible { opacity: 1; pointer-events: auto; }
-
-    .sheet {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: var(--bg);
-      border-radius: 18px 18px 0 0;
-      z-index: 40;
-      transform: translateY(100%);
-      transition: transform .28s cubic-bezier(.4,0,.2,1);
-      max-height: 92vh;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    .sheet.visible { transform: translateY(0); }
-
-    .sheet-handle {
-      width: 36px; height: 4px;
-      background: var(--hint);
-      border-radius: 2px;
-      margin: 10px auto 0;
-      opacity: .4;
-    }
-
-    .sheet-header {
-      padding: 12px 16px 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .sheet-title {
-      font-size: 17px;
-      font-weight: 700;
-    }
-    .sheet-date {
-      font-size: 13px;
-      color: var(--hint);
-      margin-top: 2px;
-    }
-    .close-btn {
-      background: var(--bg2);
-      border: none;
-      border-radius: 50%;
-      width: 30px; height: 30px;
-      font-size: 16px;
-      cursor: pointer;
-      color: var(--hint);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* ─── Детали брони ───────────────────────────────────────────── */
-    .booking-detail {
-      padding: 12px 16px 4px;
-    }
-    .detail-row {
-      display: flex;
-      padding: 9px 0;
-      border-bottom: 1px solid var(--bg2);
-      gap: 8px;
-    }
-    .detail-row:last-child { border-bottom: none; }
-    .detail-label {
-      font-size: 13px;
-      color: var(--hint);
-      min-width: 120px;
-      flex-shrink: 0;
-    }
-    .detail-value {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text);
-      word-break: break-word;
-    }
-
-    .status-badge {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .badge-booked { background: var(--booked-bg); color: var(--booked); }
-    .badge-free   { background: var(--free-bg);   color: var(--free); }
-    .badge-neutral { background: var(--bg2); color: var(--hint); }
-
-    /* ─── Форма ──────────────────────────────────────────────────── */
-    .form-body {
-      padding: 12px 16px 4px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .form-group { display: flex; flex-direction: column; gap: 4px; }
-    .form-label {
-      font-size: 12px;
-      color: var(--hint);
-      font-weight: 500;
-    }
-    .form-input, .form-select, .form-textarea {
-      background: var(--bg2);
-      border: 1.5px solid transparent;
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 15px;
-      color: var(--text);
-      width: 100%;
-      outline: none;
-      transition: border-color .15s;
-      font-family: inherit;
-    }
-    .form-input:focus, .form-select:focus, .form-textarea:focus {
-      border-color: var(--btn);
-    }
-    .form-textarea {
-      resize: none;
-      min-height: 72px;
-    }
-    .form-select {
-      -webkit-appearance: none;
-      appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 12px center;
-      padding-right: 32px;
-    }
-
-    /* ─── Кнопки действий ────────────────────────────────────────── */
-    .actions {
-      padding: 12px 16px 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .btn {
-      border: none;
-      border-radius: 12px;
-      padding: 13px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      width: 100%;
-      transition: opacity .15s;
-      font-family: inherit;
-    }
-    .btn:active { opacity: .75; }
-    .btn-primary { background: var(--btn); color: var(--btn-text); }
-    .btn-secondary {
-      background: var(--bg2);
-      color: var(--text);
-    }
-    .btn-danger {
-      background: #fff1f0;
-      color: var(--booked);
-    }
-
-    /* ─── Лоадер ─────────────────────────────────────────────────── */
+    /* ── Загрузка ─────────────────────────────────────────────── */
     .loading-overlay {
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0;
       background: var(--bg);
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
+      z-index: 200;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
       gap: 12px;
     }
     .loading-overlay.hidden { display: none; }
@@ -373,87 +48,322 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .loading-text { font-size: 14px; color: var(--hint); }
 
-    /* ─── Inline лоадер (в листе) ────────────────────────────────── */
-    .inline-loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 0;
-      gap: 10px;
-      color: var(--hint);
-      font-size: 14px;
+    /* ── Шапка ───────────────────────────────────────────────── */
+    .header {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--bg);
+      border-bottom: 1px solid var(--bg2);
+      padding: 8px 12px 6px;
+    }
+    .year-row {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; margin-bottom: 4px;
+    }
+    .year-nav {
+      background: none; border: none;
+      font-size: 18px; cursor: pointer;
+      color: var(--hint); padding: 2px 6px;
+    }
+    .year-label { font-size: 13px; font-weight: 600; color: var(--hint); }
+
+    .month-row {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-btn {
+      background: var(--bg2); border: none;
+      border-radius: 8px; padding: 5px 14px;
+      font-size: 18px; cursor: pointer; color: var(--text);
+    }
+    .nav-btn:active { opacity: .6; }
+    .month-title { font-size: 17px; font-weight: 700; }
+
+    /* Кнопка синхронизации */
+    .sync-btn {
+      background: none; border: none;
+      font-size: 16px; cursor: pointer;
+      color: var(--hint); padding: 4px;
+      margin-left: 4px;
+    }
+    .sync-btn.spinning { animation: spin .8s linear infinite; }
+
+    /* ── Легенда ──────────────────────────────────────────────── */
+    .legend {
+      display: flex; gap: 12px;
+      padding: 6px 12px; font-size: 11px; color: var(--hint);
+    }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .dot-booked { background: var(--booked); }
+    .dot-free   { background: var(--free); }
+    .dot-neutral { background: #ccc; }
+
+    /* ── Дни недели ──────────────────────────────────────────── */
+    .weekdays {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      padding: 0 8px; margin-bottom: 2px;
+    }
+    .weekday-label {
+      text-align: center; font-size: 10px;
+      color: var(--hint); padding: 3px 0; font-weight: 500;
+    }
+    .weekday-label.weekend { color: var(--booked); }
+
+    /* ── Сетка ───────────────────────────────────────────────── */
+    .calendar-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      gap: 3px; padding: 0 8px 16px;
+    }
+    .day-cell {
+      aspect-ratio: 1; border-radius: 8px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      cursor: pointer; position: relative;
+      transition: transform .1s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      min-height: 42px;
+    }
+    .day-cell:active { transform: scale(.92); }
+    .day-cell.empty { cursor: default; }
+    .day-cell.neutral { background: var(--bg2); }
+    .day-cell.booked  { background: var(--booked-bg); border: 1.5px solid var(--booked); }
+    .day-cell.free    { background: var(--free-bg);   border: 1.5px solid var(--free); }
+    .day-cell.past    { opacity: .42; }
+    .day-cell.today   { box-shadow: 0 0 0 2px var(--btn); }
+    .day-number { font-size: 15px; font-weight: 600; line-height: 1; }
+    .day-cell.booked .day-number { color: var(--booked); }
+    .day-cell.free   .day-number { color: var(--free); }
+    .day-name {
+      font-size: 9px; color: var(--hint);
+      margin-top: 2px; max-width: 90%;
+      overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; text-align: center;
+    }
+    .day-cell.booked .day-name { color: var(--booked); opacity: .8; }
+    .day-cell.free   .day-name { color: var(--free);   opacity: .8; }
+
+    /* ── FAB ─────────────────────────────────────────────────── */
+    .fab {
+      position: fixed; bottom: 70px; right: 16px;
+      background: var(--btn); color: var(--btn-text);
+      border: none; border-radius: 50px;
+      padding: 11px 18px; font-size: 14px; font-weight: 600;
+      cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.18);
+      z-index: 20; display: flex; align-items: center; gap: 6px;
+    }
+    .fab:active { opacity: .8; }
+
+    /* ── Статистика ──────────────────────────────────────────── */
+    #statsView {
+      display: none;
+      padding: 12px 14px;
+    }
+    .stats-title {
+      font-size: 17px; font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .stats-cards {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px; margin-bottom: 18px;
+    }
+    .stat-card {
+      background: var(--bg2); border-radius: 14px;
+      padding: 14px 12px; text-align: center;
+    }
+    .stat-number {
+      font-size: 32px; font-weight: 700;
+      line-height: 1; color: var(--btn);
+    }
+    .stat-label {
+      font-size: 12px; color: var(--hint);
+      margin-top: 4px; line-height: 1.3;
+    }
+    .stats-section-title {
+      font-size: 13px; font-weight: 600;
+      color: var(--hint); text-transform: uppercase;
+      letter-spacing: .5px; margin-bottom: 8px;
+    }
+    .source-row {
+      display: flex; align-items: center;
+      gap: 8px; padding: 6px 0;
+      border-bottom: 1px solid var(--bg2);
+    }
+    .source-row:last-child { border-bottom: none; }
+    .source-name { font-size: 14px; flex: 1; }
+    .source-count {
+      font-size: 14px; font-weight: 600;
+      color: var(--btn); min-width: 24px; text-align: right;
+    }
+    .source-bar-wrap {
+      width: 80px; height: 6px;
+      background: var(--bg2); border-radius: 3px; overflow: hidden;
+    }
+    .source-bar {
+      height: 100%; background: var(--btn); border-radius: 3px;
+      transition: width .4s;
+    }
+    .stats-loading {
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; padding: 40px; color: var(--hint); font-size: 14px;
     }
     .small-spinner {
-      width: 20px; height: 20px;
-      border: 2px solid var(--bg2);
-      border-top-color: var(--btn);
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
+      width: 18px; height: 18px;
+      border: 2px solid var(--bg2); border-top-color: var(--btn);
+      border-radius: 50%; animation: spin .7s linear infinite;
     }
 
-    /* ─── Toast ──────────────────────────────────────────────────── */
-    .toast {
-      position: fixed;
-      bottom: 80px;
-      left: 50%;
-      transform: translateX(-50%) translateY(20px);
-      background: rgba(0,0,0,.8);
-      color: #fff;
-      padding: 9px 18px;
-      border-radius: 20px;
-      font-size: 13px;
-      z-index: 200;
-      opacity: 0;
-      transition: opacity .2s, transform .2s;
-      pointer-events: none;
-      white-space: nowrap;
+    /* ── Нижняя навигация ────────────────────────────────────── */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--bg);
+      border-top: 1px solid var(--bg2);
+      display: flex; height: 60px; z-index: 30;
     }
-    .toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
+    .nav-tab {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 2px; background: none; border: none;
+      cursor: pointer; color: var(--hint);
+      font-size: 10px; font-weight: 500;
+      transition: color .15s;
+    }
+    .nav-tab .tab-icon { font-size: 22px; line-height: 1; }
+    .nav-tab.active { color: var(--btn); }
+
+    /* ── Bottom Sheet ────────────────────────────────────────── */
+    .sheet-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 40; opacity: 0; pointer-events: none;
+      transition: opacity .22s;
+    }
+    .sheet-overlay.visible { opacity: 1; pointer-events: auto; }
+    .sheet {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--bg);
+      border-radius: 18px 18px 0 0;
+      z-index: 50;
+      transform: translateY(100%);
+      transition: transform .28s cubic-bezier(.4,0,.2,1);
+      max-height: 92vh; overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .sheet.visible { transform: translateY(0); }
+    .sheet-handle {
+      width: 36px; height: 4px;
+      background: var(--hint); border-radius: 2px;
+      margin: 10px auto 0; opacity: .4;
+    }
+    .sheet-header {
+      padding: 12px 16px 0;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sheet-title { font-size: 17px; font-weight: 700; }
+    .sheet-date  { font-size: 13px; color: var(--hint); margin-top: 2px; }
+    .close-btn {
+      background: var(--bg2); border: none; border-radius: 50%;
+      width: 30px; height: 30px; font-size: 16px;
+      cursor: pointer; color: var(--hint);
+      display: flex; align-items: center; justify-content: center;
     }
 
-    /* ─── Разделитель секций формы ───────────────────────────────── */
+    /* ── Детали брони ────────────────────────────────────────── */
+    .booking-detail { padding: 12px 16px 4px; }
+    .detail-row {
+      display: flex; padding: 8px 0;
+      border-bottom: 1px solid var(--bg2); gap: 8px;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { font-size: 13px; color: var(--hint); min-width: 110px; flex-shrink: 0; }
+    .detail-value { font-size: 13px; font-weight: 500; word-break: break-word; }
+
+    /* ── Форма ───────────────────────────────────────────────── */
+    .form-body { padding: 12px 16px 4px; display: flex; flex-direction: column; gap: 10px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-label { font-size: 12px; color: var(--hint); font-weight: 500; }
+    .form-input, .form-textarea {
+      background: var(--bg2); border: 1.5px solid transparent;
+      border-radius: 10px; padding: 10px 12px;
+      font-size: 15px; color: var(--text); width: 100%;
+      outline: none; transition: border-color .15s; font-family: inherit;
+    }
+    .form-input:focus, .form-textarea:focus { border-color: var(--btn); }
+    .form-textarea { resize: none; min-height: 70px; }
     .section-sep {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--hint);
-      text-transform: uppercase;
-      letter-spacing: .6px;
-      padding: 4px 0 2px;
+      font-size: 11px; font-weight: 600; color: var(--hint);
+      text-transform: uppercase; letter-spacing: .6px; padding: 4px 0 2px;
     }
+
+    /* ── Кнопки действий ─────────────────────────────────────── */
+    .actions { padding: 12px 16px 28px; display: flex; flex-direction: column; gap: 8px; }
+    .btn {
+      border: none; border-radius: 12px; padding: 13px;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      width: 100%; transition: opacity .15s; font-family: inherit;
+    }
+    .btn:active { opacity: .75; }
+    .btn:disabled { opacity: .5; }
+    .btn-primary   { background: var(--btn); color: var(--btn-text); }
+    .btn-secondary { background: var(--bg2); color: var(--text); }
+    .btn-danger    { background: var(--booked-bg); color: var(--booked); }
+
+    /* ── Toast ───────────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 72px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(0,0,0,.8); color: #fff;
+      padding: 9px 18px; border-radius: 20px;
+      font-size: 13px; z-index: 300;
+      opacity: 0; transition: opacity .2s, transform .2s;
+      pointer-events: none; white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   </style>
 </head>
 <body>
 
-<!-- Загрузочный экран -->
+<!-- Загрузка -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="spinner"></div>
   <div class="loading-text">Загружаем календарь…</div>
 </div>
 
-<!-- Заголовок -->
-<div class="header">
-  <button class="nav-btn" id="prevBtn">‹</button>
-  <span class="month-title" id="monthTitle">—</span>
-  <button class="nav-btn" id="nextBtn">›</button>
+<!-- ── Шапка ─────────────────────────────────────────────────── -->
+<div class="header" id="calHeader">
+  <div class="year-row">
+    <button class="year-nav" id="prevYearBtn">«</button>
+    <span class="year-label" id="yearLabel">2026</span>
+    <button class="year-nav" id="nextYearBtn">»</button>
+    <button class="sync-btn" id="syncBtn" title="Синхронизировать">⟳</button>
+  </div>
+  <div class="month-row">
+    <button class="nav-btn" id="prevBtn">‹</button>
+    <span class="month-title" id="monthTitle">—</span>
+    <button class="nav-btn" id="nextBtn">›</button>
+  </div>
 </div>
 
-<!-- Легенда -->
-<div class="legend">
-  <div class="legend-item"><div class="legend-dot dot-booked"></div>Занято</div>
-  <div class="legend-item"><div class="legend-dot dot-free"></div>Свободно</div>
-  <div class="legend-item"><div class="legend-dot dot-neutral"></div>Нет данных</div>
+<!-- ── Вид: Календарь ────────────────────────────────────────── -->
+<div id="calendarView">
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot dot-booked"></div>Занято</div>
+    <div class="legend-item"><div class="legend-dot dot-free"></div>Свободно</div>
+    <div class="legend-item"><div class="legend-dot dot-neutral"></div>Нет данных</div>
+  </div>
+  <div class="weekdays" id="weekdayHeader"></div>
+  <div class="calendar-grid" id="calendarGrid"></div>
 </div>
 
-<!-- Дни недели -->
-<div class="weekdays" id="weekdayHeader"></div>
+<!-- ── Вид: Статистика ───────────────────────────────────────── -->
+<div id="statsView">
+  <div class="stats-title">Статистика</div>
+  <div id="statsContent">
+    <div class="stats-loading"><div class="small-spinner"></div>Загружаем…</div>
+  </div>
+</div>
 
-<!-- Сетка -->
-<div class="calendar-grid" id="calendarGrid"></div>
-
-<!-- FAB — добавить бронь -->
-<button class="fab" id="fabBtn">＋ Добавить бронь</button>
+<!-- FAB -->
+<button class="fab" id="fabBtn">＋ Добавить</button>
 
 <!-- Затемнение -->
 <div class="sheet-overlay" id="overlay"></div>
@@ -463,62 +373,60 @@
   <div class="sheet-handle"></div>
   <div class="sheet-header">
     <div>
-      <div class="sheet-title" id="sheetTitle">Детали</div>
-      <div class="sheet-date" id="sheetDate"></div>
+      <div class="sheet-title" id="sheetTitle"></div>
+      <div class="sheet-date"  id="sheetDate"></div>
     </div>
     <button class="close-btn" id="closeBtn">✕</button>
   </div>
-  <!-- Контент листа -->
   <div id="sheetContent"></div>
   <div class="actions" id="sheetActions"></div>
 </div>
 
+<!-- Нижняя навигация -->
+<nav class="bottom-nav">
+  <button class="nav-tab active" id="tab-calendar" onclick="switchView('calendar')">
+    <span class="tab-icon">📅</span>Календарь
+  </button>
+  <button class="nav-tab" id="tab-stats" onclick="switchView('stats')">
+    <span class="tab-icon">📊</span>Статистика
+  </button>
+</nav>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script>
-// ─── Telegram WebApp init ────────────────────────────────────────────────────
-const twa = window.Telegram?.WebApp;
-if (twa) {
-  twa.ready();
-  twa.expand();
-}
+<!-- Список источников для datalist -->
+<datalist id="sourcesList"></datalist>
 
+<script>
+// ─── Telegram WebApp ─────────────────────────────────────────────────────────
+const twa = window.Telegram?.WebApp;
+if (twa) { twa.ready(); twa.expand(); }
 const initData = twa?.initData || "";
 
-// ─── State ───────────────────────────────────────────────────────────────────
-let currentYear, currentMon;
-let calData = null;      // ответ от /api/calendar
-let selectedDay = null;  // объект дня из calData.days
-let sheetMode = null;    // "view" | "add" | "edit"
-
-// ─── Инициализация: текущий месяц ────────────────────────────────────────────
-(function () {
-  const now = new Date();
-  currentYear = now.getFullYear();
-  currentMon  = now.getMonth() + 1;
-})();
+// ─── Состояние ───────────────────────────────────────────────────────────────
+let currentView = "calendar";
+let currentYear = new Date().getFullYear();
+let currentMon  = new Date().getMonth() + 1;
+let calData     = null;
+let sourcesData = [];
 
 // ─── Заголовки дней недели ───────────────────────────────────────────────────
-const WD_LABELS = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
-const weekdayHeader = document.getElementById("weekdayHeader");
-WD_LABELS.forEach((d, i) => {
+const WD = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+const wdHeader = document.getElementById("weekdayHeader");
+WD.forEach((d, i) => {
   const el = document.createElement("div");
   el.className = "weekday-label" + (i >= 5 ? " weekend" : "");
   el.textContent = d;
-  weekdayHeader.appendChild(el);
+  wdHeader.appendChild(el);
 });
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 const API = window.location.origin;
-
 async function apiFetch(method, path, body) {
   const opts = {
     method,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Init-Data": initData,
-    },
+    headers: { "Content-Type": "application/json", "X-Init-Data": initData },
   };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(API + path, opts);
@@ -529,9 +437,48 @@ async function apiFetch(method, path, body) {
   return res.json();
 }
 
+// ─── Навигация: вкладки ───────────────────────────────────────────────────────
+function switchView(view) {
+  currentView = view;
+  document.getElementById("calendarView").style.display = view === "calendar" ? "block" : "none";
+  document.getElementById("statsView").style.display    = view === "stats"    ? "block" : "none";
+  document.getElementById("calHeader").style.display    = view === "calendar" ? "block" : "none";
+  document.getElementById("fabBtn").style.display       = view === "calendar" ? "flex"  : "none";
+  document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
+  document.getElementById(`tab-${view}`).classList.add("active");
+  if (view === "stats") loadStats();
+}
+
+// ─── Год / месяц ─────────────────────────────────────────────────────────────
+document.getElementById("prevYearBtn").addEventListener("click", () => { currentYear--; loadMonth(); });
+document.getElementById("nextYearBtn").addEventListener("click", () => { currentYear++; loadMonth(); });
+document.getElementById("prevBtn").addEventListener("click", () => {
+  if (currentMon === 1) { currentMon = 12; currentYear--; } else currentMon--;
+  loadMonth();
+});
+document.getElementById("nextBtn").addEventListener("click", () => {
+  if (currentMon === 12) { currentMon = 1; currentYear++; } else currentMon++;
+  loadMonth();
+});
+
+// ─── Синхронизация ───────────────────────────────────────────────────────────
+document.getElementById("syncBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("syncBtn");
+  btn.classList.add("spinning");
+  try {
+    await apiFetch("POST", "/api/sync");
+    await loadMonth();
+    showToast("✅ Данные обновлены");
+  } catch (e) {
+    showToast("Ошибка синхронизации: " + e.message);
+  } finally {
+    btn.classList.remove("spinning");
+  }
+});
+
 // ─── Загрузка месяца ─────────────────────────────────────────────────────────
-async function loadMonth(year, mon) {
-  const month = `${year}-${String(mon).padStart(2,"0")}`;
+async function loadMonth() {
+  const month = `${currentYear}-${String(currentMon).padStart(2,"0")}`;
   try {
     calData = await apiFetch("GET", `/api/calendar?month=${month}`);
     renderCalendar();
@@ -540,15 +487,14 @@ async function loadMonth(year, mon) {
   }
 }
 
-// ─── Рендер сетки ────────────────────────────────────────────────────────────
+// ─── Рендер ──────────────────────────────────────────────────────────────────
 function renderCalendar() {
-  document.getElementById("monthTitle").textContent =
-    `${calData.month_name} ${calData.year}`;
+  document.getElementById("yearLabel").textContent  = calData.year;
+  document.getElementById("monthTitle").textContent = calData.month_name;
 
   const grid = document.getElementById("calendarGrid");
   grid.innerHTML = "";
 
-  // Пустые ячейки для смещения
   for (let i = 0; i < calData.first_weekday; i++) {
     const blank = document.createElement("div");
     blank.className = "day-cell empty";
@@ -557,26 +503,24 @@ function renderCalendar() {
 
   calData.days.forEach(day => {
     const cell = document.createElement("div");
-    const classes = ["day-cell", day.status];
-    if (day.past)  classes.push("past");
-    if (day.today) classes.push("today");
-    cell.className = classes.join(" ");
+    const cls  = ["day-cell", day.status];
+    if (day.past)  cls.push("past");
+    if (day.today) cls.push("today");
+    cell.className = cls.join(" ");
 
-    // Номер дня
     const num = document.createElement("div");
-    num.className = "day-number";
+    num.className   = "day-number";
     num.textContent = day.day;
     cell.appendChild(num);
 
-    // Имя клиента или "Своб."
     if (day.status === "booked" && day.name) {
       const nm = document.createElement("div");
-      nm.className = "day-name";
-      nm.textContent = day.name.split(" ")[0]; // только имя
+      nm.className   = "day-name";
+      nm.textContent = day.name.split(" ")[0];
       cell.appendChild(nm);
     } else if (day.status === "free") {
       const nm = document.createElement("div");
-      nm.className = "day-name";
+      nm.className   = "day-name";
       nm.textContent = "Своб.";
       cell.appendChild(nm);
     }
@@ -588,35 +532,233 @@ function renderCalendar() {
   document.getElementById("loadingOverlay").classList.add("hidden");
 }
 
-// ─── Клик по ячейке ──────────────────────────────────────────────────────────
-function onDayClick(day) {
-  selectedDay = day;
-  if (day.status === "booked") {
-    openViewSheet(day);
-  } else {
-    openAddSheet(day);
+// ─── Статистика ──────────────────────────────────────────────────────────────
+async function loadStats() {
+  const el = document.getElementById("statsContent");
+  el.innerHTML = '<div class="stats-loading"><div class="small-spinner"></div>Загружаем…</div>';
+  try {
+    const s = await apiFetch("GET", "/api/stats");
+    const maxSrc = Math.max(1, ...Object.values(s.by_source));
+    const srcRows = Object.entries(s.by_source)
+      .map(([src, cnt]) => `
+        <div class="source-row">
+          <div class="source-name">${escHtml(src)}</div>
+          <div class="source-bar-wrap">
+            <div class="source-bar" style="width:${Math.round(cnt/maxSrc*100)}%"></div>
+          </div>
+          <div class="source-count">${cnt}</div>
+        </div>`)
+      .join("");
+
+    el.innerHTML = `
+      <div class="stats-cards">
+        <div class="stat-card">
+          <div class="stat-number">${s.total}</div>
+          <div class="stat-label">Всего броней</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">${s.future}</div>
+          <div class="stat-label">Предстоящих</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">${s.this_month}</div>
+          <div class="stat-label">${escHtml(s.this_month_name)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">${s.next_month}</div>
+          <div class="stat-label">${escHtml(s.next_month_name)}</div>
+        </div>
+      </div>
+      ${srcRows ? `<div class="stats-section-title">По источникам</div>${srcRows}` : ""}
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="stats-loading" style="color:var(--booked)">Ошибка: ${e.message}</div>`;
   }
 }
 
-// ─── Навигация по месяцам ────────────────────────────────────────────────────
-document.getElementById("prevBtn").addEventListener("click", () => {
-  if (currentMon === 1) { currentMon = 12; currentYear--; }
-  else currentMon--;
-  loadMonth(currentYear, currentMon);
-});
-document.getElementById("nextBtn").addEventListener("click", () => {
-  if (currentMon === 12) { currentMon = 1; currentYear++; }
-  else currentMon++;
-  loadMonth(currentYear, currentMon);
-});
+// ─── Клик по дате ────────────────────────────────────────────────────────────
+function onDayClick(day) {
+  if (day.status === "booked") openViewSheet(day);
+  else openAddSheet(day);
+}
+
+// ─── VIEW ─────────────────────────────────────────────────────────────────────
+function openViewSheet(day) {
+  document.getElementById("sheetTitle").textContent = "Бронь";
+  document.getElementById("sheetDate").textContent  = fmtDate(day.date);
+
+  const phone = fmtPhone(day.phone);
+  const fields = [
+    ["Клиент",      day.name        || "—"],
+    ["Гости",       day.guests      || "—"],
+    ["Телефон",     phone           || "—"],
+    ["Источник",    day.source      || "—"],
+    ["Тип",         day.client_type || "—"],
+    ["Комментарий", day.comment     || "—"],
+  ];
+
+  document.getElementById("sheetContent").innerHTML =
+    `<div class="booking-detail">
+      ${fields.map(([l,v]) =>
+        `<div class="detail-row">
+          <div class="detail-label">${l}</div>
+          <div class="detail-value">${escHtml(String(v))}</div>
+        </div>`).join("")}
+    </div>`;
+
+  const act = document.getElementById("sheetActions");
+  act.innerHTML = "";
+  addBtn(act, "btn-primary",   "✏️ Редактировать", () => openEditSheet(day));
+  addBtn(act, "btn-danger",    "🗑 Отменить бронь", () => confirmDelete(day));
+  openSheet();
+}
+
+// ─── ADD ──────────────────────────────────────────────────────────────────────
+function openAddSheet(day) {
+  document.getElementById("sheetTitle").textContent = "Новая бронь";
+  document.getElementById("sheetDate").textContent  = day ? fmtDate(day.date) : "";
+  document.getElementById("sheetContent").innerHTML = buildForm({
+    date: day?.date || "", guests: "", name: "", phone: "",
+    source: "", client_type: "", comment: "",
+  }, !day);
+
+  const act = document.getElementById("sheetActions");
+  act.innerHTML = "";
+  addBtn(act, "btn-primary",   "💾 Сохранить", () => submitAdd());
+  addBtn(act, "btn-secondary", "Отмена",       closeSheet);
+  openSheet();
+}
+
+// ─── EDIT ─────────────────────────────────────────────────────────────────────
+function openEditSheet(day) {
+  document.getElementById("sheetTitle").textContent = "Редактировать";
+  document.getElementById("sheetDate").textContent  = fmtDate(day.date);
+  document.getElementById("sheetContent").innerHTML = buildForm(day, false);
+
+  const act = document.getElementById("sheetActions");
+  act.innerHTML = "";
+  addBtn(act, "btn-primary",   "💾 Сохранить", () => submitEdit(day.date));
+  addBtn(act, "btn-secondary", "← Назад",      () => openViewSheet(day));
+  openSheet();
+}
+
+// ─── Форма ───────────────────────────────────────────────────────────────────
+function buildForm(data, showDateField) {
+  const dateF = showDateField
+    ? `<div class="form-group">
+        <label class="form-label">Дата</label>
+        <input class="form-input" id="f-date" type="text"
+               placeholder="ДД.ММ.ГГГГ" value="${escHtml(data.date||"")}" />
+      </div>`
+    : `<input type="hidden" id="f-date" value="${escHtml(data.date||"")}" />`;
+
+  return `<div class="form-body">
+    ${dateF}
+    <div class="form-group">
+      <label class="form-label">Имя клиента</label>
+      <input class="form-input" id="f-name" type="text"
+             placeholder="Иван Петров" value="${escHtml(data.name||"")}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Кол-во гостей</label>
+      <input class="form-input" id="f-guests" type="text"
+             inputmode="numeric" placeholder="80"
+             value="${escHtml(data.guests||"")}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Телефон</label>
+      <input class="form-input" id="f-phone" type="tel"
+             placeholder="+7 900 000 00 00"
+             value="${escHtml(fmtPhone(data.phone||""))}" />
+    </div>
+    <div class="section-sep">Дополнительно</div>
+    <div class="form-group">
+      <label class="form-label">Источник рекламы</label>
+      <input class="form-input" id="f-source" type="text"
+             list="sourcesList"
+             placeholder="Авито, Сарафан…"
+             value="${escHtml(data.source||"")}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Тип клиента</label>
+      <input class="form-input" id="f-client_type" type="text"
+             placeholder="Прямой клиент / Агентство"
+             value="${escHtml(data.client_type||"")}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Комментарий</label>
+      <textarea class="form-textarea" id="f-comment"
+                placeholder="Пожелания, заметки…">${escHtml(data.comment||"")}</textarea>
+    </div>
+  </div>`;
+}
+
+function getFormData() {
+  return {
+    date:        document.getElementById("f-date")?.value.trim()        || "",
+    name:        document.getElementById("f-name")?.value.trim()        || "",
+    guests:      document.getElementById("f-guests")?.value.trim()      || "",
+    phone:       document.getElementById("f-phone")?.value.trim()       || "",
+    source:      document.getElementById("f-source")?.value.trim()      || "",
+    client_type: document.getElementById("f-client_type")?.value.trim() || "",
+    comment:     document.getElementById("f-comment")?.value.trim()     || "",
+  };
+}
+
+// ─── Submit ───────────────────────────────────────────────────────────────────
+async function submitAdd() {
+  const data = getFormData();
+  if (!data.date) { showToast("Укажите дату"); return; }
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(data.date)) { showToast("Формат: ДД.ММ.ГГГГ"); return; }
+  if (!data.name) { showToast("Укажите имя клиента"); return; }
+  try {
+    setSheetLoading(true);
+    await apiFetch("POST", "/api/booking", data);
+    closeSheet(); showToast("✅ Бронь добавлена");
+    await loadMonth();
+  } catch (e) { showToast("Ошибка: " + e.message); }
+  finally { setSheetLoading(false); }
+}
+
+async function submitEdit(dateStr) {
+  const data = { ...getFormData(), date: dateStr };
+  if (!data.name) { showToast("Укажите имя клиента"); return; }
+  try {
+    setSheetLoading(true);
+    await apiFetch("PUT", `/api/booking/${encodeURIComponent(dateStr)}`, data);
+    closeSheet(); showToast("✅ Бронь обновлена");
+    await loadMonth();
+  } catch (e) { showToast("Ошибка: " + e.message); }
+  finally { setSheetLoading(false); }
+}
+
+function confirmDelete(day) {
+  document.getElementById("sheetContent").innerHTML = `
+    <div style="padding:20px 16px;text-align:center">
+      <div style="font-size:40px;margin-bottom:10px">⚠️</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:6px">Отменить бронь?</div>
+      <div style="font-size:14px;color:var(--hint)">${fmtDate(day.date)}<br>${escHtml(day.name||"")}</div>
+    </div>`;
+  const act = document.getElementById("sheetActions");
+  act.innerHTML = "";
+  addBtn(act, "btn-danger",    "🗑 Да, отменить", () => doDelete(day));
+  addBtn(act, "btn-secondary", "← Назад",         () => openViewSheet(day));
+}
+
+async function doDelete(day) {
+  try {
+    setSheetLoading(true);
+    await apiFetch("DELETE", `/api/booking/${encodeURIComponent(day.date)}`);
+    closeSheet(); showToast("🗑 Бронь отменена");
+    await loadMonth();
+  } catch (e) { showToast("Ошибка: " + e.message); }
+  finally { setSheetLoading(false); }
+}
 
 // ─── FAB ─────────────────────────────────────────────────────────────────────
-document.getElementById("fabBtn").addEventListener("click", () => {
-  selectedDay = null;
-  openAddSheet(null);
-});
+document.getElementById("fabBtn").addEventListener("click", () => openAddSheet(null));
 
-// ─── Sheet open/close ────────────────────────────────────────────────────────
+// ─── Sheet helpers ────────────────────────────────────────────────────────────
 function openSheet() {
   document.getElementById("overlay").classList.add("visible");
   document.getElementById("sheet").classList.add("visible");
@@ -624,293 +766,51 @@ function openSheet() {
 function closeSheet() {
   document.getElementById("overlay").classList.remove("visible");
   document.getElementById("sheet").classList.remove("visible");
-  sheetMode = null;
+}
+function setSheetLoading(on) {
+  document.querySelectorAll("#sheetActions .btn")
+    .forEach(b => { b.disabled = on; });
+}
+function addBtn(container, cls, text, onClick) {
+  const b = document.createElement("button");
+  b.className   = `btn ${cls}`;
+  b.textContent = text;
+  b.onclick     = onClick;
+  container.appendChild(b);
 }
 document.getElementById("closeBtn").addEventListener("click", closeSheet);
 document.getElementById("overlay").addEventListener("click", closeSheet);
 
-// ─── VIEW: детали брони ──────────────────────────────────────────────────────
-function openViewSheet(day) {
-  sheetMode = "view";
-  document.getElementById("sheetTitle").textContent = "Бронь";
-  document.getElementById("sheetDate").textContent = formatDateRu(day.date);
-
-  const fields = [
-    ["Клиент",      day.name        || "—"],
-    ["Гости",       day.guests      || "—"],
-    ["Телефон",     day.phone       || "—"],
-    ["Источник",    day.source      || "—"],
-    ["Тип",         day.client_type || "—"],
-    ["Комментарий", day.comment     || "—"],
-  ];
-
-  const content = document.getElementById("sheetContent");
-  content.innerHTML = `<div class="booking-detail">
-    ${fields.map(([lbl, val]) => `
-      <div class="detail-row">
-        <div class="detail-label">${lbl}</div>
-        <div class="detail-value">${escapeHtml(String(val))}</div>
-      </div>
-    `).join("")}
-  </div>`;
-
-  const actions = document.getElementById("sheetActions");
-  actions.innerHTML = "";
-
-  const editBtn = document.createElement("button");
-  editBtn.className = "btn btn-primary";
-  editBtn.textContent = "✏️  Редактировать";
-  editBtn.onclick = () => openEditSheet(day);
-  actions.appendChild(editBtn);
-
-  const delBtn = document.createElement("button");
-  delBtn.className = "btn btn-danger";
-  delBtn.textContent = "🗑  Отменить бронь";
-  delBtn.onclick = () => confirmDelete(day);
-  actions.appendChild(delBtn);
-
-  openSheet();
-}
-
-// ─── ADD: добавить бронь ─────────────────────────────────────────────────────
-function openAddSheet(day) {
-  sheetMode = "add";
-  document.getElementById("sheetTitle").textContent = "Новая бронь";
-  document.getElementById("sheetDate").textContent = day ? formatDateRu(day.date) : "";
-
-  const content = document.getElementById("sheetContent");
-  content.innerHTML = buildForm({
-    date:        day?.date || "",
-    guests:      "",
-    name:        "",
-    phone:       "",
-    source:      "",
-    client_type: "",
-    comment:     "",
-  }, !day);  // showDateField = true если день не выбран
-
-  const actions = document.getElementById("sheetActions");
-  actions.innerHTML = "";
-
-  const saveBtn = document.createElement("button");
-  saveBtn.className = "btn btn-primary";
-  saveBtn.textContent = "💾  Сохранить";
-  saveBtn.onclick = () => submitAdd();
-  actions.appendChild(saveBtn);
-
-  const cancelBtn = document.createElement("button");
-  cancelBtn.className = "btn btn-secondary";
-  cancelBtn.textContent = "Отмена";
-  cancelBtn.onclick = closeSheet;
-  actions.appendChild(cancelBtn);
-
-  openSheet();
-}
-
-// ─── EDIT: редактировать бронь ───────────────────────────────────────────────
-function openEditSheet(day) {
-  sheetMode = "edit";
-  document.getElementById("sheetTitle").textContent = "Редактировать";
-  document.getElementById("sheetDate").textContent = formatDateRu(day.date);
-
-  const content = document.getElementById("sheetContent");
-  content.innerHTML = buildForm(day, false);
-
-  const actions = document.getElementById("sheetActions");
-  actions.innerHTML = "";
-
-  const saveBtn = document.createElement("button");
-  saveBtn.className = "btn btn-primary";
-  saveBtn.textContent = "💾  Сохранить";
-  saveBtn.onclick = () => submitEdit(day.date);
-  actions.appendChild(saveBtn);
-
-  const backBtn = document.createElement("button");
-  backBtn.className = "btn btn-secondary";
-  backBtn.textContent = "← Назад";
-  backBtn.onclick = () => openViewSheet(day);
-  actions.appendChild(backBtn);
-}
-
-// ─── Форма ───────────────────────────────────────────────────────────────────
-function buildForm(data, showDateField) {
-  const dateField = showDateField ? `
-    <div class="form-group">
-      <label class="form-label">Дата</label>
-      <input class="form-input" id="f-date" type="text"
-             placeholder="ДД.ММ.ГГГГ" value="${escapeHtml(data.date || "")}" />
-    </div>
-  ` : `<input type="hidden" id="f-date" value="${escapeHtml(data.date || "")}" />`;
-
-  return `<div class="form-body">
-    ${dateField}
-    <div class="form-group">
-      <label class="form-label">Имя клиента</label>
-      <input class="form-input" id="f-name" type="text"
-             placeholder="Иван Петров" value="${escapeHtml(data.name || "")}" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Кол-во гостей</label>
-      <input class="form-input" id="f-guests" type="text"
-             inputmode="numeric" placeholder="80"
-             value="${escapeHtml(data.guests || "")}" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Телефон</label>
-      <input class="form-input" id="f-phone" type="tel"
-             placeholder="+7 900 000 00 00"
-             value="${escapeHtml(data.phone || "")}" />
-    </div>
-    <div class="section-sep">Дополнительно</div>
-    <div class="form-group">
-      <label class="form-label">Источник рекламы</label>
-      <select class="form-select" id="f-source">
-        <option value="">— не указан —</option>
-        ${["Авито","Instagram","Сарафан","2ГИС","Google","Яндекс","VK","Другое"]
-          .map(s => `<option value="${s}"${data.source===s?" selected":""}>${s}</option>`)
-          .join("")}
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Тип клиента</label>
-      <select class="form-select" id="f-client_type">
-        <option value="">— не указан —</option>
-        ${["Прямой клиент","Агентство","Корпоратив","Частное лицо"]
-          .map(s => `<option value="${s}"${data.client_type===s?" selected":""}>${s}</option>`)
-          .join("")}
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Комментарий</label>
-      <textarea class="form-textarea" id="f-comment"
-                placeholder="Пожелания, заметки…">${escapeHtml(data.comment || "")}</textarea>
-    </div>
-  </div>`;
-}
-
-function getFormData() {
-  return {
-    date:        document.getElementById("f-date")?.value.trim() || "",
-    name:        document.getElementById("f-name")?.value.trim() || "",
-    guests:      document.getElementById("f-guests")?.value.trim() || "",
-    phone:       document.getElementById("f-phone")?.value.trim() || "",
-    source:      document.getElementById("f-source")?.value || "",
-    client_type: document.getElementById("f-client_type")?.value || "",
-    comment:     document.getElementById("f-comment")?.value.trim() || "",
-  };
-}
-
-// ─── Submit ADD ───────────────────────────────────────────────────────────────
-async function submitAdd() {
-  const data = getFormData();
-  if (!data.date) { showToast("Укажите дату"); return; }
-  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(data.date)) {
-    showToast("Формат даты: ДД.ММ.ГГГГ"); return;
-  }
-  if (!data.name) { showToast("Укажите имя клиента"); return; }
-
+// ─── Утилиты ─────────────────────────────────────────────────────────────────
+function fmtDate(s) {
   try {
-    setSheetLoading(true);
-    await apiFetch("POST", "/api/booking", data);
-    closeSheet();
-    showToast("✅ Бронь добавлена");
-    await loadMonth(currentYear, currentMon);
-  } catch (e) {
-    showToast("Ошибка: " + e.message);
-  } finally {
-    setSheetLoading(false);
-  }
+    const [d, m, y] = s.split(".").map(Number);
+    return new Date(y, m-1, d).toLocaleDateString("ru-RU",
+      { day:"numeric", month:"long", year:"numeric", weekday:"long" });
+  } catch { return s; }
 }
 
-// ─── Submit EDIT ──────────────────────────────────────────────────────────────
-async function submitEdit(dateStr) {
-  const data = { ...getFormData(), date: dateStr };
-  if (!data.name) { showToast("Укажите имя клиента"); return; }
-
-  try {
-    setSheetLoading(true);
-    await apiFetch("PUT", `/api/booking/${encodeURIComponent(dateStr)}`, data);
-    closeSheet();
-    showToast("✅ Бронь обновлена");
-    await loadMonth(currentYear, currentMon);
-  } catch (e) {
-    showToast("Ошибка: " + e.message);
-  } finally {
-    setSheetLoading(false);
-  }
+function fmtPhone(p) {
+  if (!p) return "";
+  p = p.trim();
+  if (!p) return "";
+  // Уже есть + — оставляем
+  if (p.startsWith("+")) return p;
+  // 8xxx → +7xxx
+  if (p.startsWith("8") && p.replace(/\D/g,"").length === 11)
+    return "+7" + p.replace(/\D/g,"").slice(1);
+  // 7xxx (11 цифр) → +7xxx
+  if (p.replace(/\D/g,"").length === 11)
+    return "+" + p.replace(/\D/g,"");
+  return p;
 }
 
-// ─── Confirm DELETE ───────────────────────────────────────────────────────────
-function confirmDelete(day) {
-  const content = document.getElementById("sheetContent");
-  content.innerHTML = `
-    <div style="padding:20px 16px; text-align:center;">
-      <div style="font-size:40px; margin-bottom:12px;">⚠️</div>
-      <div style="font-size:16px; font-weight:600; margin-bottom:8px;">Отменить бронь?</div>
-      <div style="font-size:14px; color:var(--hint);">
-        ${formatDateRu(day.date)}<br>
-        ${escapeHtml(day.name || "")}
-      </div>
-    </div>
-  `;
-
-  const actions = document.getElementById("sheetActions");
-  actions.innerHTML = "";
-
-  const delBtn = document.createElement("button");
-  delBtn.className = "btn btn-danger";
-  delBtn.textContent = "🗑  Да, отменить";
-  delBtn.onclick = () => doDelete(day);
-  actions.appendChild(delBtn);
-
-  const backBtn = document.createElement("button");
-  backBtn.className = "btn btn-secondary";
-  backBtn.textContent = "← Назад";
-  backBtn.onclick = () => openViewSheet(day);
-  actions.appendChild(backBtn);
-}
-
-async function doDelete(day) {
-  try {
-    setSheetLoading(true);
-    await apiFetch("DELETE", `/api/booking/${encodeURIComponent(day.date)}`);
-    closeSheet();
-    showToast("🗑 Бронь отменена");
-    await loadMonth(currentYear, currentMon);
-  } catch (e) {
-    showToast("Ошибка: " + e.message);
-  } finally {
-    setSheetLoading(false);
-  }
-}
-
-// ─── Sheet loading state ─────────────────────────────────────────────────────
-function setSheetLoading(on) {
-  const btns = document.querySelectorAll("#sheetActions .btn");
-  btns.forEach(b => { b.disabled = on; b.style.opacity = on ? ".5" : ""; });
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function formatDateRu(dateStr) {
-  // "15.06.2026" → "15 июня 2026, суббота"
-  try {
-    const [d, m, y] = dateStr.split(".").map(Number);
-    const dt = new Date(y, m - 1, d);
-    return dt.toLocaleDateString("ru-RU", {
-      day: "numeric", month: "long", year: "numeric", weekday: "long"
-    });
-  } catch { return dateStr; }
-}
-
-function escapeHtml(s) {
+function escHtml(s) {
   return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-// ─── Toast ───────────────────────────────────────────────────────────────────
 let _toastTimer = null;
 function showToast(msg) {
   const t = document.getElementById("toast");
@@ -920,8 +820,20 @@ function showToast(msg) {
   _toastTimer = setTimeout(() => t.classList.remove("show"), 2800);
 }
 
-// ─── Запуск ──────────────────────────────────────────────────────────────────
-loadMonth(currentYear, currentMon);
+// ─── Загрузка источников для datalist ────────────────────────────────────────
+async function loadSources() {
+  try {
+    sourcesData = await apiFetch("GET", "/api/sources");
+    const dl = document.getElementById("sourcesList");
+    dl.innerHTML = sourcesData
+      .map(s => `<option value="${escHtml(s)}">`)
+      .join("");
+  } catch { /* не критично */ }
+}
+
+// ─── Старт ───────────────────────────────────────────────────────────────────
+loadMonth();
+loadSources();
 </script>
 </body>
 </html>
