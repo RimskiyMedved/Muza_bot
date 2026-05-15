@@ -126,14 +126,61 @@ REPLY_ASK_DETAILS = (
 )
 
 # FAQ отвечаем только если клиент хочет общаться здесь (не даёт номер)
+# ── Прайс-лист (полный, когда дата неизвестна) ───────────────────────────────
 FAQ_PRICE = (
     "Условия аренды банкетного зала «Муза»:\n\n"
-    "• Аренда площадки — 60 000 ₽\n"
-    "• Депозит — 250 000 ₽ (заказ по кухне)\n"
-    "• Обслуживание — 15%\n"
-    "• Алкоголь — свой, без пробкового сбора\n\n"
-    "Для подробной консультации: @muza_zal  ·  +79253579000"
+    "🌞 Высокий сезон (июнь – сентябрь)\n"
+    "• Пн – Чт:  аренда 40 000 ₽ + депозит 200 000 ₽\n"
+    "• Пт, Вс:   аренда 60 000 ₽ + депозит 250 000 ₽\n"
+    "• Сб:       аренда 80 000 ₽ + депозит 300 000 ₽\n\n"
+    "❄️ Низкий сезон (ноябрь – май)\n"
+    "• Пн – Чт:  депозит 150 000 ₽ (аренда не взимается)\n"
+    "• Пт, Вс:   депозит 200 000 ₽ (аренда не взимается)\n"
+    "• Сб:       депозит 250 000 ₽ (аренда не взимается)\n\n"
+    "📋 Меню от 7 000 ₽ на персону\n"
+    "🍷 Алкоголь — свой, без пробкового сбора\n\n"
+    "Для подробной консультации: @muza_zal"
 )
+
+
+def _price_for_date(d: "date") -> str:
+    """Возвращает строку с ценой для конкретной даты мероприятия."""
+    month = d.month
+    wd    = d.weekday()   # 0=Пн … 6=Вс
+
+    high_season = month in (6, 7, 8, 9)   # июнь-сентябрь
+
+    if high_season:
+        season_label = "🌞 Высокий сезон (июнь – сентябрь)"
+        if wd <= 3:          # Пн-Чт
+            day_label = "Понедельник – Четверг"
+            price     = "Аренда 40 000 ₽ + депозит 200 000 ₽"
+        elif wd == 4 or wd == 6:   # Пт или Вс
+            day_label = "Пятница / Воскресенье"
+            price     = "Аренда 60 000 ₽ + депозит 250 000 ₽"
+        else:                # Сб
+            day_label = "Суббота"
+            price     = "Аренда 80 000 ₽ + депозит 300 000 ₽"
+    else:
+        season_label = "❄️ Низкий сезон (ноябрь – май)"
+        if wd <= 3:
+            day_label = "Понедельник – Четверг"
+            price     = "Депозит 150 000 ₽ (аренда не взимается)"
+        elif wd == 4 or wd == 6:
+            day_label = "Пятница / Воскресенье"
+            price     = "Депозит 200 000 ₽ (аренда не взимается)"
+        else:
+            day_label = "Суббота"
+            price     = "Депозит 250 000 ₽ (аренда не взимается)"
+
+    return (
+        f"Условия аренды на {d.strftime('%d.%m.%Y')}:\n\n"
+        f"{season_label}\n"
+        f"• {day_label}: {price}\n"
+        f"• Меню от 7 000 ₽ на персону\n"
+        f"• Алкоголь — свой, без пробкового сбора\n\n"
+        f"Для подробной консультации: @muza_zal"
+    )
 
 FAQ_CAPACITY = (
     "Вместимость банкетного зала «Муза»:\n\n"
@@ -1331,6 +1378,7 @@ async def _process_chat(
                     if have_contact:
                         # Есть и контакт и свободная дата → тегаем менеджера
                         log.info("   ↳ есть контакт — тегаем менеджера")
+                        _awaiting_contact.discard(chat_id)   # снимаем ожидание — телефон уже есть
                         auto_replies.append(
                             f"Отлично! Менеджер свяжется с вами для подтверждения "
                             f"брони на {d.strftime('%d.%m.%Y')}. 🤍"
@@ -1387,7 +1435,7 @@ async def _process_chat(
             auto_replies.append(FAQ_FOOD)
         if _is_price_question(msg_text):
             log.info("   ↳ Первое сообщение: FAQ цена")
-            auto_replies.append(FAQ_PRICE)
+            auto_replies.append(_price_for_date(ctx["date"]) if ctx.get("date") else FAQ_PRICE)
         if _is_capacity_question(msg_text):
             log.info("   ↳ Первое сообщение: FAQ вместимость")
             auto_replies.append(FAQ_CAPACITY)
@@ -1419,7 +1467,7 @@ async def _process_chat(
         elif _is_food_question(msg_text):
             auto_replies.append(FAQ_FOOD)
         elif _is_price_question(msg_text):
-            auto_replies.append(FAQ_PRICE)
+            auto_replies.append(_price_for_date(ctx["date"]) if ctx.get("date") else FAQ_PRICE)
         elif _is_capacity_question(msg_text):
             auto_replies.append(FAQ_CAPACITY)
         else:
@@ -1491,7 +1539,8 @@ async def _process_chat(
         if _is_price_question(msg_text):
             log.info("   ↳ FAQ: цена")
             cta, asked_ph = _faq_cta()
-            auto_replies.append(FAQ_PRICE + cta)
+            price_reply = _price_for_date(ctx["date"]) if ctx.get("date") else FAQ_PRICE
+            auto_replies.append(price_reply + cta)
             if asked_ph:
                 faq_asked_phone = True
             faq_answered = True
@@ -1532,6 +1581,9 @@ async def _process_chat(
                     log.info(
                         "   ↳ alternatives уже предложены, дата не распознана — молчим"
                     )
+                elif chat_id in _awaiting_contact:
+                    # Свободная дата уже найдена, ждём телефон — не спрашиваем дату снова
+                    log.info("   ↳ ждём телефон (дата уже найдена) — молчим")
                 elif chat_id not in _asked_date:
                     log.info("   ↳ повторное без даты — спрашиваем дату")
                     auto_replies.append(REPLY_ASK_DATE)
