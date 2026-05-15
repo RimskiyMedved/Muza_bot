@@ -100,10 +100,10 @@
     /* ── Дни недели ──────────────────────────────────────────── */
     .weekdays {
       display: grid; grid-template-columns: repeat(7, 1fr);
-      padding: 0 8px; margin-bottom: 2px;
+      padding: 0 clamp(4px, 2vw, 10px); margin-bottom: 2px;
     }
     .weekday-label {
-      text-align: center; font-size: 10px;
+      text-align: center; font-size: clamp(8px, 2.5vw, 11px);
       color: var(--hint); padding: 3px 0; font-weight: 500;
     }
     .weekday-label.weekend { color: var(--booked); }
@@ -111,17 +111,18 @@
     /* ── Сетка ───────────────────────────────────────────────── */
     .calendar-grid {
       display: grid; grid-template-columns: repeat(7, 1fr);
-      gap: 3px; padding: 0 8px 16px;
+      gap: clamp(2px, 0.8vw, 4px);
+      padding: 0 clamp(4px, 2vw, 10px) 16px;
     }
     .day-cell {
-      aspect-ratio: 1; border-radius: 8px;
+      aspect-ratio: 1; border-radius: clamp(5px, 1.8vw, 9px);
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       cursor: pointer; position: relative;
       transition: transform .1s;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
-      min-height: 42px;
+      overflow: hidden;
     }
     .day-cell:active { transform: scale(.92); }
     .day-cell.empty { cursor: default; }
@@ -130,14 +131,18 @@
     .day-cell.free    { background: var(--free-bg);   border: 1.5px solid var(--free); }
     .day-cell.past    { opacity: .42; }
     .day-cell.today   { box-shadow: 0 0 0 2px var(--btn); }
-    .day-number { font-size: 15px; font-weight: 600; line-height: 1; }
+    .day-number {
+      font-size: clamp(11px, 3.8vw, 16px);
+      font-weight: 600; line-height: 1;
+    }
     .day-cell.booked .day-number { color: var(--booked); }
     .day-cell.free   .day-number { color: var(--free); }
     .day-name {
-      font-size: 9px; color: var(--hint);
-      margin-top: 2px; max-width: 90%;
+      font-size: clamp(6px, 1.8vw, 9px); color: var(--hint);
+      margin-top: 1px; max-width: 92%;
       overflow: hidden; text-overflow: ellipsis;
       white-space: nowrap; text-align: center;
+      line-height: 1.1;
     }
     .day-cell.booked .day-name { color: var(--booked); opacity: .8; }
     .day-cell.free   .day-name { color: var(--free);   opacity: .8; }
@@ -674,10 +679,15 @@ function buildForm(data, showDateField) {
     <div class="section-sep">Дополнительно</div>
     <div class="form-group">
       <label class="form-label">Источник рекламы</label>
-      <input class="form-input" id="f-source" type="text"
-             list="sourcesList"
-             placeholder="Авито, Сарафан…"
-             value="${escHtml(data.source||"")}" />
+      <select class="form-input" id="f-source" onchange="onSourceChange(this)">
+        <option value="">— выберите —</option>
+        ${sourcesData.map(s => `<option value="${escHtml(s)}"${data.source===s?' selected':''}>${escHtml(s)}</option>`).join("")}
+        <option value="__other__"${!data.source||sourcesData.includes(data.source)?'':' selected'}>Другое…</option>
+      </select>
+      <input class="form-input" id="f-source-custom" type="text"
+             placeholder="Введите источник…"
+             style="margin-top:6px;display:${(!data.source||sourcesData.includes(data.source))?'none':'block'}"
+             value="${escHtml(!data.source||sourcesData.includes(data.source)?'':data.source)}" />
     </div>
     <div class="form-group">
       <label class="form-label">Тип клиента</label>
@@ -699,7 +709,9 @@ function getFormData() {
     name:        document.getElementById("f-name")?.value.trim()        || "",
     guests:      document.getElementById("f-guests")?.value.trim()      || "",
     phone:       document.getElementById("f-phone")?.value.trim()       || "",
-    source:      document.getElementById("f-source")?.value.trim()      || "",
+    source:      (document.getElementById("f-source")?.value === "__other__"
+                   ? document.getElementById("f-source-custom")?.value.trim()
+                   : document.getElementById("f-source")?.value.trim()) || "",
     client_type: document.getElementById("f-client_type")?.value.trim() || "",
     comment:     document.getElementById("f-comment")?.value.trim()     || "",
   };
@@ -820,15 +832,24 @@ function showToast(msg) {
   _toastTimer = setTimeout(() => t.classList.remove("show"), 2800);
 }
 
-// ─── Загрузка источников для datalist ────────────────────────────────────────
+// ─── Переключение «Другое» в источнике ───────────────────────────────────────
+function onSourceChange(sel) {
+  const custom = document.getElementById("f-source-custom");
+  if (!custom) return;
+  if (sel.value === "__other__") {
+    custom.style.display = "block";
+    custom.focus();
+  } else {
+    custom.style.display = "none";
+    custom.value = "";
+  }
+}
+
+// ─── Загрузка источников для select ──────────────────────────────────────────
 async function loadSources() {
   try {
     sourcesData = await apiFetch("GET", "/api/sources");
-    const dl = document.getElementById("sourcesList");
-    dl.innerHTML = sourcesData
-      .map(s => `<option value="${escHtml(s)}">`)
-      .join("");
-  } catch { /* не критично */ }
+  } catch { /* не критично — select покажет только «Другое» */ }
 }
 
 // ─── Старт ───────────────────────────────────────────────────────────────────
