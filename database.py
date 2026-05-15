@@ -18,7 +18,7 @@ from datetime import date, datetime
 
 log = logging.getLogger("DB")
 
-DB_PATH  = os.path.join(os.path.dirname(__file__), "muza.db")
+DB_PATH  = os.path.join(os.path.dirname(__file__), "database.db")
 DATE_FMT = "%d.%m.%Y"
 
 
