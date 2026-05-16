@@ -369,6 +369,8 @@ _SELLER_KEYWORDS = {
     "купите", "купить у меня", "предлагаю купить", "хочу продать",
     "могу продать", "есть в наличии", "в наличии имеется", "смена деятельности",
     "ликвидация", "распродажа", "оптом", "доставка по всей",
+    "являемся производителем", "мы производитель", "наше производство",
+    "предлагаем оптовые", "дилер", "поставщик",
 }
 
 # Клиент отказывается от предложенных альтернатив (используется только когда _offered_alternatives)
@@ -630,7 +632,7 @@ def _build_greeting(buyer_name: str, msg_text: str, chat_id: str = "") -> str:
     ctx = _chat_context.get(chat_id, {})
 
     missing = []
-    if not _parse_date(msg_text) and not ctx.get("date"):
+    if not _parse_all_dates(msg_text) and not ctx.get("date"):
         missing.append("дату")
     if not _has_guests(msg_text) and not ctx.get("guests"):
         missing.append("количество гостей")
@@ -1258,12 +1260,18 @@ async def _process_chat(
     auto_replies: list[str] = []
 
     prefers_here     = _prefers_avito_chat(msg_text)
-    # Дополнительная защита: если у чата уже есть накопленный контекст (дата/телефон)
-    # или лид уже получен — не считаем его «первым», даже если _greeted_chats не содержит id
-    # (это защищает от перезапуска контейнера с потерей bot_state.json).
-    lead_already_got = chat_id in _lead_received
-    _ctx_has_data    = bool(ctx.get("date") or ctx.get("phone"))
-    is_first         = chat_id not in _greeted_chats and not lead_already_got and not _ctx_has_data
+    # Дополнительная защита: если у чата уже есть накопленный контекст (дата/телефон),
+    # лид уже получен, или мы уже обрабатывали сообщения из этого чата (_last_handled) —
+    # не считаем его «первым» даже если _greeted_chats потерялся при перезапуске.
+    lead_already_got  = chat_id in _lead_received
+    _ctx_has_data     = bool(ctx.get("date") or ctx.get("phone"))
+    _was_handled_before = chat_id in _last_handled   # уже обрабатывали этот чат ранее
+    is_first = (
+        chat_id not in _greeted_chats
+        and not lead_already_got
+        and not _ctx_has_data
+        and not _was_handled_before
+    )
     # Запоминаем ДО обработки — нужно для напоминания о контакте в конце
     was_awaiting_contact = chat_id in _awaiting_contact
 
@@ -1632,11 +1640,13 @@ async def _process_chat(
             lead_already_got,
             chat_id in _asked_date,
         )
-    for auto_reply in auto_replies:
+    # Объединяем все части в ОДНО сообщение — один ответ на одно сообщение клиента.
+    if auto_replies:
+        combined = "\n\n".join(auto_replies)
         try:
-            await client.send_message(chat_id, auto_reply)
-            log.info("   ↳ ✅ Авто-ответ отправлен")
-            bot_card = _format_bot_msg(account_name, auto_reply, is_auto=True)
+            await client.send_message(chat_id, combined)
+            log.info("   ↳ ✅ Авто-ответ отправлен (%d частей)", len(auto_replies))
+            bot_card = _format_bot_msg(account_name, combined, is_auto=True)
             await _send_tg_msg(application, chat_id, None, bot_card)
         except Exception as e:
             log.error("   ↳ ОШИБКА send_message: %s", e)
