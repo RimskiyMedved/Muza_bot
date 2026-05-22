@@ -3,391 +3,445 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Муза — Календарь</title>
+  <title>Муза</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
-      --bg:        var(--tg-theme-bg-color,          #ffffff);
-      --bg2:       var(--tg-theme-secondary-bg-color, #f4f4f5);
-      --text:      var(--tg-theme-text-color,         #111111);
-      --hint:      var(--tg-theme-hint-color,         #888888);
-      --btn:       var(--tg-theme-button-color,       #2481cc);
-      --btn-text:  var(--tg-theme-button-text-color,  #ffffff);
-      --booked:    #ff3b30;
-      --booked-bg: #fff1f0;
-      --free:      #34c759;
-      --free-bg:   #f0fff4;
+      --bg:       var(--tg-theme-bg-color,            #ffffff);
+      --bg2:      var(--tg-theme-secondary-bg-color,  #f0f2f5);
+      --text:     var(--tg-theme-text-color,          #000000);
+      --hint:     var(--tg-theme-hint-color,          #707579);
+      --btn:      var(--tg-theme-button-color,        #2481cc);
+      --btn-text: var(--tg-theme-button-text-color,   #ffffff);
+      --sub-text: var(--tg-theme-subtitle-text-color, #707579);
+
+      /* Статусы — пастельные */
+      --c-booked:  #ff6b6b;
+      --c-free:    #40c057;
+      --bg-booked: rgba(255,107,107,.11);
+      --bg-free:   rgba(64,192,87,.11);
+      --bg-today:  rgba(36,129,204,.13);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding-bottom: 60px; /* bottom nav height */
+      padding-bottom: 64px;
       -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
     }
 
-    /* ── Загрузка ─────────────────────────────────────────────── */
+    /* ── Loading ──────────────────────────────────────────────────────── */
     .loading-overlay {
-      position: fixed; inset: 0;
-      background: var(--bg);
-      z-index: 200;
+      position: fixed; inset: 0; background: var(--bg); z-index: 200;
       display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 12px;
+      align-items: center; justify-content: center; gap: 12px;
     }
     .loading-overlay.hidden { display: none; }
     .spinner {
-      width: 36px; height: 36px;
-      border: 3px solid var(--bg2);
-      border-top-color: var(--btn);
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
+      width: 30px; height: 30px;
+      border: 3px solid var(--bg2); border-top-color: var(--btn);
+      border-radius: 50%; animation: spin .7s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .loading-text { font-size: 14px; color: var(--hint); }
+    .loading-text { font-size: 13px; color: var(--hint); }
 
-    /* ── Шапка ───────────────────────────────────────────────── */
+    /* ── Header ───────────────────────────────────────────────────────── */
     .header {
       position: sticky; top: 0; z-index: 10;
       background: var(--bg);
-      border-bottom: 1px solid var(--bg2);
-      padding: 8px 12px 6px;
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid rgba(0,0,0,.06);
     }
     .year-row {
       display: flex; align-items: center; justify-content: center;
-      gap: 16px; margin-bottom: 4px;
+      gap: 8px; margin-bottom: 6px;
     }
     .year-nav {
-      background: none; border: none;
-      font-size: 18px; cursor: pointer;
-      color: var(--hint); padding: 2px 6px;
+      background: none; border: none; font-size: 17px;
+      cursor: pointer; color: var(--hint); padding: 4px 8px;
+      border-radius: 8px;
     }
-    .year-label { font-size: 13px; font-weight: 600; color: var(--hint); }
-
+    .year-nav:active { background: var(--bg2); }
+    .year-label { font-size: 12px; font-weight: 600; color: var(--hint); letter-spacing: .4px; }
+    .sync-btn {
+      background: none; border: none; font-size: 16px;
+      cursor: pointer; color: var(--hint); padding: 4px 6px; border-radius: 8px;
+    }
+    .sync-btn.spinning { animation: spin .8s linear infinite; }
     .month-row {
       display: flex; align-items: center; justify-content: space-between;
     }
     .nav-btn {
-      background: var(--bg2); border: none;
-      border-radius: 8px; padding: 5px 14px;
-      font-size: 18px; cursor: pointer; color: var(--text);
+      background: var(--bg2); border: none; border-radius: 10px;
+      padding: 6px 18px; font-size: 17px; cursor: pointer; color: var(--text);
     }
     .nav-btn:active { opacity: .6; }
-    .month-title { font-size: 17px; font-weight: 700; }
+    .month-title { font-size: 18px; font-weight: 700; }
 
-    /* Кнопка синхронизации */
-    .sync-btn {
-      background: none; border: none;
-      font-size: 16px; cursor: pointer;
-      color: var(--hint); padding: 4px;
-      margin-left: 4px;
-    }
-    .sync-btn.spinning { animation: spin .8s linear infinite; }
-
-    /* ── Легенда ──────────────────────────────────────────────── */
+    /* ── Legend ───────────────────────────────────────────────────────── */
     .legend {
-      display: flex; gap: 12px;
-      padding: 6px 12px; font-size: 11px; color: var(--hint);
+      display: flex; gap: 14px; padding: 6px 14px 2px;
+      font-size: 11px; color: var(--hint);
     }
-    .legend-item { display: flex; align-items: center; gap: 4px; }
-    .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-    .dot-booked { background: var(--booked); }
-    .dot-free   { background: var(--free); }
-    .dot-neutral { background: #ccc; }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
-    /* ── Дни недели ──────────────────────────────────────────── */
+    /* ── Weekdays ─────────────────────────────────────────────────────── */
     .weekdays {
       display: grid; grid-template-columns: repeat(7, 1fr);
-      padding: 0 clamp(4px, 2vw, 10px); margin-bottom: 2px;
+      padding: 2px clamp(5px,2vw,12px) 0;
     }
     .weekday-label {
-      text-align: center; font-size: clamp(8px, 2.5vw, 11px);
+      text-align: center; font-size: clamp(9px,2.5vw,11px);
       color: var(--hint); padding: 3px 0; font-weight: 500;
     }
-    .weekday-label.weekend { color: var(--booked); }
+    .weekday-label.wknd { color: var(--c-booked); opacity: .8; }
 
-    /* ── Сетка ───────────────────────────────────────────────── */
+    /* ── Calendar grid ─────────────────────────────────────────────────── */
     .calendar-grid {
       display: grid; grid-template-columns: repeat(7, 1fr);
-      gap: clamp(2px, 0.8vw, 4px);
-      padding: 0 clamp(4px, 2vw, 10px) 16px;
+      gap: clamp(3px,.9vw,5px);
+      padding: 2px clamp(5px,2vw,12px) 6px;
     }
     .day-cell {
-      aspect-ratio: 1; border-radius: clamp(5px, 1.8vw, 9px);
+      aspect-ratio: 1; border-radius: clamp(8px,2.5vw,13px);
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       cursor: pointer; position: relative;
-      transition: transform .1s;
+      transition: transform .12s;
       user-select: none;
-      -webkit-tap-highlight-color: transparent;
-      overflow: hidden;
     }
-    .day-cell:active { transform: scale(.92); }
-    .day-cell.empty { cursor: default; }
+    .day-cell:active:not(.empty) { transform: scale(.84); }
+    .day-cell.empty  { cursor: default; pointer-events: none; }
     .day-cell.neutral { background: var(--bg2); }
-    .day-cell.booked  { background: var(--booked-bg); border: 1.5px solid var(--booked); }
-    .day-cell.free    { background: var(--free-bg);   border: 1.5px solid var(--free); }
-    .day-cell.past    { opacity: .42; }
+    .day-cell.booked  { background: var(--bg-booked); }
+    .day-cell.free    { background: var(--bg-free); }
+    .day-cell.past    { opacity: .35; }
     .day-cell.today   { box-shadow: 0 0 0 2px var(--btn); }
+
     .day-number {
-      font-size: clamp(11px, 3.8vw, 16px);
-      font-weight: 600; line-height: 1;
+      font-size: clamp(12px,3.6vw,16px); font-weight: 600; line-height: 1;
     }
-    .day-cell.booked .day-number { color: var(--booked); }
-    .day-cell.free   .day-number { color: var(--free); }
+    .day-cell.neutral .day-number { color: var(--text); }
+    .day-cell.booked  .day-number { color: var(--c-booked); }
+    .day-cell.free    .day-number { color: var(--c-free); }
+    .day-cell.today   .day-number { color: var(--btn); }
+
+    /* Status dot */
+    .status-dot {
+      width: 5px; height: 5px; border-radius: 50%; margin-top: 3px;
+    }
+    .day-cell.booked  .status-dot { background: var(--c-booked); }
+    .day-cell.free    .status-dot { background: var(--c-free); }
+    .day-cell.neutral .status-dot { background: transparent; }
+    .day-cell.today.neutral .status-dot { background: var(--btn); opacity: .4; }
+
     .day-name {
-      font-size: clamp(6px, 1.8vw, 9px); color: var(--hint);
-      margin-top: 1px; max-width: 92%;
-      overflow: hidden; text-overflow: ellipsis;
-      white-space: nowrap; text-align: center;
-      line-height: 1.1;
+      font-size: clamp(6px,1.7vw,8px); margin-top: 1px;
+      max-width: 90%; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; text-align: center; line-height: 1.1; font-weight: 500;
     }
-    .day-cell.booked .day-name { color: var(--booked); opacity: .8; }
-    .day-cell.free   .day-name { color: var(--free);   opacity: .8; }
+    .day-cell.booked .day-name { color: var(--c-booked); opacity: .85; }
+    .day-cell.free   .day-name { color: var(--c-free);   opacity: .85; }
 
-    /* ── FAB ─────────────────────────────────────────────────── */
+    /* Source badge */
+    .src-badge {
+      position: absolute; top: 3px; right: 3px;
+      font-size: clamp(5px,1.3vw,7px); font-weight: 800;
+      color: var(--c-booked); opacity: .7; line-height: 1;
+      letter-spacing: -.3px;
+    }
+
+    /* ── Mini stats ────────────────────────────────────────────────────── */
+    .cal-mini-stats {
+      padding: 3px 14px 10px;
+      display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+    }
+    .cal-mini-total { font-size: 12px; font-weight: 600; color: var(--text); }
+    .cal-mini-chip  {
+      background: var(--bg2); border-radius: 12px;
+      padding: 2px 9px; font-size: 11px; color: var(--hint);
+    }
+
+    /* ── FAB ───────────────────────────────────────────────────────────── */
     .fab {
-      position: fixed; bottom: 70px; right: 16px;
+      position: fixed; bottom: 74px; right: 16px;
       background: var(--btn); color: var(--btn-text);
-      border: none; border-radius: 50px;
-      padding: 11px 18px; font-size: 14px; font-weight: 600;
-      cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.18);
-      z-index: 20; display: flex; align-items: center; gap: 6px;
+      border: none; border-radius: 50%;
+      width: 52px; height: 52px; font-size: 26px;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(36,129,204,.4);
+      z-index: 20; display: flex; align-items: center; justify-content: center;
+      transition: transform .12s;
     }
-    .fab:active { opacity: .8; }
+    .fab:active { transform: scale(.88); }
 
-    /* ── Статистика ──────────────────────────────────────────── */
-    #statsView {
-      display: none;
-      padding: 12px 14px;
-    }
+    /* ── Stats ─────────────────────────────────────────────────────────── */
+    #statsView { display: none; padding: 14px 14px; }
+
     .stats-cards {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 10px; margin-bottom: 16px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px;
     }
     .stat-card {
-      background: var(--bg2); border-radius: 14px;
+      background: var(--bg2); border-radius: 16px;
       padding: 14px 12px; text-align: center;
     }
-    .stat-number {
-      font-size: 30px; font-weight: 700;
-      line-height: 1; color: var(--btn);
-    }
-    .stat-label {
-      font-size: 12px; color: var(--hint);
-      margin-top: 4px; line-height: 1.3;
+    .stat-number { font-size: 28px; font-weight: 700; line-height: 1; color: var(--btn); }
+    .stat-label  { font-size: 12px; color: var(--hint); margin-top: 4px; line-height: 1.3; }
+
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin: 18px 0 10px;
     }
     .stats-section-title {
-      font-size: 12px; font-weight: 600;
-      color: var(--hint); text-transform: uppercase;
-      letter-spacing: .5px; margin-bottom: 8px; margin-top: 16px;
+      font-size: 12px; font-weight: 600; color: var(--hint);
+      text-transform: uppercase; letter-spacing: .5px;
     }
-    /* ── График по месяцам ───────────────────────────────────── */
+
+    /* Filter pill */
+    .filter-pill {
+      display: flex; align-items: center; gap: 5px;
+      background: var(--bg2); border: none; border-radius: 16px;
+      padding: 5px 12px; font-size: 12px; color: var(--text);
+      cursor: pointer; font-family: inherit; transition: background .15s;
+    }
+    .filter-pill:active { opacity: .7; }
+    .filter-pill.active { background: var(--btn); color: var(--btn-text); }
+    .filter-pill-badge {
+      background: rgba(255,255,255,.28); border-radius: 8px;
+      padding: 1px 5px; font-size: 10px; font-weight: 700;
+    }
+
+    /* Month chart */
     .month-chart {
-      display: flex; align-items: flex-end;
-      gap: 4px; height: 80px;
-      margin-bottom: 4px; overflow-x: auto;
-      padding-bottom: 2px;
+      display: flex; align-items: flex-end; gap: 5px;
+      overflow-x: auto; padding-bottom: 6px;
+      scrollbar-width: none;
     }
+    .month-chart::-webkit-scrollbar { display: none; }
     .month-bar-wrap {
-      display: flex; flex-direction: column;
-      align-items: center; gap: 2px; min-width: 32px; flex: 1;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 4px; min-width: 34px; flex-shrink: 0;
+      cursor: pointer; padding: 0 1px;
     }
+    .month-bar-wrap:active { opacity: .7; }
+    .month-bar-inner { height: 70px; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
     .month-bar {
-      width: 100%; background: var(--btn);
-      border-radius: 4px 4px 0 0;
-      transition: height .3s; min-height: 2px;
+      width: 100%; background: var(--bg2);
+      border-radius: 5px 5px 3px 3px;
+      transition: height .3s, background .2s; min-height: 3px;
     }
-    .month-bar.empty { background: var(--bg2); }
-    .month-label {
-      font-size: 9px; color: var(--hint);
-      white-space: nowrap; text-align: center;
-    }
+    .month-bar.has-data { background: var(--btn); opacity: .65; }
+    .month-bar-wrap.active .month-bar { background: var(--c-booked) !important; opacity: 1; }
     .month-val {
-      font-size: 10px; font-weight: 600;
-      color: var(--btn); min-height: 14px;
+      font-size: 10px; font-weight: 600; color: var(--hint);
+      min-height: 13px; text-align: center; line-height: 1;
     }
-    /* ── Фильтр по источнику ─────────────────────────────────── */
-    .source-filter-wrap {
-      display: flex; flex-wrap: wrap; gap: 6px;
-      margin-bottom: 10px;
-    }
-    .src-chip {
-      padding: 4px 10px; border-radius: 20px;
-      font-size: 12px; cursor: pointer;
-      border: 1.5px solid var(--bg2);
-      background: var(--bg); color: var(--text);
-      transition: all .15s;
-    }
-    .src-chip.active {
-      background: var(--btn); color: var(--btn-text);
-      border-color: var(--btn);
-    }
-    /* ── Список источников ───────────────────────────────────── */
+    .month-bar-wrap.active .month-val  { color: var(--c-booked); }
+    .month-bar-wrap.active .month-label { color: var(--btn); font-weight: 600; }
+    .month-label-line1 { font-size: 9px; color: var(--hint); text-align: center; line-height: 1.2; }
+    .month-label-line2 { font-size: 8px; color: var(--hint); opacity: .7; text-align: center; line-height: 1; }
+
+    /* Source rows */
     .source-row {
-      display: flex; align-items: center;
-      gap: 8px; padding: 6px 0;
-      border-bottom: 1px solid var(--bg2);
-      cursor: pointer;
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 0; border-bottom: 1px solid var(--bg2); cursor: pointer;
     }
     .source-row:last-child { border-bottom: none; }
-    .source-row.active-filter { background: var(--free-bg); border-radius: 6px; padding: 6px 6px; }
-    .source-name { font-size: 14px; flex: 1; }
-    .source-count {
-      font-size: 14px; font-weight: 600;
-      color: var(--btn); min-width: 24px; text-align: right;
-    }
-    .source-bar-wrap {
-      width: 70px; height: 6px;
-      background: var(--bg2); border-radius: 3px; overflow: hidden;
-    }
+    .source-name  { font-size: 14px; flex: 1; }
+    .source-count { font-size: 14px; font-weight: 600; color: var(--btn); min-width: 26px; text-align: right; }
+    .source-bar-wrap { width: 60px; height: 5px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
     .source-bar {
       height: 100%; background: var(--btn); border-radius: 3px;
-      transition: width .4s;
+      opacity: .65; transition: width .4s;
     }
     .stats-loading {
       display: flex; align-items: center; justify-content: center;
       gap: 10px; padding: 40px; color: var(--hint); font-size: 14px;
     }
     .small-spinner {
-      width: 18px; height: 18px;
-      border: 2px solid var(--bg2); border-top-color: var(--btn);
+      width: 18px; height: 18px; border: 2px solid var(--bg2); border-top-color: var(--btn);
       border-radius: 50%; animation: spin .7s linear infinite;
     }
 
-    /* ── Бейдж источника в ячейке календаря ────────────────────── */
-    .src-badge {
-      position: absolute; top: 2px; right: 2px;
-      font-size: clamp(5px, 1.4vw, 7px); font-weight: 700;
-      background: rgba(255,59,48,.15); color: var(--booked);
-      border-radius: 3px; padding: 0 2px; line-height: 1.5;
-      max-width: 22px; overflow: hidden; white-space: nowrap;
-      letter-spacing: -.3px;
-    }
-
-    /* ── Мини-статистика под календарём ─────────────────────────── */
-    .cal-mini-stats {
-      padding: 2px 12px 10px;
-      display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
-    }
-    .cal-mini-total {
-      font-size: 12px; font-weight: 600; color: var(--text); margin-right: 2px;
-    }
-    .cal-mini-chip {
-      background: var(--bg2); border-radius: 12px;
-      padding: 2px 8px; font-size: 11px; color: var(--hint);
-    }
-
-    /* ── Кликабельные бары месяцев ──────────────────────────────── */
-    .month-bar-wrap { cursor: pointer; }
-    .month-bar-wrap:active { opacity: .7; }
-    .month-bar-wrap.active .month-bar { background: var(--booked); }
-    .month-bar-wrap.active .month-label { color: var(--btn); font-weight: 600; }
-    .month-bar-wrap.active .month-val   { color: var(--booked); }
-
-    /* ── Нижняя навигация ────────────────────────────────────── */
+    /* ── Bottom nav ────────────────────────────────────────────────────── */
     .bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
-      background: var(--bg);
-      border-top: 1px solid var(--bg2);
-      display: flex; height: 60px; z-index: 30;
+      background: var(--bg); border-top: 1px solid rgba(0,0,0,.07);
+      display: flex; height: 62px; z-index: 30;
     }
     .nav-tab {
       flex: 1; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       gap: 2px; background: none; border: none;
       cursor: pointer; color: var(--hint);
-      font-size: 10px; font-weight: 500;
-      transition: color .15s;
+      font-size: 10px; font-weight: 500; transition: color .15s;
     }
-    .nav-tab .tab-icon { font-size: 22px; line-height: 1; }
+    .nav-tab .tab-icon { font-size: 21px; line-height: 1; }
     .nav-tab.active { color: var(--btn); }
 
-    /* ── Bottom Sheet ────────────────────────────────────────── */
+    /* ── Sheet / overlay ───────────────────────────────────────────────── */
     .sheet-overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.45);
+      position: fixed; inset: 0; background: rgba(0,0,0,.4);
       z-index: 40; opacity: 0; pointer-events: none;
-      transition: opacity .22s;
+      transition: opacity .22s; backdrop-filter: blur(3px);
     }
     .sheet-overlay.visible { opacity: 1; pointer-events: auto; }
     .sheet {
       position: fixed; bottom: 0; left: 0; right: 0;
-      background: var(--bg);
-      border-radius: 18px 18px 0 0;
-      z-index: 50;
-      transform: translateY(100%);
+      background: var(--bg); border-radius: 20px 20px 0 0;
+      z-index: 50; transform: translateY(100%);
       transition: transform .28s cubic-bezier(.4,0,.2,1);
       max-height: 92vh; overflow-y: auto;
       -webkit-overflow-scrolling: touch;
     }
     .sheet.visible { transform: translateY(0); }
     .sheet-handle {
-      width: 36px; height: 4px;
-      background: var(--hint); border-radius: 2px;
-      margin: 10px auto 0; opacity: .4;
+      width: 32px; height: 4px; background: var(--hint);
+      border-radius: 2px; margin: 10px auto 0; opacity: .25;
     }
     .sheet-header {
       padding: 12px 16px 0;
-      display: flex; align-items: center; justify-content: space-between;
+      display: flex; align-items: flex-start; justify-content: space-between;
     }
-    .sheet-title { font-size: 17px; font-weight: 700; }
+    .sheet-title { font-size: 18px; font-weight: 700; }
     .sheet-date  { font-size: 13px; color: var(--hint); margin-top: 2px; }
     .close-btn {
       background: var(--bg2); border: none; border-radius: 50%;
-      width: 30px; height: 30px; font-size: 16px;
-      cursor: pointer; color: var(--hint);
+      width: 30px; height: 30px; font-size: 15px;
+      cursor: pointer; color: var(--hint); flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
     }
+    .close-btn:active { opacity: .6; }
 
-    /* ── Детали брони ────────────────────────────────────────── */
-    .booking-detail { padding: 12px 16px 4px; }
+    /* ── Booking detail ─────────────────────────────────────────────────── */
+    .booking-detail { padding: 10px 16px 4px; }
     .detail-row {
-      display: flex; padding: 8px 0;
-      border-bottom: 1px solid var(--bg2); gap: 8px;
+      display: flex; align-items: flex-start;
+      padding: 9px 0; border-bottom: 1px solid var(--bg2); gap: 10px;
     }
     .detail-row:last-child { border-bottom: none; }
-    .detail-label { font-size: 13px; color: var(--hint); min-width: 110px; flex-shrink: 0; }
-    .detail-value { font-size: 13px; font-weight: 500; word-break: break-word; }
+    .detail-icon  { font-size: 15px; width: 22px; flex-shrink: 0; opacity: .65; padding-top: 1px; }
+    .detail-label { font-size: 12px; color: var(--hint); min-width: 80px; flex-shrink: 0; padding-top: 2px; }
+    .detail-value { font-size: 14px; font-weight: 500; word-break: break-word; flex: 1; }
 
-    /* ── Форма ───────────────────────────────────────────────── */
-    .form-body { padding: 12px 16px 4px; display: flex; flex-direction: column; gap: 10px; }
-    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    /* ── Form ───────────────────────────────────────────────────────────── */
+    .form-body { padding: 12px 16px 4px; display: flex; flex-direction: column; gap: 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
     .form-label { font-size: 12px; color: var(--hint); font-weight: 500; }
-    .form-input, .form-textarea {
+    .input-wrap { position: relative; display: flex; align-items: center; }
+    .input-icon { position: absolute; left: 12px; font-size: 15px; opacity: .45; pointer-events: none; }
+    .form-input {
       background: var(--bg2); border: 1.5px solid transparent;
-      border-radius: 10px; padding: 10px 12px;
+      border-radius: 12px; padding: 11px 12px 11px 36px;
       font-size: 15px; color: var(--text); width: 100%;
       outline: none; transition: border-color .15s; font-family: inherit;
+      -webkit-appearance: none;
     }
-    .form-input:focus, .form-textarea:focus { border-color: var(--btn); }
-    .form-textarea { resize: none; min-height: 70px; }
+    .form-input.no-icon { padding-left: 12px; }
+    .form-input:focus { border-color: var(--btn); }
+    .form-textarea {
+      background: var(--bg2); border: 1.5px solid transparent;
+      border-radius: 12px; padding: 11px 12px;
+      font-size: 15px; color: var(--text); width: 100%;
+      outline: none; resize: none; min-height: 72px;
+      transition: border-color .15s; font-family: inherit;
+    }
+    .form-textarea:focus { border-color: var(--btn); }
+
+    /* Stepper */
+    .stepper {
+      display: flex; align-items: center;
+      background: var(--bg2); border-radius: 12px;
+      border: 1.5px solid transparent;
+    }
+    .step-btn {
+      width: 48px; height: 48px; background: none; border: none;
+      font-size: 22px; color: var(--btn);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; border-radius: 12px; font-weight: 300;
+    }
+    .step-btn:active { background: rgba(0,0,0,.06); }
+    .step-input {
+      flex: 1; background: none; border: none; outline: none;
+      text-align: center; font-size: 17px; font-weight: 600;
+      color: var(--text); font-family: inherit;
+      -webkit-appearance: none; appearance: none;
+      min-width: 0; padding: 0;
+    }
+    .step-input::-webkit-inner-spin-button,
+    .step-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+
     .section-sep {
       font-size: 11px; font-weight: 600; color: var(--hint);
-      text-transform: uppercase; letter-spacing: .6px; padding: 4px 0 2px;
+      text-transform: uppercase; letter-spacing: .6px; padding-top: 2px;
     }
 
-    /* ── Кнопки действий ─────────────────────────────────────── */
+    /* Source chip selector */
+    .chip-selector { display: flex; flex-wrap: wrap; gap: 7px; }
+    .chip-option {
+      padding: 7px 14px; border-radius: 20px; font-size: 13px;
+      border: 1.5px solid var(--bg2); background: var(--bg);
+      color: var(--text); cursor: pointer;
+      transition: all .15s; user-select: none;
+    }
+    .chip-option.selected {
+      background: var(--btn); color: var(--btn-text); border-color: var(--btn);
+    }
+    .chip-option:active { opacity: .7; }
+    .chip-custom-wrap { margin-top: 8px; display: none; }
+    .chip-custom-input {
+      background: var(--bg2); border: 1.5px solid var(--btn);
+      border-radius: 12px; padding: 10px 12px;
+      font-size: 15px; color: var(--text); width: 100%;
+      outline: none; font-family: inherit;
+    }
+
+    /* ── Actions ────────────────────────────────────────────────────────── */
     .actions { padding: 12px 16px 28px; display: flex; flex-direction: column; gap: 8px; }
     .btn {
-      border: none; border-radius: 12px; padding: 13px;
+      border: none; border-radius: 14px; padding: 14px;
       font-size: 15px; font-weight: 600; cursor: pointer;
       width: 100%; transition: opacity .15s; font-family: inherit;
     }
-    .btn:active { opacity: .75; }
-    .btn:disabled { opacity: .5; }
+    .btn:active { opacity: .72; }
+    .btn:disabled { opacity: .4; }
     .btn-primary   { background: var(--btn); color: var(--btn-text); }
     .btn-secondary { background: var(--bg2); color: var(--text); }
-    .btn-danger    { background: var(--booked-bg); color: var(--booked); }
+    .btn-danger    { background: var(--bg-booked); color: var(--c-booked); }
 
-    /* ── Toast ───────────────────────────────────────────────── */
+    /* ── Source filter sheet ────────────────────────────────────────────── */
+    .filter-sheet-list { padding: 8px 16px 32px; }
+    .filter-sheet-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid var(--bg2); cursor: pointer;
+    }
+    .filter-sheet-item:last-child { border-bottom: none; }
+    .filter-radio {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid var(--bg2); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+    }
+    .filter-radio.checked { background: var(--btn); border-color: var(--btn); }
+    .filter-radio.checked::after {
+      content: ""; width: 7px; height: 7px;
+      background: white; border-radius: 50%;
+    }
+    .filter-item-name { font-size: 14px; flex: 1; }
+    .filter-item-cnt  { font-size: 13px; color: var(--hint); }
+
+    /* ── Toast ──────────────────────────────────────────────────────────── */
     .toast {
-      position: fixed; bottom: 72px; left: 50%;
+      position: fixed; bottom: 74px; left: 50%;
       transform: translateX(-50%) translateY(20px);
-      background: rgba(0,0,0,.8); color: #fff;
-      padding: 9px 18px; border-radius: 20px;
+      background: rgba(0,0,0,.82); color: #fff;
+      padding: 9px 18px; border-radius: 22px;
       font-size: 13px; z-index: 300;
       opacity: 0; transition: opacity .2s, transform .2s;
       pointer-events: none; white-space: nowrap;
@@ -397,13 +451,13 @@
 </head>
 <body>
 
-<!-- Загрузка -->
+<!-- Loading -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="spinner"></div>
-  <div class="loading-text">Загружаем календарь…</div>
+  <div class="loading-text">Загружаем…</div>
 </div>
 
-<!-- ── Шапка ─────────────────────────────────────────────────── -->
+<!-- ── Header ───────────────────────────────────────────────────────────── -->
 <div class="header" id="calHeader">
   <div class="year-row">
     <button class="year-nav" id="prevYearBtn">«</button>
@@ -418,30 +472,35 @@
   </div>
 </div>
 
-<!-- ── Вид: Календарь ────────────────────────────────────────── -->
+<!-- ── Calendar view ────────────────────────────────────────────────────── -->
 <div id="calendarView">
   <div class="legend">
-    <div class="legend-item"><div class="legend-dot dot-booked"></div>Занято</div>
-    <div class="legend-item"><div class="legend-dot dot-free"></div>Свободно</div>
-    <div class="legend-item"><div class="legend-dot dot-neutral"></div>Нет данных</div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--c-booked)"></div>Занято
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--c-free)"></div>Свободно
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--bg2);border:1px solid var(--hint)"></div>Нет данных
+    </div>
   </div>
   <div class="weekdays" id="weekdayHeader"></div>
   <div class="calendar-grid" id="calendarGrid"></div>
   <div class="cal-mini-stats" id="calMiniStats"></div>
 </div>
 
-<!-- ── Вид: Статистика ───────────────────────────────────────── -->
+<!-- ── Stats view ───────────────────────────────────────────────────────── -->
 <div id="statsView">
-  <div class="stats-title">Статистика</div>
   <div id="statsContent">
     <div class="stats-loading"><div class="small-spinner"></div>Загружаем…</div>
   </div>
 </div>
 
 <!-- FAB -->
-<button class="fab" id="fabBtn">＋ Добавить</button>
+<button class="fab" id="fabBtn" title="Добавить бронь">＋</button>
 
-<!-- Затемнение -->
+<!-- Overlay -->
 <div class="sheet-overlay" id="overlay"></div>
 
 <!-- Bottom Sheet -->
@@ -458,7 +517,7 @@
   <div class="actions" id="sheetActions"></div>
 </div>
 
-<!-- Нижняя навигация -->
+<!-- Bottom nav -->
 <nav class="bottom-nav">
   <button class="nav-tab active" id="tab-calendar" onclick="switchView('calendar')">
     <span class="tab-icon">📅</span>Календарь
@@ -471,33 +530,77 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<!-- Список источников для datalist -->
-<datalist id="sourcesList"></datalist>
-
 <script>
-// ─── Telegram WebApp ─────────────────────────────────────────────────────────
+// ─── Telegram WebApp ──────────────────────────────────────────────────────────
 const twa = window.Telegram?.WebApp;
 if (twa) { twa.ready(); twa.expand(); }
 const initData = twa?.initData || "";
 
-// ─── Состояние ───────────────────────────────────────────────────────────────
+// Haptic helpers
+const haptic = {
+  light:   () => twa?.HapticFeedback?.impactOccurred("light"),
+  medium:  () => twa?.HapticFeedback?.impactOccurred("medium"),
+  success: () => twa?.HapticFeedback?.notificationOccurred("success"),
+  error:   () => twa?.HapticFeedback?.notificationOccurred("error"),
+  select:  () => twa?.HapticFeedback?.selectionChanged(),
+};
+
+// MainButton helpers
+let _mbCb = null;
+function showMainBtn(text, cb) {
+  if (!twa?.MainButton) return;
+  if (_mbCb) twa.MainButton.offClick(_mbCb);
+  _mbCb = cb;
+  twa.MainButton.setText(text);
+  twa.MainButton.onClick(_mbCb);
+  twa.MainButton.show();
+}
+function hideMainBtn() {
+  if (!twa?.MainButton) return;
+  if (_mbCb) { twa.MainButton.offClick(_mbCb); _mbCb = null; }
+  twa.MainButton.hide();
+}
+
+// BackButton helpers
+let _bbCb = null;
+function showBackBtn(cb) {
+  if (!twa?.BackButton) return;
+  if (_bbCb) twa.BackButton.offClick(_bbCb);
+  _bbCb = cb;
+  twa.BackButton.onClick(_bbCb);
+  twa.BackButton.show();
+}
+function hideBackBtn() {
+  if (!twa?.BackButton) return;
+  if (_bbCb) { twa.BackButton.offClick(_bbCb); _bbCb = null; }
+  twa.BackButton.hide();
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
 let currentView = "calendar";
 let currentYear = new Date().getFullYear();
 let currentMon  = new Date().getMonth() + 1;
 let calData     = null;
 let sourcesData = [];
+// Stats filters
+let _activeSource = "";
+let _activeMonth  = "";
+// All sources from latest stats (for filter sheet)
+let _allSources   = {};
+// Form source state
+let _formSource = "";
 
-// ─── Заголовки дней недели ───────────────────────────────────────────────────
+// ─── Weekday header ───────────────────────────────────────────────────────────
 const WD = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
 const wdHeader = document.getElementById("weekdayHeader");
 WD.forEach((d, i) => {
   const el = document.createElement("div");
-  el.className = "weekday-label" + (i >= 5 ? " weekend" : "");
+  el.className = "weekday-label" + (i >= 4 ? " wknd" : "");
   el.textContent = d;
   wdHeader.appendChild(el);
 });
 
-// ─── API ─────────────────────────────────────────────────────────────────────
+// ─── API ──────────────────────────────────────────────────────────────────────
 const API = window.location.origin;
 async function apiFetch(method, path, body) {
   const opts = {
@@ -513,46 +616,52 @@ async function apiFetch(method, path, body) {
   return res.json();
 }
 
-// ─── Навигация: вкладки ───────────────────────────────────────────────────────
+// ─── Navigation ───────────────────────────────────────────────────────────────
 function switchView(view) {
   currentView = view;
-  document.getElementById("calendarView").style.display = view === "calendar" ? "block" : "none";
-  document.getElementById("statsView").style.display    = view === "stats"    ? "block" : "none";
-  document.getElementById("calHeader").style.display    = view === "calendar" ? "block" : "none";
-  document.getElementById("fabBtn").style.display       = view === "calendar" ? "flex"  : "none";
+  document.getElementById("calendarView").style.display  = view === "calendar" ? "block" : "none";
+  document.getElementById("statsView").style.display     = view === "stats"    ? "block" : "none";
+  document.getElementById("calHeader").style.display     = view === "calendar" ? "block" : "none";
+  document.getElementById("fabBtn").style.display        = view === "calendar" ? "flex"  : "none";
   document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
   document.getElementById(`tab-${view}`).classList.add("active");
+  haptic.select();
   if (view === "stats") loadStats();
 }
 
-// ─── Год / месяц ─────────────────────────────────────────────────────────────
-document.getElementById("prevYearBtn").addEventListener("click", () => { currentYear--; loadMonth(); });
-document.getElementById("nextYearBtn").addEventListener("click", () => { currentYear++; loadMonth(); });
+// ─── Year / month ──────────────────────────────────────────────────────────────
+document.getElementById("prevYearBtn").addEventListener("click", () => { haptic.light(); currentYear--; loadMonth(); });
+document.getElementById("nextYearBtn").addEventListener("click", () => { haptic.light(); currentYear++; loadMonth(); });
 document.getElementById("prevBtn").addEventListener("click", () => {
+  haptic.light();
   if (currentMon === 1) { currentMon = 12; currentYear--; } else currentMon--;
   loadMonth();
 });
 document.getElementById("nextBtn").addEventListener("click", () => {
+  haptic.light();
   if (currentMon === 12) { currentMon = 1; currentYear++; } else currentMon++;
   loadMonth();
 });
 
-// ─── Синхронизация ───────────────────────────────────────────────────────────
+// ─── Sync ─────────────────────────────────────────────────────────────────────
 document.getElementById("syncBtn").addEventListener("click", async () => {
+  haptic.light();
   const btn = document.getElementById("syncBtn");
   btn.classList.add("spinning");
   try {
     await apiFetch("POST", "/api/sync");
     await loadMonth();
+    haptic.success();
     showToast("✅ Данные обновлены");
   } catch (e) {
+    haptic.error();
     showToast("Ошибка синхронизации: " + e.message);
   } finally {
     btn.classList.remove("spinning");
   }
 });
 
-// ─── Загрузка месяца ─────────────────────────────────────────────────────────
+// ─── Load month ───────────────────────────────────────────────────────────────
 async function loadMonth() {
   const month = `${currentYear}-${String(currentMon).padStart(2,"0")}`;
   try {
@@ -563,7 +672,7 @@ async function loadMonth() {
   }
 }
 
-// ─── Рендер ──────────────────────────────────────────────────────────────────
+// ─── Render calendar ──────────────────────────────────────────────────────────
 function renderCalendar() {
   document.getElementById("yearLabel").textContent  = calData.year;
   document.getElementById("monthTitle").textContent = calData.month_name;
@@ -582,13 +691,27 @@ function renderCalendar() {
     const cls  = ["day-cell", day.status];
     if (day.past)  cls.push("past");
     if (day.today) cls.push("today");
+    // Weekends: Fri(4), Sat(5), Sun(6) — index from 0=Mon
+    const wd = new Date(
+      parseInt(day.date.slice(6)), parseInt(day.date.slice(3,5))-1, parseInt(day.date.slice(0,2))
+    ).getDay(); // 0=Sun,1=Mon,...6=Sat
+    if (wd === 0 || wd === 5 || wd === 6) cls.push("wknd-col");
     cell.className = cls.join(" ");
 
+    // Day number
     const num = document.createElement("div");
     num.className   = "day-number";
     num.textContent = day.day;
     cell.appendChild(num);
 
+    // Status dot (только если нет имени)
+    if (!(day.status === "booked" && day.name)) {
+      const dot = document.createElement("div");
+      dot.className = "status-dot";
+      cell.appendChild(dot);
+    }
+
+    // Имя клиента (первое слово)
     if (day.status === "booked" && day.name) {
       const nm = document.createElement("div");
       nm.className   = "day-name";
@@ -601,7 +724,7 @@ function renderCalendar() {
       cell.appendChild(nm);
     }
 
-    // Бейдж источника (первые 2 буквы) в правом верхнем углу
+    // Source badge (booked only)
     if (day.status === "booked" && day.source) {
       const badge = document.createElement("div");
       badge.className   = "src-badge";
@@ -609,7 +732,10 @@ function renderCalendar() {
       cell.appendChild(badge);
     }
 
-    cell.addEventListener("click", () => onDayClick(day));
+    cell.addEventListener("click", () => {
+      haptic.light();
+      onDayClick(day);
+    });
     grid.appendChild(cell);
   });
 
@@ -617,46 +743,26 @@ function renderCalendar() {
   renderMiniStats();
 }
 
-// ─── Мини-статистика под календарём ──────────────────────────────────────────
+// ─── Mini stats ───────────────────────────────────────────────────────────────
 function renderMiniStats() {
   const el = document.getElementById("calMiniStats");
   if (!el || !calData) return;
-
   const booked = calData.days.filter(d => d.status === "booked");
   if (booked.length === 0) {
     el.innerHTML = '<span class="cal-mini-total" style="color:var(--hint)">Броней нет</span>';
     return;
   }
-
   const srcMap = {};
-  booked.forEach(d => {
-    const src = d.source || "—";
-    srcMap[src] = (srcMap[src] || 0) + 1;
-  });
-
-  const n = booked.length;
+  booked.forEach(d => { const s = d.source || "—"; srcMap[s] = (srcMap[s]||0)+1; });
+  const n    = booked.length;
   const word = _plural(n, "бронь", "брони", "броней");
-  const chips = Object.entries(srcMap)
-    .sort((a, b) => b[1] - a[1])
-    .map(([src, cnt]) => {
-      const short = src.length > 13 ? src.slice(0, 13) + "…" : src;
-      return `<span class="cal-mini-chip">${escHtml(short)}: ${cnt}</span>`;
-    }).join("");
-
+  const chips = Object.entries(srcMap).sort((a,b)=>b[1]-a[1])
+    .map(([s,c]) => `<span class="cal-mini-chip">${escHtml(s.length>13?s.slice(0,13)+"…":s)}: ${c}</span>`)
+    .join("");
   el.innerHTML = `<span class="cal-mini-total">📊 ${n} ${word}</span>${chips}`;
 }
 
-function _plural(n, one, few, many) {
-  const m10 = n % 10, m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return one;
-  if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return few;
-  return many;
-}
-
-// ─── Статистика ──────────────────────────────────────────────────────────────
-let _activeSource = "";
-let _activeMonth  = "";
-
+// ─── Stats ────────────────────────────────────────────────────────────────────
 async function loadStats(source, month) {
   if (source !== undefined) _activeSource = source;
   if (month  !== undefined) _activeMonth  = month;
@@ -670,35 +776,39 @@ async function loadStats(source, month) {
     const qs = params.toString() ? "?" + params.toString() : "";
     const s = await apiFetch("GET", "/api/stats" + qs);
 
-    // ── График по месяцам ─────────────────────────────────────────────────
-    const keys  = s.by_month.keys || [];
-    const maxM  = Math.max(1, ...s.by_month.counts);
+    // Cache all sources for filter sheet
+    _allSources = s.by_source;
+
+    // Month bars
+    const keys = s.by_month.keys || [];
+    const maxM = Math.max(1, ...s.by_month.counts);
     const monthBars = s.by_month.labels.map((lbl, i) => {
       const cnt    = s.by_month.counts[i];
       const key    = keys[i] || "";
       const active = _activeMonth === key;
-      const h      = Math.max(4, Math.round(cnt / maxM * 70));
+      const h      = Math.max(3, Math.round(cnt / maxM * 70));
       const toggle = active ? '""' : JSON.stringify(key);
+      // Split label: "Май 2026" → "Май" + "2026"
+      const parts  = lbl.split(" ");
+      const line1  = parts[0] || lbl;
+      const line2  = parts[1] || "";
       return `
         <div class="month-bar-wrap${active ? " active" : ""}"
-             onclick="loadStats(undefined, ${toggle})">
+             onclick="statsMonthClick(${toggle})">
           <div class="month-val">${cnt || ""}</div>
-          <div class="month-bar${cnt === 0 ? " empty" : ""}" style="height:${h}px"></div>
-          <div class="month-label">${escHtml(lbl)}</div>
+          <div class="month-bar-inner">
+            <div class="month-bar${cnt > 0 ? " has-data" : ""}" style="height:${h}px"></div>
+          </div>
+          <div class="month-label-line1">${escHtml(line1)}</div>
+          <div class="month-label-line2">${escHtml(line2)}</div>
         </div>`;
     }).join("");
 
-    // ── Источники — чипы и строки ─────────────────────────────────────────
+    // Source rows
     const srcEntries = Object.entries(s.by_source);
     const maxSrc = Math.max(1, ...srcEntries.map(e => e[1]));
-    const chips = [["", "Все"]].concat(srcEntries.map(([k]) => [k, k])).map(([val, lbl]) => `
-      <span class="src-chip${_activeSource === val ? " active" : ""}"
-            onclick="loadStats(${JSON.stringify(val)}, undefined)">${escHtml(lbl)}</span>`
-    ).join("");
-
     const srcRows = srcEntries.map(([src, cnt]) => `
-      <div class="source-row${_activeSource === src ? " active-filter" : ""}"
-           onclick="loadStats(${_activeSource === src ? '""' : JSON.stringify(src)}, undefined)">
+      <div class="source-row">
         <div class="source-name">${escHtml(src)}</div>
         <div class="source-bar-wrap">
           <div class="source-bar" style="width:${Math.round(cnt/maxSrc*100)}%"></div>
@@ -706,13 +816,15 @@ async function loadStats(source, month) {
         <div class="source-count">${cnt}</div>
       </div>`).join("");
 
-    // ── Активные фильтры ──────────────────────────────────────────────────
+    // Active filters label
     const activeMonthLabel = _activeMonth
       ? (s.by_month.labels[keys.indexOf(_activeMonth)] || _activeMonth) : "";
     const filterParts = [activeMonthLabel, _activeSource].filter(Boolean);
     const filterLabel = filterParts.length
       ? `<span style="font-size:12px;color:var(--btn)"> · ${filterParts.map(escHtml).join(" · ")}</span>` : "";
 
+    // Filter pill
+    const srcFilterActive = !!_activeSource;
     const monthTitle = _activeSource
       ? `По месяцам <span style="color:var(--btn);font-size:11px;font-weight:400">· ${escHtml(_activeSource)}</span>`
       : "По месяцам";
@@ -740,43 +852,91 @@ async function loadStats(source, month) {
         </div>
       </div>
 
-      <div class="stats-section-title">${monthTitle}</div>
+      <div class="section-header">
+        <div class="stats-section-title">${monthTitle}</div>
+        ${_activeMonth ? `<button class="filter-pill active" onclick="statsMonthClick('')">
+          <span>Сбросить</span></button>` : ""}
+      </div>
       <div class="month-chart">${monthBars}</div>
 
-      <div class="stats-section-title">${srcTitle}</div>
-      <div class="source-filter-wrap">${chips}</div>
+      <div class="section-header" style="margin-top:20px">
+        <div class="stats-section-title">${srcTitle}</div>
+        <button class="filter-pill${srcFilterActive ? " active" : ""}"
+                onclick="openSourceFilterSheet()">
+          ${srcFilterActive
+            ? `<span>${escHtml(_activeSource)}</span><span class="filter-pill-badge">✕</span>`
+            : `<span>Фильтр ▾</span>`}
+        </button>
+      </div>
       ${srcRows}
     `;
   } catch (e) {
-    el.innerHTML = `<div class="stats-loading" style="color:var(--booked)">Ошибка: ${e.message}</div>`;
+    el.innerHTML = `<div class="stats-loading" style="color:var(--c-booked)">Ошибка: ${e.message}</div>`;
   }
 }
 
-// ─── Клик по дате ────────────────────────────────────────────────────────────
+function statsMonthClick(key) {
+  haptic.select();
+  loadStats(undefined, key);
+}
+
+// ─── Source filter sheet ──────────────────────────────────────────────────────
+function openSourceFilterSheet() {
+  haptic.light();
+  document.getElementById("sheetTitle").textContent = "Фильтр по источнику";
+  document.getElementById("sheetDate").textContent  = "";
+
+  const srcEntries = [["", "Все источники"], ...Object.entries(_allSources)];
+  const items = srcEntries.map(([val, label]) => {
+    const checked = _activeSource === val;
+    const displayLabel = typeof label === "number" ? val : label;
+    const cnt = typeof label === "number" ? label : "";
+    return `
+      <div class="filter-sheet-item" onclick="applySourceFilter(${JSON.stringify(val)})">
+        <div class="filter-radio${checked ? " checked" : ""}"></div>
+        <div class="filter-item-name">${escHtml(displayLabel)}</div>
+        ${cnt !== "" ? `<div class="filter-item-cnt">${cnt}</div>` : ""}
+      </div>`;
+  }).join("");
+
+  document.getElementById("sheetContent").innerHTML =
+    `<div class="filter-sheet-list">${items}</div>`;
+  document.getElementById("sheetActions").innerHTML = "";
+  openSheet();
+}
+
+function applySourceFilter(val) {
+  haptic.select();
+  _activeSource = val;
+  closeSheet();
+  loadStats();
+}
+
+// ─── Day click ────────────────────────────────────────────────────────────────
 function onDayClick(day) {
   if (day.status === "booked") openViewSheet(day);
   else openAddSheet(day);
 }
 
-// ─── VIEW ─────────────────────────────────────────────────────────────────────
+// ─── View sheet ───────────────────────────────────────────────────────────────
 function openViewSheet(day) {
   document.getElementById("sheetTitle").textContent = "Бронь";
   document.getElementById("sheetDate").textContent  = fmtDate(day.date);
 
-  const phone = fmtPhone(day.phone);
   const fields = [
-    ["Клиент",      day.name        || "—"],
-    ["Гости",       day.guests      || "—"],
-    ["Телефон",     phone           || "—"],
-    ["Источник",    day.source      || "—"],
-    ["Тип",         day.client_type || "—"],
-    ["Комментарий", day.comment     || "—"],
-  ];
+    ["👤", "Клиент",      day.name        ],
+    ["👥", "Гости",       day.guests      ],
+    ["📞", "Телефон",     fmtPhone(day.phone) ],
+    ["📍", "Источник",    day.source      ],
+    ["🏷",  "Тип",         day.client_type ],
+    ["💬", "Комментарий", day.comment     ],
+  ].filter(([,, v]) => v);
 
   document.getElementById("sheetContent").innerHTML =
     `<div class="booking-detail">
-      ${fields.map(([l,v]) =>
+      ${fields.map(([icon, l, v]) =>
         `<div class="detail-row">
+          <div class="detail-icon">${icon}</div>
           <div class="detail-label">${l}</div>
           <div class="detail-value">${escHtml(String(v))}</div>
         </div>`).join("")}
@@ -784,28 +944,28 @@ function openViewSheet(day) {
 
   const act = document.getElementById("sheetActions");
   act.innerHTML = "";
-  addBtn(act, "btn-primary",   "✏️ Редактировать", () => openEditSheet(day));
-  addBtn(act, "btn-danger",    "🗑 Отменить бронь", () => confirmDelete(day));
-  openSheet();
+  addBtn(act, "btn-primary",   "✏️ Редактировать", () => { haptic.light(); openEditSheet(day); });
+  addBtn(act, "btn-danger",    "🗑 Отменить бронь", () => { haptic.medium(); confirmDelete(day); });
+  openSheet(null, null);
 }
 
-// ─── ADD ──────────────────────────────────────────────────────────────────────
+// ─── Add sheet ────────────────────────────────────────────────────────────────
 function openAddSheet(day) {
   document.getElementById("sheetTitle").textContent = "Новая бронь";
   document.getElementById("sheetDate").textContent  = day ? fmtDate(day.date) : "";
-  document.getElementById("sheetContent").innerHTML = buildForm({
-    date: day?.date || "", guests: "", name: "", phone: "",
-    source: "", client_type: "", comment: "",
-  }, !day);
+
+  const data = { date: day?.date||"", guests:"", name:"", phone:"", source:"", client_type:"", comment:"" };
+  document.getElementById("sheetContent").innerHTML = buildForm(data, !day);
 
   const act = document.getElementById("sheetActions");
   act.innerHTML = "";
   addBtn(act, "btn-primary",   "💾 Сохранить", () => submitAdd());
   addBtn(act, "btn-secondary", "Отмена",       closeSheet);
-  openSheet();
+  openSheet("Сохранить", () => submitAdd());
+  initFormWidgets(data);
 }
 
-// ─── EDIT ─────────────────────────────────────────────────────────────────────
+// ─── Edit sheet ───────────────────────────────────────────────────────────────
 function openEditSheet(day) {
   document.getElementById("sheetTitle").textContent = "Редактировать";
   document.getElementById("sheetDate").textContent  = fmtDate(day.date);
@@ -814,17 +974,21 @@ function openEditSheet(day) {
   const act = document.getElementById("sheetActions");
   act.innerHTML = "";
   addBtn(act, "btn-primary",   "💾 Сохранить", () => submitEdit(day.date));
-  addBtn(act, "btn-secondary", "← Назад",      () => openViewSheet(day));
-  openSheet();
+  addBtn(act, "btn-secondary", "← Назад",      () => { haptic.light(); openViewSheet(day); });
+  openSheet("Сохранить", () => submitEdit(day.date));
+  initFormWidgets(day);
 }
 
-// ─── Форма ───────────────────────────────────────────────────────────────────
+// ─── Form build ───────────────────────────────────────────────────────────────
 function buildForm(data, showDateField) {
   const dateF = showDateField
     ? `<div class="form-group">
         <label class="form-label">Дата</label>
-        <input class="form-input" id="f-date" type="text"
-               placeholder="ДД.ММ.ГГГГ" value="${escHtml(data.date||"")}" />
+        <div class="input-wrap">
+          <span class="input-icon">📅</span>
+          <input class="form-input" id="f-date" type="text"
+                 placeholder="ДД.ММ.ГГГГ" value="${escHtml(data.date||"")}" />
+        </div>
       </div>`
     : `<input type="hidden" id="f-date" value="${escHtml(data.date||"")}" />`;
 
@@ -832,39 +996,48 @@ function buildForm(data, showDateField) {
     ${dateF}
     <div class="form-group">
       <label class="form-label">Имя клиента</label>
-      <input class="form-input" id="f-name" type="text"
-             placeholder="Иван Петров" value="${escHtml(data.name||"")}" />
+      <div class="input-wrap">
+        <span class="input-icon">👤</span>
+        <input class="form-input" id="f-name" type="text"
+               placeholder="Иван Петров" value="${escHtml(data.name||"")}" />
+      </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Кол-во гостей</label>
-      <input class="form-input" id="f-guests" type="text"
-             inputmode="numeric" placeholder="80"
-             value="${escHtml(data.guests||"")}" />
+      <label class="form-label">Количество гостей</label>
+      <div class="stepper">
+        <button class="step-btn" type="button" onclick="stepGuests(-10)">−</button>
+        <input class="step-input" id="f-guests" type="number" min="0" step="10"
+               inputmode="numeric" placeholder="0"
+               value="${escHtml(data.guests||"")}" />
+        <button class="step-btn" type="button" onclick="stepGuests(10)">+</button>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Телефон</label>
-      <input class="form-input" id="f-phone" type="tel"
-             placeholder="+7 900 000 00 00"
-             value="${escHtml(fmtPhone(data.phone||""))}" />
+      <div class="input-wrap">
+        <span class="input-icon">📞</span>
+        <input class="form-input" id="f-phone" type="tel"
+               placeholder="+7 900 000 00 00"
+               value="${escHtml(fmtPhone(data.phone||""))}" />
+      </div>
     </div>
     <div class="section-sep">Дополнительно</div>
     <div class="form-group">
       <label class="form-label">Источник рекламы</label>
-      <select class="form-input" id="f-source" onchange="onSourceChange(this)">
-        <option value="">— выберите —</option>
-        ${sourcesData.map(s => `<option value="${escHtml(s)}"${data.source===s?' selected':''}>${escHtml(s)}</option>`).join("")}
-        <option value="__other__"${!data.source||sourcesData.includes(data.source)?'':' selected'}>Другое…</option>
-      </select>
-      <input class="form-input" id="f-source-custom" type="text"
-             placeholder="Введите источник…"
-             style="margin-top:6px;display:${(!data.source||sourcesData.includes(data.source))?'none':'block'}"
-             value="${escHtml(!data.source||sourcesData.includes(data.source)?'':data.source)}" />
+      <div class="chip-selector" id="srcChips"></div>
+      <div class="chip-custom-wrap" id="chipCustomWrap">
+        <input class="chip-custom-input" id="f-source-custom"
+               type="text" placeholder="Введите источник…" />
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Тип клиента</label>
-      <input class="form-input" id="f-client_type" type="text"
-             placeholder="Прямой клиент / Агентство"
-             value="${escHtml(data.client_type||"")}" />
+      <div class="input-wrap">
+        <span class="input-icon">🏷</span>
+        <input class="form-input" id="f-client_type" type="text"
+               placeholder="Прямой клиент / Агентство"
+               value="${escHtml(data.client_type||"")}" />
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Комментарий</label>
@@ -874,15 +1047,74 @@ function buildForm(data, showDateField) {
   </div>`;
 }
 
+// ─── Form widgets ─────────────────────────────────────────────────────────────
+function initFormWidgets(data) {
+  _formSource = data.source || "";
+  renderChipSelector();
+}
+
+function stepGuests(delta) {
+  haptic.select();
+  const el = document.getElementById("f-guests");
+  if (!el) return;
+  const v = parseInt(el.value) || 0;
+  el.value = Math.max(0, v + delta) || "";
+}
+
+function renderChipSelector() {
+  const wrap = document.getElementById("srcChips");
+  if (!wrap) return;
+
+  const isCustom = _formSource && !sourcesData.includes(_formSource);
+  const srcs = sourcesData.length ? [...sourcesData, "__other__"] : ["__other__"];
+
+  wrap.innerHTML = srcs.map(s => {
+    const lbl    = s === "__other__" ? "Другое…" : s;
+    const active = (s === _formSource) || (s === "__other__" && isCustom);
+    return `<div class="chip-option${active ? " selected" : ""}" data-src="${escHtml(s)}">${escHtml(lbl)}</div>`;
+  }).join("");
+
+  wrap.querySelectorAll(".chip-option").forEach(el => {
+    el.addEventListener("click", () => {
+      haptic.select();
+      const src = el.dataset.src;
+      wrap.querySelectorAll(".chip-option").forEach(c => c.classList.remove("selected"));
+      el.classList.add("selected");
+      const customWrap  = document.getElementById("chipCustomWrap");
+      const customInput = document.getElementById("f-source-custom");
+      if (src === "__other__") {
+        if (customWrap)  customWrap.style.display  = "block";
+        if (customInput) { customInput.focus(); _formSource = customInput.value || ""; }
+        if (customInput) customInput.oninput = e => { _formSource = e.target.value; };
+      } else {
+        _formSource = src;
+        if (customWrap)  customWrap.style.display  = "none";
+        if (customInput) customInput.value = "";
+      }
+    });
+  });
+
+  // Show custom input if it's a custom source
+  const customWrap  = document.getElementById("chipCustomWrap");
+  const customInput = document.getElementById("f-source-custom");
+  if (isCustom && customWrap && customInput) {
+    customWrap.style.display = "block";
+    customInput.value = _formSource;
+    customInput.oninput = e => { _formSource = e.target.value; };
+  }
+}
+
 function getFormData() {
+  const customWrap  = document.getElementById("chipCustomWrap");
+  const customInput = document.getElementById("f-source-custom");
+  const isCustom    = customWrap && customWrap.style.display !== "none";
+  const finalSource = isCustom ? (customInput?.value?.trim() || _formSource) : _formSource;
   return {
     date:        document.getElementById("f-date")?.value.trim()        || "",
     name:        document.getElementById("f-name")?.value.trim()        || "",
     guests:      document.getElementById("f-guests")?.value.trim()      || "",
     phone:       document.getElementById("f-phone")?.value.trim()       || "",
-    source:      (document.getElementById("f-source")?.value === "__other__"
-                   ? document.getElementById("f-source-custom")?.value.trim()
-                   : document.getElementById("f-source")?.value.trim()) || "",
+    source:      finalSource,
     client_type: document.getElementById("f-client_type")?.value.trim() || "",
     comment:     document.getElementById("f-comment")?.value.trim()     || "",
   };
@@ -891,68 +1123,80 @@ function getFormData() {
 // ─── Submit ───────────────────────────────────────────────────────────────────
 async function submitAdd() {
   const data = getFormData();
-  if (!data.date) { showToast("Укажите дату"); return; }
-  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(data.date)) { showToast("Формат: ДД.ММ.ГГГГ"); return; }
-  if (!data.name) { showToast("Укажите имя клиента"); return; }
+  if (!data.date) { haptic.error(); showToast("Укажите дату"); return; }
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(data.date)) { haptic.error(); showToast("Формат: ДД.ММ.ГГГГ"); return; }
+  if (!data.name) { haptic.error(); showToast("Укажите имя клиента"); return; }
   try {
     setSheetLoading(true);
     await apiFetch("POST", "/api/booking", data);
+    haptic.success();
     closeSheet(); showToast("✅ Бронь добавлена");
     await loadMonth();
-  } catch (e) { showToast("Ошибка: " + e.message); }
+  } catch (e) { haptic.error(); showToast("Ошибка: " + e.message); }
   finally { setSheetLoading(false); }
 }
 
 async function submitEdit(dateStr) {
   const data = { ...getFormData(), date: dateStr };
-  if (!data.name) { showToast("Укажите имя клиента"); return; }
+  if (!data.name) { haptic.error(); showToast("Укажите имя клиента"); return; }
   try {
     setSheetLoading(true);
     await apiFetch("PUT", `/api/booking/${encodeURIComponent(dateStr)}`, data);
+    haptic.success();
     closeSheet(); showToast("✅ Бронь обновлена");
     await loadMonth();
-  } catch (e) { showToast("Ошибка: " + e.message); }
+  } catch (e) { haptic.error(); showToast("Ошибка: " + e.message); }
   finally { setSheetLoading(false); }
 }
 
 function confirmDelete(day) {
   document.getElementById("sheetContent").innerHTML = `
-    <div style="padding:20px 16px;text-align:center">
-      <div style="font-size:40px;margin-bottom:10px">⚠️</div>
-      <div style="font-size:16px;font-weight:600;margin-bottom:6px">Отменить бронь?</div>
+    <div style="padding:24px 16px;text-align:center">
+      <div style="font-size:44px;margin-bottom:12px">⚠️</div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:8px">Отменить бронь?</div>
       <div style="font-size:14px;color:var(--hint)">${fmtDate(day.date)}<br>${escHtml(day.name||"")}</div>
     </div>`;
   const act = document.getElementById("sheetActions");
   act.innerHTML = "";
   addBtn(act, "btn-danger",    "🗑 Да, отменить", () => doDelete(day));
-  addBtn(act, "btn-secondary", "← Назад",         () => openViewSheet(day));
+  addBtn(act, "btn-secondary", "← Назад",         () => { haptic.light(); openViewSheet(day); });
 }
 
 async function doDelete(day) {
   try {
     setSheetLoading(true);
     await apiFetch("DELETE", `/api/booking/${encodeURIComponent(day.date)}`);
+    haptic.success();
     closeSheet(); showToast("🗑 Бронь отменена");
     await loadMonth();
-  } catch (e) { showToast("Ошибка: " + e.message); }
+  } catch (e) { haptic.error(); showToast("Ошибка: " + e.message); }
   finally { setSheetLoading(false); }
 }
 
-// ─── FAB ─────────────────────────────────────────────────────────────────────
-document.getElementById("fabBtn").addEventListener("click", () => openAddSheet(null));
+// ─── FAB ──────────────────────────────────────────────────────────────────────
+document.getElementById("fabBtn").addEventListener("click", () => {
+  haptic.medium();
+  openAddSheet(null);
+});
 
 // ─── Sheet helpers ────────────────────────────────────────────────────────────
-function openSheet() {
+function openSheet(mainText, mainCb) {
   document.getElementById("overlay").classList.add("visible");
   document.getElementById("sheet").classList.add("visible");
+  showBackBtn(closeSheet);
+  if (mainText && mainCb) showMainBtn(mainText, mainCb);
 }
 function closeSheet() {
   document.getElementById("overlay").classList.remove("visible");
   document.getElementById("sheet").classList.remove("visible");
+  hideMainBtn();
+  hideBackBtn();
 }
 function setSheetLoading(on) {
-  document.querySelectorAll("#sheetActions .btn")
-    .forEach(b => { b.disabled = on; });
+  document.querySelectorAll("#sheetActions .btn").forEach(b => { b.disabled = on; });
+  if (twa?.MainButton) {
+    on ? twa.MainButton.showProgress(false) : twa.MainButton.hideProgress();
+  }
 }
 function addBtn(container, cls, text, onClick) {
   const b = document.createElement("button");
@@ -961,10 +1205,10 @@ function addBtn(container, cls, text, onClick) {
   b.onclick     = onClick;
   container.appendChild(b);
 }
-document.getElementById("closeBtn").addEventListener("click", closeSheet);
+document.getElementById("closeBtn").addEventListener("click", () => { haptic.light(); closeSheet(); });
 document.getElementById("overlay").addEventListener("click", closeSheet);
 
-// ─── Утилиты ─────────────────────────────────────────────────────────────────
+// ─── Utils ────────────────────────────────────────────────────────────────────
 function fmtDate(s) {
   try {
     const [d, m, y] = s.split(".").map(Number);
@@ -976,15 +1220,10 @@ function fmtDate(s) {
 function fmtPhone(p) {
   if (!p) return "";
   p = p.trim();
-  if (!p) return "";
-  // Уже есть + — оставляем
   if (p.startsWith("+")) return p;
-  // 8xxx → +7xxx
   if (p.startsWith("8") && p.replace(/\D/g,"").length === 11)
     return "+7" + p.replace(/\D/g,"").slice(1);
-  // 7xxx (11 цифр) → +7xxx
-  if (p.replace(/\D/g,"").length === 11)
-    return "+" + p.replace(/\D/g,"");
+  if (p.replace(/\D/g,"").length === 11) return "+" + p.replace(/\D/g,"");
   return p;
 }
 
@@ -1003,27 +1242,20 @@ function showToast(msg) {
   _toastTimer = setTimeout(() => t.classList.remove("show"), 2800);
 }
 
-// ─── Переключение «Другое» в источнике ───────────────────────────────────────
-function onSourceChange(sel) {
-  const custom = document.getElementById("f-source-custom");
-  if (!custom) return;
-  if (sel.value === "__other__") {
-    custom.style.display = "block";
-    custom.focus();
-  } else {
-    custom.style.display = "none";
-    custom.value = "";
-  }
+function _plural(n, one, few, many) {
+  const m10 = n%10, m100 = n%100;
+  if (m10===1 && m100!==11) return one;
+  if (m10>=2 && m10<=4 && !(m100>=12 && m100<=14)) return few;
+  return many;
 }
 
-// ─── Загрузка источников для select ──────────────────────────────────────────
+// ─── Load sources for chip selector ──────────────────────────────────────────
 async function loadSources() {
-  try {
-    sourcesData = await apiFetch("GET", "/api/sources");
-  } catch { /* не критично — select покажет только «Другое» */ }
+  try { sourcesData = await apiFetch("GET", "/api/sources"); }
+  catch { /* не критично */ }
 }
 
-// ─── Старт ───────────────────────────────────────────────────────────────────
+// ─── Init ─────────────────────────────────────────────────────────────────────
 loadMonth();
 loadSources();
 </script>

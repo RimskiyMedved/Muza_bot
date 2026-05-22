@@ -86,6 +86,9 @@ BROAD_CHATS_LIMIT    = int(os.getenv("AVITO_POLL_BROAD_CHATS_LIMIT", "10"))
 MESSAGES_FETCH_LIMIT = int(os.getenv("AVITO_POLL_MESSAGES_LIMIT", "100"))
 # За один вызов _process_chat максимум новых входящих подряд (защита от бесконечного цикла).
 MAX_INBOUND_BURST    = int(os.getenv("AVITO_POLL_MAX_INBOUND_BURST", "15"))
+# Если last_handled выпал из окна API, восстанавливаем не 1, а несколько последних входящих.
+# Это снижает риск пропуска пачки сообщений клиента между циклами.
+RECOVERY_PENDING_LIMIT = int(os.getenv("AVITO_POLL_RECOVERY_PENDING_LIMIT", "3"))
 
 STATE_FILE = os.path.join(os.path.dirname(__file__), "bot_state.json")
 
@@ -459,7 +462,21 @@ def _prefers_avito_chat(text: str) -> bool:
 def _is_declining(text: str) -> bool:
     """Клиент отказывается от предложенных альтернативных дат."""
     t = text.lower().strip()
-    return any(kw in t for kw in _DECLINE_KEYWORDS)
+    # Если есть дата/вопрос, вероятнее это продолжение диалога, а не финальный отказ.
+    if _parse_all_dates(t) or "?" in t:
+        return False
+
+    normalized = re.sub(r"[^\w\s]+", " ", t, flags=re.UNICODE)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    if not normalized:
+        return False
+
+    # Короткие слова считаем отказом только если это практически всё сообщение.
+    short_tokens = {"нет", "всё", "спасибо", "благодарю", "ок", "окей", "ok", "понятно", "ясно"}
+    if normalized in short_tokens:
+        return True
+
+    return any(kw in normalized for kw in _DECLINE_KEYWORDS)
 
 
 def _has_guests(text: str) -> bool:
@@ -1021,7 +1038,7 @@ def _is_client_incoming(m: dict) -> bool:
 def _pending_incoming_messages(chat_id: str, incoming: list[dict]) -> list[dict]:
     """
     Входящие, которые ещё не отражены в _last_handled, по времени по возрастанию.
-    Если в ответе API нет last_handled (выпало из окна) — только самое новое входящее.
+    Если в ответе API нет last_handled (выпало из окна) — берём последние N входящих.
     """
     if not incoming:
         return []
@@ -1038,15 +1055,14 @@ def _pending_incoming_messages(chat_id: str, incoming: list[dict]) -> list[dict]
             idx = i
             break
     if idx is None:
-        newest = inc_sorted[-1]
-        nid = str(newest.get("id", ""))
-        if nid == prev_id:
+        if str(inc_sorted[-1].get("id", "")) == prev_id:
             return []
         log.warning(
-            "   [dbg] last_handled не в окне из %d сообщений — берём только последнее входящее",
+            "   [dbg] last_handled не в окне из %d сообщений — берём последние %d входящих",
             len(inc_sorted),
+            RECOVERY_PENDING_LIMIT,
         )
-        return [newest]
+        return inc_sorted[-RECOVERY_PENDING_LIMIT:]
     return inc_sorted[idx + 1 :]
 
 
