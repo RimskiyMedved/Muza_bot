@@ -257,6 +257,36 @@
       border-radius: 50%; animation: spin .7s linear infinite;
     }
 
+    /* ── Бейдж источника в ячейке календаря ────────────────────── */
+    .src-badge {
+      position: absolute; top: 2px; right: 2px;
+      font-size: clamp(5px, 1.4vw, 7px); font-weight: 700;
+      background: rgba(255,59,48,.15); color: var(--booked);
+      border-radius: 3px; padding: 0 2px; line-height: 1.5;
+      max-width: 22px; overflow: hidden; white-space: nowrap;
+      letter-spacing: -.3px;
+    }
+
+    /* ── Мини-статистика под календарём ─────────────────────────── */
+    .cal-mini-stats {
+      padding: 2px 12px 10px;
+      display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+    }
+    .cal-mini-total {
+      font-size: 12px; font-weight: 600; color: var(--text); margin-right: 2px;
+    }
+    .cal-mini-chip {
+      background: var(--bg2); border-radius: 12px;
+      padding: 2px 8px; font-size: 11px; color: var(--hint);
+    }
+
+    /* ── Кликабельные бары месяцев ──────────────────────────────── */
+    .month-bar-wrap { cursor: pointer; }
+    .month-bar-wrap:active { opacity: .7; }
+    .month-bar-wrap.active .month-bar { background: var(--booked); }
+    .month-bar-wrap.active .month-label { color: var(--btn); font-weight: 600; }
+    .month-bar-wrap.active .month-val   { color: var(--booked); }
+
     /* ── Нижняя навигация ────────────────────────────────────── */
     .bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
@@ -397,6 +427,7 @@
   </div>
   <div class="weekdays" id="weekdayHeader"></div>
   <div class="calendar-grid" id="calendarGrid"></div>
+  <div class="cal-mini-stats" id="calMiniStats"></div>
 </div>
 
 <!-- ── Вид: Статистика ───────────────────────────────────────── -->
@@ -570,48 +601,104 @@ function renderCalendar() {
       cell.appendChild(nm);
     }
 
+    // Бейдж источника (первые 2 буквы) в правом верхнем углу
+    if (day.status === "booked" && day.source) {
+      const badge = document.createElement("div");
+      badge.className   = "src-badge";
+      badge.textContent = day.source.replace(/\s+/g, "").slice(0, 2);
+      cell.appendChild(badge);
+    }
+
     cell.addEventListener("click", () => onDayClick(day));
     grid.appendChild(cell);
   });
 
   document.getElementById("loadingOverlay").classList.add("hidden");
+  renderMiniStats();
+}
+
+// ─── Мини-статистика под календарём ──────────────────────────────────────────
+function renderMiniStats() {
+  const el = document.getElementById("calMiniStats");
+  if (!el || !calData) return;
+
+  const booked = calData.days.filter(d => d.status === "booked");
+  if (booked.length === 0) {
+    el.innerHTML = '<span class="cal-mini-total" style="color:var(--hint)">Броней нет</span>';
+    return;
+  }
+
+  const srcMap = {};
+  booked.forEach(d => {
+    const src = d.source || "—";
+    srcMap[src] = (srcMap[src] || 0) + 1;
+  });
+
+  const n = booked.length;
+  const word = _plural(n, "бронь", "брони", "броней");
+  const chips = Object.entries(srcMap)
+    .sort((a, b) => b[1] - a[1])
+    .map(([src, cnt]) => {
+      const short = src.length > 13 ? src.slice(0, 13) + "…" : src;
+      return `<span class="cal-mini-chip">${escHtml(short)}: ${cnt}</span>`;
+    }).join("");
+
+  el.innerHTML = `<span class="cal-mini-total">📊 ${n} ${word}</span>${chips}`;
+}
+
+function _plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return few;
+  return many;
 }
 
 // ─── Статистика ──────────────────────────────────────────────────────────────
 let _activeSource = "";
+let _activeMonth  = "";
 
-async function loadStats(source) {
+async function loadStats(source, month) {
   if (source !== undefined) _activeSource = source;
+  if (month  !== undefined) _activeMonth  = month;
+
   const el = document.getElementById("statsContent");
   el.innerHTML = '<div class="stats-loading"><div class="small-spinner"></div>Загружаем…</div>';
   try {
-    const qs = _activeSource ? `?source=${encodeURIComponent(_activeSource)}` : "";
+    const params = new URLSearchParams();
+    if (_activeSource) params.set("source", _activeSource);
+    if (_activeMonth)  params.set("month",  _activeMonth);
+    const qs = params.toString() ? "?" + params.toString() : "";
     const s = await apiFetch("GET", "/api/stats" + qs);
 
     // ── График по месяцам ─────────────────────────────────────────────────
-    const maxM = Math.max(1, ...s.by_month.counts);
+    const keys  = s.by_month.keys || [];
+    const maxM  = Math.max(1, ...s.by_month.counts);
     const monthBars = s.by_month.labels.map((lbl, i) => {
-      const cnt = s.by_month.counts[i];
-      const h = Math.max(4, Math.round(cnt / maxM * 70));
+      const cnt    = s.by_month.counts[i];
+      const key    = keys[i] || "";
+      const active = _activeMonth === key;
+      const h      = Math.max(4, Math.round(cnt / maxM * 70));
+      const toggle = active ? '""' : JSON.stringify(key);
       return `
-        <div class="month-bar-wrap">
+        <div class="month-bar-wrap${active ? " active" : ""}"
+             onclick="loadStats(undefined, ${toggle})">
           <div class="month-val">${cnt || ""}</div>
           <div class="month-bar${cnt === 0 ? " empty" : ""}" style="height:${h}px"></div>
           <div class="month-label">${escHtml(lbl)}</div>
         </div>`;
     }).join("");
 
-    // ── Источники — чипы для фильтрации ──────────────────────────────────
+    // ── Источники — чипы и строки ─────────────────────────────────────────
     const srcEntries = Object.entries(s.by_source);
     const maxSrc = Math.max(1, ...srcEntries.map(e => e[1]));
     const chips = [["", "Все"]].concat(srcEntries.map(([k]) => [k, k])).map(([val, lbl]) => `
       <span class="src-chip${_activeSource === val ? " active" : ""}"
-            onclick="loadStats(${JSON.stringify(val)})">${escHtml(lbl)}</span>`
+            onclick="loadStats(${JSON.stringify(val)}, undefined)">${escHtml(lbl)}</span>`
     ).join("");
 
     const srcRows = srcEntries.map(([src, cnt]) => `
       <div class="source-row${_activeSource === src ? " active-filter" : ""}"
-           onclick="loadStats(${_activeSource === src ? '""' : JSON.stringify(src)})">
+           onclick="loadStats(${_activeSource === src ? '""' : JSON.stringify(src)}, undefined)">
         <div class="source-name">${escHtml(src)}</div>
         <div class="source-bar-wrap">
           <div class="source-bar" style="width:${Math.round(cnt/maxSrc*100)}%"></div>
@@ -619,8 +706,19 @@ async function loadStats(source) {
         <div class="source-count">${cnt}</div>
       </div>`).join("");
 
-    const filterLabel = _activeSource
-      ? `<span style="font-size:12px;color:var(--btn)"> · ${escHtml(_activeSource)}</span>` : "";
+    // ── Активные фильтры ──────────────────────────────────────────────────
+    const activeMonthLabel = _activeMonth
+      ? (s.by_month.labels[keys.indexOf(_activeMonth)] || _activeMonth) : "";
+    const filterParts = [activeMonthLabel, _activeSource].filter(Boolean);
+    const filterLabel = filterParts.length
+      ? `<span style="font-size:12px;color:var(--btn)"> · ${filterParts.map(escHtml).join(" · ")}</span>` : "";
+
+    const monthTitle = _activeSource
+      ? `По месяцам <span style="color:var(--btn);font-size:11px;font-weight:400">· ${escHtml(_activeSource)}</span>`
+      : "По месяцам";
+    const srcTitle = _activeMonth
+      ? `По источникам <span style="color:var(--btn);font-size:11px;font-weight:400">· ${escHtml(activeMonthLabel)}</span>`
+      : "По источникам";
 
     el.innerHTML = `
       <div class="stats-cards">
@@ -642,10 +740,10 @@ async function loadStats(source) {
         </div>
       </div>
 
-      <div class="stats-section-title">По месяцам</div>
+      <div class="stats-section-title">${monthTitle}</div>
       <div class="month-chart">${monthBars}</div>
 
-      <div class="stats-section-title">По источникам</div>
+      <div class="stats-section-title">${srcTitle}</div>
       <div class="source-filter-wrap">${chips}</div>
       ${srcRows}
     `;

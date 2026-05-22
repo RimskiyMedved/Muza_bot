@@ -386,8 +386,8 @@ async def get_sources(user: dict = Depends(_require_admin)):
 # ─── Stats ────────────────────────────────────────────────────────────────────
 
 @app.get("/api/stats")
-async def get_stats(source: str = None, user: dict = Depends(_require_admin)):
-    """Статистика бронирований. ?source= фильтрует по источнику."""
+async def get_stats(source: str = None, month: str = None, user: dict = Depends(_require_admin)):
+    """Статистика бронирований. ?source= и ?month=MM.YYYY фильтруют по источнику/месяцу."""
     from collections import Counter, defaultdict
     from datetime import date as date_cls
 
@@ -399,28 +399,38 @@ async def get_stats(source: str = None, user: dict = Depends(_require_admin)):
 
     all_bk = database.get_all_bookings()
 
-    # Фильтр по источнику (опционально)
-    filtered = all_bk
-    if source:
-        filtered = [b for b in all_bk if (b.get("source") or "") == source]
-
     def _month_key(d_str: str) -> str:
         """'15.06.2026' → '06.2026'"""
         return d_str[3:10]
 
+    # Фильтр только по месяцу (для графика источников)
+    month_only = all_bk
+    if month:
+        month_only = [b for b in all_bk if _month_key(b["date"]) == month]
+
+    # Фильтр только по источнику (для графика месяцев)
+    source_only = all_bk
+    if source:
+        source_only = [b for b in all_bk if (b.get("source") or "") == source]
+
+    # Полный фильтр (для total, future, this_month, next_month)
+    filtered = month_only
+    if source:
+        filtered = [b for b in filtered if (b.get("source") or "") == source]
+
     this_month_key = today.strftime("%m.%Y")
     next_month_key = f"{next_m:02d}.{next_y}"
 
-    this_month = [b for b in filtered if _month_key(b["date"]) == this_month_key]
-    next_month = [b for b in filtered if _month_key(b["date"]) == next_month_key]
-    future     = [b for b in filtered if b.get("future")]
+    this_month_bk = [b for b in filtered if _month_key(b["date"]) == this_month_key]
+    next_month_bk = [b for b in filtered if _month_key(b["date"]) == next_month_key]
+    future        = [b for b in filtered if b.get("future")]
 
-    # По источникам (всегда по полному списку, не по фильтру)
-    source_counts = Counter(b.get("source") or "Не указан" for b in all_bk)
+    # По источникам — в рамках выбранного месяца (если задан)
+    source_counts = Counter(b.get("source") or "Не указан" for b in month_only)
 
-    # По месяцам — ближайшие 12 месяцев (только будущие + текущий)
+    # По месяцам — в рамках выбранного источника (если задан)
     by_month: dict = defaultdict(int)
-    for b in filtered:
+    for b in source_only:
         try:
             d = b["date_obj"]
             key = f"{d.month:02d}.{d.year}"
@@ -428,8 +438,7 @@ async def get_stats(source: str = None, user: dict = Depends(_require_admin)):
         except Exception:
             pass
 
-    # Сортируем месяцы хронологически и берём ±6 от текущего
-    month_labels, month_counts = [], []
+    month_labels, month_counts, month_keys = [], [], []
     for delta in range(-1, 12):
         m = today.month + delta
         y = today.year + (m - 1) // 12
@@ -438,17 +447,19 @@ async def get_stats(source: str = None, user: dict = Depends(_require_admin)):
         if by_month.get(key, 0) > 0 or delta >= 0:
             month_labels.append(MONTH_NAMES[m - 1][:3] + f" {y}")
             month_counts.append(by_month.get(key, 0))
+            month_keys.append(key)
 
     return {
         "total":      len(filtered),
         "future":     len(future),
-        "this_month": len(this_month),
-        "next_month": len(next_month),
+        "this_month": len(this_month_bk),
+        "next_month": len(next_month_bk),
         "by_source":  dict(source_counts.most_common(20)),
-        "by_month":   {"labels": month_labels, "counts": month_counts},
+        "by_month":   {"labels": month_labels, "counts": month_counts, "keys": month_keys},
         "this_month_name": MONTH_NAMES[today.month - 1],
         "next_month_name": MONTH_NAMES[next_m - 1],
         "active_source": source or "",
+        "active_month":  month or "",
     }
 
 
