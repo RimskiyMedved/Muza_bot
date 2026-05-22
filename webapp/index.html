@@ -704,8 +704,8 @@ function renderCalendar() {
     num.textContent = day.day;
     cell.appendChild(num);
 
-    // Status dot (только если нет имени)
-    if (!(day.status === "booked" && day.name)) {
+    // Status dot — только для занятых без имени и нейтральных
+    if (day.status !== "free" && !(day.status === "booked" && day.name)) {
       const dot = document.createElement("div");
       dot.className = "status-dot";
       cell.appendChild(dot);
