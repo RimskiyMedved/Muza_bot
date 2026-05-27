@@ -149,7 +149,11 @@ async def serve_index() -> FileResponse:
     index = WEBAPP_DIR / "index.html"
     if not index.exists():
         raise HTTPException(503, "webapp/index.html not found")
-    return FileResponse(index)
+    return FileResponse(index, headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    })
 
 
 # ─── Calendar ─────────────────────────────────────────────────────────────────
