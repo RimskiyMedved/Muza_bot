@@ -357,6 +357,8 @@ def get_allowed_users() -> list[dict]:
 
 
 def is_allowed_user(telegram_id: int) -> bool:
+    if not telegram_id:
+        return False
     with _conn() as con:
         row = con.execute(
             "SELECT id FROM allowed_users WHERE telegram_id = ?", (telegram_id,)
@@ -367,15 +369,21 @@ def is_allowed_user(telegram_id: int) -> bool:
 def add_allowed_user(telegram_id: int, username: str) -> bool:
     """Добавляет пользователя. Возвращает False если уже есть."""
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
-    try:
-        with _conn() as con:
-            con.execute(
-                "INSERT INTO allowed_users (telegram_id, username, added_at) VALUES (?,?,?)",
-                (telegram_id, username.lstrip("@"), now)
-            )
-        return True
-    except sqlite3.IntegrityError:
-        return False
+    uname = username.lstrip("@")
+    # Проверяем дубль по username
+    with _conn() as con:
+        existing = con.execute(
+            "SELECT id FROM allowed_users WHERE username = ?", (uname,)
+        ).fetchone()
+        if existing:
+            return False
+        # telegram_id=None пока пользователь не написал боту
+        tid = telegram_id if telegram_id else None
+        con.execute(
+            "INSERT INTO allowed_users (telegram_id, username, added_at) VALUES (?,?,?)",
+            (tid, uname, now)
+        )
+    return True
 
 
 def remove_allowed_user(telegram_id: int) -> bool:
