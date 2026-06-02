@@ -7,20 +7,18 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
-      --bg:       var(--tg-theme-bg-color,            #ffffff);
-      --bg2:      var(--tg-theme-secondary-bg-color,  #f0f2f5);
-      --text:     var(--tg-theme-text-color,          #000000);
-      --hint:     var(--tg-theme-hint-color,          #707579);
+      --bg:       var(--tg-theme-bg-color,            #FFFFFF);
+      --bg2:      var(--tg-theme-secondary-bg-color,  #F5F5F7);
+      --text:     var(--tg-theme-text-color,          #1C1C1E);
+      --hint:     var(--tg-theme-hint-color,          #8E8E93);
       --btn:      var(--tg-theme-button-color,        #2481cc);
-      --btn-text: var(--tg-theme-button-text-color,   #ffffff);
-      --sub-text: var(--tg-theme-subtitle-text-color, #707579);
+      --btn-text: var(--tg-theme-button-text-color,   #FFFFFF);
 
-      /* Статусы — пастельные */
-      --c-booked:  #c0736e;
-      --c-free:    #5e9e6e;
-      --bg-booked: rgba(192,115,110,.13);
-      --bg-free:   rgba(94,158,110,.13);
-      --bg-today:  rgba(36,129,204,.12);
+      --c-booked:  #E5534B;
+      --c-free:    #30D158;
+      --bg-booked: rgba(229,83,75,.09);
+      --bg-free:   rgba(48,209,88,.09);
+      --bg-today:  rgba(36,129,204,.10);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -35,7 +33,7 @@
       overscroll-behavior: none;
     }
 
-    /* ── Loading ──────────────────────────────────────────────────────── */
+    /* ── Loading ──────────────────────────────────────────────────── */
     .loading-overlay {
       position: fixed; inset: 0; background: var(--bg); z-index: 200;
       display: flex; flex-direction: column;
@@ -43,19 +41,19 @@
     }
     .loading-overlay.hidden { display: none; }
     .spinner {
-      width: 30px; height: 30px;
-      border: 3px solid var(--bg2); border-top-color: var(--btn);
+      width: 28px; height: 28px;
+      border: 2.5px solid var(--bg2); border-top-color: var(--btn);
       border-radius: 50%; animation: spin .7s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .loading-text { font-size: 13px; color: var(--hint); }
 
-    /* ── Header ───────────────────────────────────────────────────────── */
+    /* ── Header ──────────────────────────────────────────────────── */
     .header {
       position: sticky; top: 0; z-index: 10;
       background: var(--bg);
       padding: 10px 16px 8px;
-      border-bottom: 1px solid rgba(0,0,0,.06);
+      border-bottom: 1px solid rgba(0,0,0,.05);
     }
     .year-row {
       display: flex; align-items: center; justify-content: center;
@@ -69,10 +67,11 @@
     .year-nav:active { background: var(--bg2); }
     .year-label { font-size: 12px; font-weight: 600; color: var(--hint); letter-spacing: .4px; }
     .sync-btn {
-      background: none; border: none; font-size: 16px;
+      background: none; border: none;
       cursor: pointer; color: var(--hint); padding: 4px 6px; border-radius: 8px;
+      display: flex; align-items: center;
     }
-    .sync-btn.spinning { animation: spin .8s linear infinite; }
+    .sync-btn.spinning svg { animation: spin .8s linear infinite; }
     .month-row {
       display: flex; align-items: center; justify-content: space-between;
     }
@@ -83,132 +82,174 @@
     .nav-btn:active { opacity: .6; }
     .month-title { font-size: 18px; font-weight: 700; }
 
-    /* ── Legend ───────────────────────────────────────────────────────── */
+    /* ── Legend ──────────────────────────────────────────────────── */
     .legend {
-      display: flex; gap: 14px; padding: 6px 14px 2px;
+      display: flex; gap: 14px; padding: 8px 14px 2px;
       font-size: 11px; color: var(--hint);
     }
     .legend-item { display: flex; align-items: center; gap: 5px; }
     .legend-dot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
-    /* ── Weekdays ─────────────────────────────────────────────────────── */
+    /* ── Weekdays ─────────────────────────────────────────────────── */
     .weekdays {
       display: grid; grid-template-columns: repeat(7, 1fr);
       padding: 2px clamp(5px,2vw,12px) 0;
     }
     .weekday-label {
       text-align: center; font-size: clamp(9px,2.5vw,11px);
-      color: var(--hint); padding: 3px 0; font-weight: 500;
+      color: var(--hint); padding: 3px 0; font-weight: 600; letter-spacing: .2px;
     }
-    .weekday-label.wknd { color: var(--c-booked); opacity: .8; }
+    .weekday-label.wknd { color: var(--c-booked); opacity: .7; }
 
-    /* ── Calendar grid ─────────────────────────────────────────────────── */
+    /* ── Calendar grid ─────────────────────────────────────────────── */
     .calendar-grid {
       display: grid; grid-template-columns: repeat(7, 1fr);
       gap: clamp(3px,.9vw,5px);
-      padding: 2px clamp(5px,2vw,12px) 6px;
+      padding: 4px clamp(5px,2vw,12px) 6px;
     }
     .day-cell {
-      aspect-ratio: 1; border-radius: clamp(8px,2.5vw,13px);
+      aspect-ratio: 1; border-radius: clamp(10px,3vw,16px);
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       cursor: pointer; position: relative;
-      transition: transform .12s;
+      transition: transform .12s, opacity .12s;
       user-select: none;
+      background: var(--bg2);
     }
     .day-cell:active:not(.empty) { transform: scale(.84); }
-    .day-cell.empty  { cursor: default; pointer-events: none; }
-    .day-cell.neutral { background: var(--bg2); }
+    .day-cell.empty   { cursor: default; pointer-events: none; background: transparent; }
     .day-cell.booked  { background: var(--bg-booked); }
     .day-cell.free    { background: var(--bg-free); }
-    .day-cell.past    { opacity: .35; }
+    .day-cell.past    { opacity: .32; }
     .day-cell.today   { box-shadow: 0 0 0 2px var(--btn); }
+    .day-cell.wknd-col .day-number { color: var(--c-booked); }
 
     .day-number {
       font-size: clamp(12px,3.6vw,16px); font-weight: 600; line-height: 1;
     }
-    .day-cell.neutral .day-number { color: var(--text); }
     .day-cell.booked  .day-number { color: var(--c-booked); }
     .day-cell.free    .day-number { color: var(--c-free); }
     .day-cell.today   .day-number { color: var(--btn); }
 
-    /* Status dot */
+    /* Status dot — only for neutral/booked-no-name cells */
     .status-dot {
-      width: 5px; height: 5px; border-radius: 50%; margin-top: 3px;
+      width: 4px; height: 4px; border-radius: 50%; margin-top: 3px;
     }
     .day-cell.booked  .status-dot { background: var(--c-booked); }
-    .day-cell.free    .status-dot { background: var(--c-free); }
     .day-cell.neutral .status-dot { background: transparent; }
-    .day-cell.today.neutral .status-dot { background: var(--btn); opacity: .4; }
 
     .day-name {
       font-size: clamp(6px,1.7vw,8px); margin-top: 1px;
       max-width: 90%; overflow: hidden; text-overflow: ellipsis;
-      white-space: nowrap; text-align: center; line-height: 1.1; font-weight: 500;
+      white-space: nowrap; text-align: center; line-height: 1.1; font-weight: 600;
     }
-    .day-cell.booked .day-name { color: var(--c-booked); opacity: .85; }
-    .day-cell.free   .day-name { color: var(--c-free);   opacity: .85; }
+    .day-cell.booked .day-name { color: var(--c-booked); opacity: .9; }
+    .day-cell.free   .day-name { color: var(--c-free);   opacity: .9; }
 
     /* Source badge */
     .src-badge {
-      position: absolute; top: 3px; right: 3px;
+      position: absolute; top: 3px; right: 4px;
       font-size: clamp(5px,1.3vw,7px); font-weight: 800;
-      color: var(--c-booked); opacity: .7; line-height: 1;
+      color: var(--c-booked); opacity: .6; line-height: 1;
       letter-spacing: -.3px;
     }
 
-    /* ── Mini stats ────────────────────────────────────────────────────── */
+    /* ── Mini stats ────────────────────────────────────────────────── */
     .cal-mini-stats {
-      padding: 3px 14px 10px;
+      padding: 4px 14px 12px;
       display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
     }
     .cal-mini-total { font-size: 12px; font-weight: 600; color: var(--text); }
-    .cal-mini-chip  {
-      background: var(--bg2); border-radius: 12px;
-      padding: 2px 9px; font-size: 11px; color: var(--hint);
+    .cal-mini-chip {
+      background: var(--bg2); border-radius: 100px;
+      padding: 3px 10px; font-size: 11px; color: var(--hint); font-weight: 500;
     }
 
-    /* ── FAB ───────────────────────────────────────────────────────────── */
+    /* ── FAB ──────────────────────────────────────────────────────── */
     .fab {
       position: fixed; bottom: 74px; right: 16px;
       background: var(--btn); color: var(--btn-text);
       border: none; border-radius: 50%;
-      width: 52px; height: 52px; font-size: 26px;
+      width: 52px; height: 52px;
       cursor: pointer;
-      box-shadow: 0 4px 18px rgba(36,129,204,.4);
+      box-shadow: 0 2px 14px rgba(36,129,204,.28);
       z-index: 20; display: flex; align-items: center; justify-content: center;
       transition: transform .12s;
     }
     .fab:active { transform: scale(.88); }
 
-    /* ── Stats ─────────────────────────────────────────────────────────── */
-    #statsView { display: none; padding: 14px 14px; }
+    /* ── Stats ─────────────────────────────────────────────────────── */
+    #statsView { display: none; }
 
-    .stats-cards {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px;
+    .stats-month-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid rgba(0,0,0,.05);
+      position: sticky; top: 0; background: var(--bg); z-index: 5;
+    }
+    .stats-nav-btn {
+      background: var(--bg2); border: none; border-radius: 10px;
+      padding: 6px 18px; font-size: 17px; cursor: pointer; color: var(--text);
+    }
+    .stats-nav-btn:active { opacity: .6; }
+    .stats-month-title { font-size: 16px; font-weight: 700; text-align: center; }
+    .stats-all-btn {
+      background: none; border: none; font-size: 13px; font-weight: 600;
+      color: var(--hint); cursor: pointer; padding: 6px 8px;
+      border-radius: 8px; white-space: nowrap;
+    }
+    .stats-all-btn.active { color: var(--btn); }
+    .stats-all-btn:active { opacity: .6; }
+
+    .stats-body { padding: 14px; }
+
+    /* Bento grid */
+    .stats-bento {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px; margin-bottom: 6px;
     }
     .stat-card {
-      background: var(--bg2); border-radius: 16px;
-      padding: 14px 12px; text-align: center;
+      background: var(--bg2); border-radius: 18px;
+      padding: 16px 14px;
     }
-    .stat-number { font-size: 28px; font-weight: 700; line-height: 1; color: var(--btn); }
-    .stat-label  { font-size: 12px; color: var(--hint); margin-top: 4px; line-height: 1.3; }
+    .stat-card.stat-wide {
+      grid-column: 1 / -1;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .stat-number {
+      font-size: 32px; font-weight: 800; line-height: 1;
+      color: var(--text); letter-spacing: -.5px;
+    }
+    .stat-card.stat-wide .stat-number { font-size: 42px; }
+    .stat-label  {
+      font-size: 12px; font-weight: 500;
+      color: var(--hint); margin-bottom: 6px; line-height: 1.3;
+    }
+    .stat-wide-badges {
+      display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+    }
+    .stat-pill {
+      background: rgba(36,129,204,.12); color: var(--btn);
+      font-size: 12px; font-weight: 600;
+      padding: 4px 10px; border-radius: 100px;
+    }
 
     .section-header {
       display: flex; align-items: center; justify-content: space-between;
-      margin: 18px 0 10px;
+      margin: 22px 0 10px;
     }
     .stats-section-title {
-      font-size: 12px; font-weight: 600; color: var(--hint);
-      text-transform: uppercase; letter-spacing: .5px;
+      font-size: 12px; font-weight: 700; color: var(--hint);
+      text-transform: uppercase; letter-spacing: .6px;
     }
 
     /* Filter pill */
     .filter-pill {
       display: flex; align-items: center; gap: 5px;
-      background: var(--bg2); border: none; border-radius: 16px;
+      background: var(--bg2); border: none; border-radius: 100px;
       padding: 5px 12px; font-size: 12px; color: var(--text);
-      cursor: pointer; font-family: inherit; transition: background .15s;
+      cursor: pointer; font-family: inherit; font-weight: 500;
     }
     .filter-pill:active { opacity: .7; }
     .filter-pill.active { background: var(--btn); color: var(--btn-text); }
@@ -217,49 +258,51 @@
       padding: 1px 5px; font-size: 10px; font-weight: 700;
     }
 
-    /* Month chart */
+    /* Month chart — pill bars */
     .month-chart {
-      display: flex; align-items: flex-end; gap: 5px;
+      display: flex; align-items: flex-end; gap: 4px;
       overflow-x: auto; padding-bottom: 6px;
       scrollbar-width: none;
     }
     .month-chart::-webkit-scrollbar { display: none; }
     .month-bar-wrap {
       display: flex; flex-direction: column; align-items: center;
-      gap: 4px; min-width: 34px; flex-shrink: 0;
+      gap: 4px; min-width: 32px; flex-shrink: 0;
       cursor: pointer; padding: 0 1px;
     }
     .month-bar-wrap:active { opacity: .7; }
     .month-bar-inner { height: 70px; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
     .month-bar {
       width: 100%; background: var(--bg2);
-      border-radius: 5px 5px 3px 3px;
-      transition: height .3s, background .2s; min-height: 3px;
+      border-radius: 100px;
+      transition: height .3s, background .2s; min-height: 4px;
     }
-    .month-bar.has-data { background: var(--btn); opacity: .65; }
+    .month-bar.has-data { background: var(--btn); opacity: .55; }
     .month-bar-wrap.active .month-bar { background: var(--c-booked) !important; opacity: 1; }
     .month-val {
-      font-size: 10px; font-weight: 600; color: var(--hint);
+      font-size: 10px; font-weight: 700; color: var(--hint);
       min-height: 13px; text-align: center; line-height: 1;
     }
-    .month-bar-wrap.active .month-val  { color: var(--c-booked); }
+    .month-bar-wrap.active .month-val   { color: var(--c-booked); }
     .month-bar-wrap.active .month-label { color: var(--btn); font-weight: 600; }
-    .month-label-line1 { font-size: 9px; color: var(--hint); text-align: center; line-height: 1.2; }
-    .month-label-line2 { font-size: 8px; color: var(--hint); opacity: .7; text-align: center; line-height: 1; }
+    .month-label-line1 { font-size: 9px; color: var(--hint); text-align: center; line-height: 1.2; font-weight: 500; }
+    .month-label-line2 { font-size: 8px; color: var(--hint); opacity: .6; text-align: center; line-height: 1; }
 
     /* Source rows */
     .source-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 9px 0; border-bottom: 1px solid var(--bg2); cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 0; cursor: pointer;
     }
-    .source-row:last-child { border-bottom: none; }
-    .source-name  { font-size: 14px; flex: 1; }
-    .source-count { font-size: 14px; font-weight: 600; color: var(--btn); min-width: 26px; text-align: right; }
-    .source-bar-wrap { width: 60px; height: 5px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
+    .source-row + .source-row { border-top: 1px solid rgba(0,0,0,.04); }
+    .source-row-active { background: rgba(36,129,204,.05); border-radius: 12px; padding: 10px 8px; margin: 0 -8px; }
+    .source-name  { font-size: 14px; flex: 1; font-weight: 500; }
+    .source-count { font-size: 15px; font-weight: 700; color: var(--btn); min-width: 26px; text-align: right; }
+    .source-bar-wrap { width: 56px; height: 3px; background: var(--bg2); border-radius: 100px; overflow: hidden; }
     .source-bar {
-      height: 100%; background: var(--btn); border-radius: 3px;
-      opacity: .65; transition: width .4s;
+      height: 100%; background: var(--btn); border-radius: 100px;
+      opacity: .7; transition: width .4s;
     }
+
     .stats-loading {
       display: flex; align-items: center; justify-content: center;
       gap: 10px; padding: 40px; color: var(--hint); font-size: 14px;
@@ -269,32 +312,32 @@
       border-radius: 50%; animation: spin .7s linear infinite;
     }
 
-    /* ── Bottom nav ────────────────────────────────────────────────────── */
+    /* ── Bottom nav ───────────────────────────────────────────────── */
     .bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
-      background: var(--bg); border-top: 1px solid rgba(0,0,0,.07);
+      background: var(--bg); border-top: 1px solid rgba(0,0,0,.06);
       display: flex; height: 62px; z-index: 30;
     }
     .nav-tab {
       flex: 1; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      gap: 2px; background: none; border: none;
+      gap: 3px; background: none; border: none;
       cursor: pointer; color: var(--hint);
       font-size: 10px; font-weight: 500; transition: color .15s;
     }
-    .nav-tab .tab-icon { font-size: 21px; line-height: 1; }
+    .nav-tab svg { width: 22px; height: 22px; }
     .nav-tab.active { color: var(--btn); }
 
-    /* ── Sheet / overlay ───────────────────────────────────────────────── */
+    /* ── Sheet / overlay ──────────────────────────────────────────── */
     .sheet-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,.4);
+      position: fixed; inset: 0; background: rgba(0,0,0,.35);
       z-index: 40; opacity: 0; pointer-events: none;
-      transition: opacity .22s; backdrop-filter: blur(3px);
+      transition: opacity .22s; backdrop-filter: blur(4px);
     }
     .sheet-overlay.visible { opacity: 1; pointer-events: auto; }
     .sheet {
       position: fixed; bottom: 0; left: 0; right: 0;
-      background: var(--bg); border-radius: 20px 20px 0 0;
+      background: var(--bg); border-radius: 22px 22px 0 0;
       z-index: 50; transform: translateY(100%);
       transition: transform .28s cubic-bezier(.4,0,.2,1);
       max-height: 92vh; overflow-y: auto;
@@ -302,15 +345,15 @@
     }
     .sheet.visible { transform: translateY(0); }
     .sheet-handle {
-      width: 32px; height: 4px; background: var(--hint);
-      border-radius: 2px; margin: 10px auto 0; opacity: .25;
+      width: 36px; height: 4px; background: rgba(0,0,0,.12);
+      border-radius: 100px; margin: 10px auto 0;
     }
     .sheet-header {
       padding: 12px 16px 0;
       display: flex; align-items: flex-start; justify-content: space-between;
     }
     .sheet-title { font-size: 18px; font-weight: 700; }
-    .sheet-date  { font-size: 13px; color: var(--hint); margin-top: 2px; }
+    .sheet-date  { font-size: 13px; color: var(--hint); margin-top: 3px; }
     .close-btn {
       background: var(--bg2); border: none; border-radius: 50%;
       width: 30px; height: 30px; font-size: 15px;
@@ -319,57 +362,56 @@
     }
     .close-btn:active { opacity: .6; }
 
-    /* ── Booking detail ─────────────────────────────────────────────────── */
-    .booking-detail { padding: 10px 16px 4px; }
+    /* ── Booking detail ───────────────────────────────────────────── */
+    .booking-detail { padding: 12px 16px 4px; }
+    .detail-card {
+      background: var(--bg2); border-radius: 16px; overflow: hidden;
+    }
     .detail-row {
       display: flex; align-items: flex-start;
-      padding: 9px 0; border-bottom: 1px solid var(--bg2); gap: 10px;
+      padding: 11px 14px; gap: 12px;
     }
-    .detail-row:last-child { border-bottom: none; }
-    .detail-icon  { font-size: 15px; width: 22px; flex-shrink: 0; opacity: .65; padding-top: 1px; }
-    .detail-label { font-size: 12px; color: var(--hint); min-width: 80px; flex-shrink: 0; padding-top: 2px; }
-    .detail-value { font-size: 14px; font-weight: 500; word-break: break-word; flex: 1; }
+    .detail-row + .detail-row { border-top: 1px solid rgba(0,0,0,.04); }
+    .detail-label { font-size: 13px; color: var(--hint); min-width: 88px; flex-shrink: 0; padding-top: 1px; font-weight: 500; }
+    .detail-value { font-size: 14px; font-weight: 600; word-break: break-word; flex: 1; }
 
-    /* ── Form ───────────────────────────────────────────────────────────── */
+    /* ── Form ──────────────────────────────────────────────────────── */
     .form-body { padding: 12px 16px 4px; display: flex; flex-direction: column; gap: 12px; }
-    .form-group { display: flex; flex-direction: column; gap: 5px; }
-    .form-label { font-size: 12px; color: var(--hint); font-weight: 500; }
-    .input-wrap { position: relative; display: flex; align-items: center; }
-    .input-icon { position: absolute; left: 12px; font-size: 15px; opacity: .45; pointer-events: none; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label { font-size: 12px; color: var(--hint); font-weight: 600; letter-spacing: .2px; }
     .form-input {
       background: var(--bg2); border: 1.5px solid transparent;
-      border-radius: 12px; padding: 11px 12px 11px 36px;
+      border-radius: 13px; padding: 12px 14px;
       font-size: 15px; color: var(--text); width: 100%;
       outline: none; transition: border-color .15s; font-family: inherit;
       -webkit-appearance: none;
     }
-    .form-input.no-icon { padding-left: 12px; }
-    .form-input:focus { border-color: var(--btn); }
+    .form-input:focus { border-color: var(--btn); background: var(--bg); }
     .form-textarea {
       background: var(--bg2); border: 1.5px solid transparent;
-      border-radius: 12px; padding: 11px 12px;
+      border-radius: 13px; padding: 12px 14px;
       font-size: 15px; color: var(--text); width: 100%;
       outline: none; resize: none; min-height: 72px;
       transition: border-color .15s; font-family: inherit;
     }
-    .form-textarea:focus { border-color: var(--btn); }
+    .form-textarea:focus { border-color: var(--btn); background: var(--bg); }
 
     /* Stepper */
     .stepper {
       display: flex; align-items: center;
-      background: var(--bg2); border-radius: 12px;
+      background: var(--bg2); border-radius: 13px;
       border: 1.5px solid transparent;
     }
     .step-btn {
       width: 48px; height: 48px; background: none; border: none;
       font-size: 22px; color: var(--btn);
       cursor: pointer; display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; border-radius: 12px; font-weight: 300;
+      flex-shrink: 0; border-radius: 13px; font-weight: 300;
     }
     .step-btn:active { background: rgba(0,0,0,.06); }
     .step-input {
       flex: 1; background: none; border: none; outline: none;
-      text-align: center; font-size: 17px; font-weight: 600;
+      text-align: center; font-size: 17px; font-weight: 700;
       color: var(--text); font-family: inherit;
       -webkit-appearance: none; appearance: none;
       min-width: 0; padding: 0;
@@ -378,17 +420,17 @@
     .step-input::-webkit-outer-spin-button { -webkit-appearance: none; }
 
     .section-sep {
-      font-size: 11px; font-weight: 600; color: var(--hint);
+      font-size: 11px; font-weight: 700; color: var(--hint);
       text-transform: uppercase; letter-spacing: .6px; padding-top: 2px;
     }
 
     /* Source chip selector */
     .chip-selector { display: flex; flex-wrap: wrap; gap: 7px; }
     .chip-option {
-      padding: 7px 14px; border-radius: 20px; font-size: 13px;
+      padding: 7px 14px; border-radius: 100px; font-size: 13px;
       border: 1.5px solid var(--bg2); background: var(--bg);
       color: var(--text); cursor: pointer;
-      transition: all .15s; user-select: none;
+      transition: all .15s; user-select: none; font-weight: 500;
     }
     .chip-option.selected {
       background: var(--btn); color: var(--btn-text); border-color: var(--btn);
@@ -397,29 +439,34 @@
     .chip-custom-wrap { margin-top: 8px; display: none; }
     .chip-custom-input {
       background: var(--bg2); border: 1.5px solid var(--btn);
-      border-radius: 12px; padding: 10px 12px;
+      border-radius: 13px; padding: 12px 14px;
       font-size: 15px; color: var(--text); width: 100%;
       outline: none; font-family: inherit;
     }
 
-    /* ── Actions ────────────────────────────────────────────────────────── */
+    /* ── Actions ───────────────────────────────────────────────────── */
     .actions { padding: 12px 16px 28px; display: flex; flex-direction: column; gap: 8px; }
     .btn {
       border: none; border-radius: 14px; padding: 14px;
       font-size: 15px; font-weight: 600; cursor: pointer;
       width: 100%; transition: opacity .15s; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
     }
     .btn:active { opacity: .72; }
     .btn:disabled { opacity: .4; }
-    .btn-primary   { background: var(--btn); color: var(--btn-text); }
-    .btn-secondary { background: var(--bg2); color: var(--text); }
-    .btn-danger    { background: var(--bg-booked); color: var(--c-booked); }
+    .btn-primary        { background: var(--btn); color: var(--btn-text); }
+    .btn-secondary      { background: var(--bg2); color: var(--text); }
+    .btn-danger         { background: var(--bg-booked); color: var(--c-booked); }
+    .btn-outline-danger {
+      background: transparent; color: var(--c-booked);
+      border: 1.5px solid rgba(229,83,75,.25);
+    }
 
-    /* ── Source filter sheet ────────────────────────────────────────────── */
+    /* ── Source filter sheet ──────────────────────────────────────── */
     .filter-sheet-list { padding: 8px 16px 32px; }
     .filter-sheet-item {
       display: flex; align-items: center; gap: 12px;
-      padding: 12px 0; border-bottom: 1px solid var(--bg2); cursor: pointer;
+      padding: 12px 0; border-bottom: 1px solid rgba(0,0,0,.05); cursor: pointer;
     }
     .filter-sheet-item:last-child { border-bottom: none; }
     .filter-radio {
@@ -433,50 +480,50 @@
       content: ""; width: 7px; height: 7px;
       background: white; border-radius: 50%;
     }
-    .filter-item-name { font-size: 14px; flex: 1; }
-    .filter-item-cnt  { font-size: 13px; color: var(--hint); }
+    .filter-item-name { font-size: 14px; flex: 1; font-weight: 500; }
+    .filter-item-cnt  { font-size: 13px; color: var(--hint); font-weight: 600; }
 
-    /* ── Admin panel ────────────────────────────────────────────────────── */
-    #adminView { padding: 12px 16px 32px; display: none; }
+    /* ── Admin panel ────────────────────────────────────────────────── */
+    #adminView { padding: 14px 16px 32px; display: none; }
     .admin-section {
-      background: var(--bg2); border-radius: 16px; padding: 16px;
-      margin-bottom: 14px;
+      background: var(--bg2); border-radius: 18px; padding: 16px;
+      margin-bottom: 12px;
     }
     .admin-section-title {
-      font-size: 12px; font-weight: 700; color: var(--hint);
-      text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px;
+      font-size: 11px; font-weight: 700; color: var(--hint);
+      text-transform: uppercase; letter-spacing: .6px; margin-bottom: 12px;
     }
     .admin-users-list { display: flex; flex-direction: column; gap: 8px; }
     .admin-user-row {
       display: flex; align-items: center; gap: 10px;
       background: var(--bg); border-radius: 12px; padding: 10px 12px;
     }
-    .admin-user-name { flex: 1; font-size: 14px; }
-    .admin-user-id   { font-size: 11px; color: var(--hint); }
+    .admin-user-name { flex: 1; font-size: 14px; font-weight: 600; }
+    .admin-user-id   { font-size: 11px; color: var(--hint); margin-top: 2px; }
     .admin-remove-btn {
-      background: none; border: none; font-size: 18px;
-      color: var(--c-booked); cursor: pointer; padding: 2px 6px;
-      border-radius: 8px; line-height: 1;
+      background: none; border: none; color: var(--c-booked);
+      cursor: pointer; padding: 4px; border-radius: 8px; line-height: 1;
+      opacity: .7; display: flex; align-items: center;
     }
-    .admin-remove-btn:active { opacity: .6; }
+    .admin-remove-btn:active { opacity: .4; }
     .admin-textarea {
-      width: 100%; background: var(--bg); border: 1.5px solid var(--bg2);
-      border-radius: 12px; padding: 10px 12px; font-size: 14px;
+      width: 100%; background: var(--bg); border: 1.5px solid transparent;
+      border-radius: 13px; padding: 12px 14px; font-size: 14px;
       color: var(--text); font-family: inherit; resize: none; outline: none;
-      min-height: 80px;
+      min-height: 80px; transition: border-color .15s;
     }
     .admin-textarea:focus { border-color: var(--btn); }
     .admin-add-btn {
-      margin-top: 8px; width: 100%; padding: 12px;
+      margin-top: 8px; width: 100%; padding: 13px;
       background: var(--btn); color: var(--btn-text);
-      border: none; border-radius: 12px; font-size: 15px;
+      border: none; border-radius: 13px; font-size: 15px;
       font-weight: 600; cursor: pointer; font-family: inherit;
     }
     .admin-add-btn:active { opacity: .8; }
     .admin-log-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .admin-log-table th {
-      text-align: left; color: var(--hint); font-weight: 600;
-      padding: 4px 6px 8px; border-bottom: 1px solid var(--bg2);
+      text-align: left; color: var(--hint); font-weight: 700;
+      padding: 4px 6px 8px; border-bottom: 1px solid rgba(0,0,0,.06);
     }
     .admin-log-table td {
       padding: 7px 6px; border-bottom: 1px solid rgba(0,0,0,.04);
@@ -484,13 +531,13 @@
     }
     .admin-empty { text-align: center; color: var(--hint); font-size: 13px; padding: 12px; }
 
-    /* ── Toast ──────────────────────────────────────────────────────────── */
+    /* ── Toast ──────────────────────────────────────────────────────── */
     .toast {
       position: fixed; bottom: 74px; left: 50%;
       transform: translateX(-50%) translateY(20px);
-      background: rgba(0,0,0,.82); color: #fff;
-      padding: 9px 18px; border-radius: 22px;
-      font-size: 13px; z-index: 300;
+      background: rgba(28,28,30,.9); color: #fff;
+      padding: 9px 18px; border-radius: 100px;
+      font-size: 13px; font-weight: 500; z-index: 300;
       opacity: 0; transition: opacity .2s, transform .2s;
       pointer-events: none; white-space: nowrap;
     }
@@ -511,7 +558,12 @@
     <button class="year-nav" id="prevYearBtn">«</button>
     <span class="year-label" id="yearLabel">2026</span>
     <button class="year-nav" id="nextYearBtn">»</button>
-    <button class="sync-btn" id="syncBtn" title="Синхронизировать">⟳</button>
+    <button class="sync-btn" id="syncBtn" title="Синхронизировать">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+    </button>
   </div>
   <div class="month-row">
     <button class="nav-btn" id="prevBtn">‹</button>
@@ -530,7 +582,7 @@
       <div class="legend-dot" style="background:var(--c-free)"></div>Свободно
     </div>
     <div class="legend-item">
-      <div class="legend-dot" style="background:var(--bg2);border:1px solid var(--hint)"></div>Нет данных
+      <div class="legend-dot" style="background:var(--bg2);border:1px solid rgba(0,0,0,.12)"></div>Нет данных
     </div>
   </div>
   <div class="weekdays" id="weekdayHeader"></div>
@@ -540,8 +592,16 @@
 
 <!-- ── Stats view ───────────────────────────────────────────────────────── -->
 <div id="statsView">
-  <div id="statsContent">
-    <div class="stats-loading"><div class="small-spinner"></div>Загружаем…</div>
+  <div class="stats-month-nav">
+    <button class="stats-nav-btn" id="statsPrevBtn">‹</button>
+    <span class="stats-month-title" id="statsMonthTitle">Все время</span>
+    <button class="stats-nav-btn" id="statsNextBtn">›</button>
+    <button class="stats-all-btn active" id="statsAllBtn" onclick="statsShowAll()">Всё</button>
+  </div>
+  <div class="stats-body">
+    <div id="statsContent">
+      <div class="stats-loading"><div class="small-spinner"></div>Загружаем…</div>
+    </div>
   </div>
 </div>
 
@@ -568,7 +628,11 @@
 </div>
 
 <!-- FAB -->
-<button class="fab" id="fabBtn" title="Добавить бронь">＋</button>
+<button class="fab" id="fabBtn" title="Добавить бронь">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+</button>
 
 <!-- Overlay -->
 <div class="sheet-overlay" id="overlay"></div>
@@ -581,7 +645,11 @@
       <div class="sheet-title" id="sheetTitle"></div>
       <div class="sheet-date"  id="sheetDate"></div>
     </div>
-    <button class="close-btn" id="closeBtn">✕</button>
+    <button class="close-btn" id="closeBtn">
+      <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/>
+      </svg>
+    </button>
   </div>
   <div id="sheetContent"></div>
   <div class="actions" id="sheetActions"></div>
@@ -590,13 +658,22 @@
 <!-- Bottom nav -->
 <nav class="bottom-nav" id="bottomNav">
   <button class="nav-tab active" id="tab-calendar" onclick="switchView('calendar')">
-    <span class="tab-icon">📅</span>Календарь
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+    Календарь
   </button>
   <button class="nav-tab" id="tab-stats" onclick="switchView('stats')">
-    <span class="tab-icon">📊</span>Статистика
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/>
+    </svg>
+    Статистика
   </button>
   <button class="nav-tab" id="tab-admin" onclick="switchView('admin')" style="display:none">
-    <span class="tab-icon">⚙️</span>Админ
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+    </svg>
+    Админ
   </button>
 </nav>
 
@@ -649,19 +726,24 @@ function hideBackBtn() {
   twa.BackButton.hide();
 }
 
+// ─── SVG Icons ────────────────────────────────────────────────────────────────
+const ICO = {
+  pencil: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  trash:  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
+  save:   `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+  back:   `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`,
+  warn:   `<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+};
+
 // ─── State ────────────────────────────────────────────────────────────────────
 let currentView = "calendar";
 let currentYear = new Date().getFullYear();
 let currentMon  = new Date().getMonth() + 1;
 let calData     = null;
-let sourcesData = [];
-// Stats filters
-let _activeSource = "";
-let _activeMonth  = "";
-// All sources from latest stats (for filter sheet)
+let sourcesData   = [];
+let _activeSource = "";   // фильтр по источнику в статистике
 let _allSources   = {};
-// Form source state
-let _formSource = "";
+let _formSource   = "";
 
 // ─── Weekday header ───────────────────────────────────────────────────────────
 const WD = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
@@ -701,8 +783,8 @@ function switchView(view) {
   const tabEl = document.getElementById(`tab-${view}`);
   if (tabEl) tabEl.classList.add("active");
   haptic.select();
-  if (view === "stats")  loadStats();
-  if (view === "admin")  loadAdminPanel();
+  if (view === "stats") loadStats();
+  if (view === "admin") loadAdminPanel();
 }
 
 // ─── Year / month ──────────────────────────────────────────────────────────────
@@ -728,10 +810,10 @@ document.getElementById("syncBtn").addEventListener("click", async () => {
     await apiFetch("POST", "/api/sync");
     await loadMonth();
     haptic.success();
-    showToast("✅ Данные обновлены");
+    showToast("Данные обновлены");
   } catch (e) {
     haptic.error();
-    showToast("Ошибка синхронизации: " + e.message);
+    showToast("Ошибка: " + e.message);
   } finally {
     btn.classList.remove("spinning");
   }
@@ -767,27 +849,25 @@ function renderCalendar() {
     const cls  = ["day-cell", day.status];
     if (day.past)  cls.push("past");
     if (day.today) cls.push("today");
-    // Weekends: Fri(4), Sat(5), Sun(6) — index from 0=Mon
     const wd = new Date(
       parseInt(day.date.slice(6)), parseInt(day.date.slice(3,5))-1, parseInt(day.date.slice(0,2))
-    ).getDay(); // 0=Sun,1=Mon,...6=Sat
+    ).getDay();
     if (wd === 0 || wd === 5 || wd === 6) cls.push("wknd-col");
     cell.className = cls.join(" ");
 
-    // Day number
     const num = document.createElement("div");
     num.className   = "day-number";
     num.textContent = day.day;
     cell.appendChild(num);
 
-    // Status dot — только для занятых без имени и нейтральных
+    // Status dot — only for neutral cells (no dot for free or booked-with-name)
     if (day.status !== "free" && !(day.status === "booked" && day.name)) {
       const dot = document.createElement("div");
       dot.className = "status-dot";
       cell.appendChild(dot);
     }
 
-    // Имя клиента (первое слово)
+    // Name inside cell
     if (day.status === "booked" && day.name) {
       const nm = document.createElement("div");
       nm.className   = "day-name";
@@ -835,156 +915,178 @@ function renderMiniStats() {
   const chips = Object.entries(srcMap).sort((a,b)=>b[1]-a[1])
     .map(([s,c]) => `<span class="cal-mini-chip">${escHtml(s.length>13?s.slice(0,13)+"…":s)}: ${c}</span>`)
     .join("");
-  el.innerHTML = `<span class="cal-mini-total">📊 ${n} ${word}</span>${chips}`;
+  el.innerHTML = `<span class="cal-mini-total">${n} ${word}</span>${chips}`;
 }
 
-// ─── Stats ────────────────────────────────────────────────────────────────────
-async function loadStats(source, month) {
-  if (source !== undefined) _activeSource = source;
-  if (month  !== undefined) _activeMonth  = month;
+// ─── Stats state ──────────────────────────────────────────────────────────────
+const MONTH_NAMES_RU = ["Январь","Февраль","Март","Апрель","Май","Июнь",
+                        "Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+let statsYear    = new Date().getFullYear();
+let statsMon     = new Date().getMonth() + 1;
+let statsAllMode = true;   // true = все время, false = конкретный месяц
 
+function _statsMonthKey() {
+  return statsAllMode ? "" : `${String(statsMon).padStart(2,"0")}.${statsYear}`;
+}
+
+function _updateStatsNav() {
+  const titleEl  = document.getElementById("statsMonthTitle");
+  const allBtn   = document.getElementById("statsAllBtn");
+  if (!titleEl) return;
+  if (statsAllMode) {
+    titleEl.textContent = "Все время";
+    if (allBtn) allBtn.classList.add("active");
+  } else {
+    titleEl.textContent = MONTH_NAMES_RU[statsMon-1] + " " + statsYear;
+    if (allBtn) allBtn.classList.remove("active");
+  }
+}
+
+function statsShowAll() {
+  haptic.select();
+  statsAllMode = true;
+  _activeSource = "";
+  _updateStatsNav();
+  loadStats();
+}
+
+document.getElementById("statsPrevBtn").addEventListener("click", () => {
+  haptic.light();
+  statsAllMode = false;
+  if (statsMon === 1) { statsMon = 12; statsYear--; } else statsMon--;
+  _activeSource = "";
+  _updateStatsNav();
+  loadStats();
+});
+document.getElementById("statsNextBtn").addEventListener("click", () => {
+  haptic.light();
+  statsAllMode = false;
+  if (statsMon === 12) { statsMon = 1; statsYear++; } else statsMon++;
+  _activeSource = "";
+  _updateStatsNav();
+  loadStats();
+});
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+async function loadStats() {
   const el = document.getElementById("statsContent");
   el.innerHTML = '<div class="stats-loading"><div class="small-spinner"></div>Загружаем…</div>';
   try {
     const params = new URLSearchParams();
+    const monthKey = _statsMonthKey();
+    if (monthKey)      params.set("month",  monthKey);
     if (_activeSource) params.set("source", _activeSource);
-    if (_activeMonth)  params.set("month",  _activeMonth);
     const qs = params.toString() ? "?" + params.toString() : "";
     const s = await apiFetch("GET", "/api/stats" + qs);
 
-    // Cache all sources for filter sheet
     _allSources = s.by_source;
 
-    // Month bars
+    // Month chart bars — clicking navigates to that month
     const keys = s.by_month.keys || [];
     const maxM = Math.max(1, ...s.by_month.counts);
     const monthBars = s.by_month.labels.map((lbl, i) => {
       const cnt    = s.by_month.counts[i];
       const key    = keys[i] || "";
-      const active = _activeMonth === key;
-      const h      = Math.max(3, Math.round(cnt / maxM * 70));
-      const toggle = active ? '""' : JSON.stringify(key);
-      // Split label: "Май 2026" → "Май" + "2026"
+      const active = !statsAllMode && _statsMonthKey() === key;
+      const h      = Math.max(4, Math.round(cnt / maxM * 70));
       const parts  = lbl.split(" ");
-      const line1  = parts[0] || lbl;
-      const line2  = parts[1] || "";
       return `
         <div class="month-bar-wrap${active ? " active" : ""}"
-             onclick="statsMonthClick(${toggle})">
+             onclick="statsGoToMonth(${JSON.stringify(key)})">
           <div class="month-val">${cnt || ""}</div>
           <div class="month-bar-inner">
             <div class="month-bar${cnt > 0 ? " has-data" : ""}" style="height:${h}px"></div>
           </div>
-          <div class="month-label-line1">${escHtml(line1)}</div>
-          <div class="month-label-line2">${escHtml(line2)}</div>
+          <div class="month-label-line1">${escHtml(parts[0]||lbl)}</div>
+          <div class="month-label-line2">${escHtml(parts[1]||"")}</div>
         </div>`;
     }).join("");
 
-    // Source rows
+    // Source rows — clicking toggles source filter
     const srcEntries = Object.entries(s.by_source);
     const maxSrc = Math.max(1, ...srcEntries.map(e => e[1]));
-    const srcRows = srcEntries.map(([src, cnt]) => `
-      <div class="source-row">
-        <div class="source-name">${escHtml(src)}</div>
-        <div class="source-bar-wrap">
-          <div class="source-bar" style="width:${Math.round(cnt/maxSrc*100)}%"></div>
-        </div>
-        <div class="source-count">${cnt}</div>
-      </div>`).join("");
+    const srcRows = srcEntries.length ? srcEntries.map(([src, cnt]) => {
+      const active = _activeSource === src;
+      return `
+        <div class="source-row${active ? " source-row-active" : ""}"
+             onclick="statsToggleSource(${JSON.stringify(src)})">
+          <div class="source-name">${escHtml(src)}</div>
+          <div class="source-bar-wrap">
+            <div class="source-bar" style="width:${Math.round(cnt/maxSrc*100)}%"></div>
+          </div>
+          <div class="source-count">${cnt}</div>
+          ${active ? `<div style="color:var(--hint);font-size:12px">✕</div>` : ""}
+        </div>`;
+    }).join("")
+    : `<div style="text-align:center;color:var(--hint);padding:16px;font-size:14px">Нет данных</div>`;
 
-    // Active filters label
-    const activeMonthLabel = _activeMonth
-      ? (s.by_month.labels[keys.indexOf(_activeMonth)] || _activeMonth) : "";
-    const filterParts = [activeMonthLabel, _activeSource].filter(Boolean);
-    const filterLabel = filterParts.length
-      ? `<span style="font-size:12px;color:var(--btn)"> · ${filterParts.map(escHtml).join(" · ")}</span>` : "";
-
-    // Filter pill
-    const srcFilterActive = !!_activeSource;
-    const monthTitle = _activeSource
-      ? `По месяцам <span style="color:var(--btn);font-size:11px;font-weight:400">· ${escHtml(_activeSource)}</span>`
-      : "По месяцам";
-    const srcTitle = _activeMonth
-      ? `По источникам <span style="color:var(--btn);font-size:11px;font-weight:400">· ${escHtml(activeMonthLabel)}</span>`
-      : "По источникам";
+    // Header label
+    const monthLabel = !statsAllMode ? MONTH_NAMES_RU[statsMon-1] + " " + statsYear : "";
+    const srcLabel   = _activeSource ? ` · ${_activeSource}` : "";
+    const wideBadge  = statsAllMode
+      ? `<span class="stat-pill">${s.future} впереди</span>`
+      : "";
 
     el.innerHTML = `
-      <div class="stats-cards">
-        <div class="stat-card">
-          <div class="stat-number">${s.total}</div>
-          <div class="stat-label">Всего${filterLabel}</div>
+      <div class="stats-bento">
+        <div class="stat-card stat-wide">
+          <div>
+            <div class="stat-label">${monthLabel ? escHtml(monthLabel) : "Все время"}${srcLabel ? `<span style="color:var(--btn)"> · ${escHtml(_activeSource)}</span>` : ""}</div>
+            <div class="stat-number">${s.total}</div>
+          </div>
+          ${wideBadge ? `<div class="stat-wide-badges">${wideBadge}</div>` : ""}
         </div>
+        ${statsAllMode ? `
         <div class="stat-card">
-          <div class="stat-number">${s.future}</div>
-          <div class="stat-label">Предстоящих</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">${s.this_month}</div>
           <div class="stat-label">${escHtml(s.this_month_name)}</div>
+          <div class="stat-number">${s.this_month}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-number">${s.next_month}</div>
           <div class="stat-label">${escHtml(s.next_month_name)}</div>
-        </div>
+          <div class="stat-number">${s.next_month}</div>
+        </div>` : ""}
       </div>
 
       <div class="section-header">
-        <div class="stats-section-title">${monthTitle}</div>
-        ${_activeMonth ? `<button class="filter-pill active" onclick="statsMonthClick('')">
-          <span>Сбросить</span></button>` : ""}
+        <div class="stats-section-title">По месяцам</div>
       </div>
       <div class="month-chart">${monthBars}</div>
 
-      <div class="section-header" style="margin-top:20px">
-        <div class="stats-section-title">${srcTitle}</div>
-        <button class="filter-pill${srcFilterActive ? " active" : ""}"
-                onclick="openSourceFilterSheet()">
-          ${srcFilterActive
-            ? `<span>${escHtml(_activeSource)}</span><span class="filter-pill-badge">✕</span>`
-            : `<span>Фильтр ▾</span>`}
-        </button>
+      <div class="section-header" style="margin-top:22px">
+        <div class="stats-section-title">По источникам</div>
+        ${_activeSource ? `<button class="filter-pill active" onclick="statsToggleSource('')">Сбросить</button>` : ""}
       </div>
       ${srcRows}
     `;
+
+    // Scroll active month bar into view
+    if (!statsAllMode) {
+      setTimeout(() => {
+        const active = document.querySelector(".month-bar-wrap.active");
+        if (active) active.scrollIntoView({ behavior:"smooth", block:"nearest", inline:"center" });
+      }, 100);
+    }
   } catch (e) {
     el.innerHTML = `<div class="stats-loading" style="color:var(--c-booked)">Ошибка: ${e.message}</div>`;
   }
 }
 
-function statsMonthClick(key) {
+function statsGoToMonth(key) {
+  // key = "MM.YYYY"
   haptic.select();
-  loadStats(undefined, key);
+  if (!key) return;
+  const [mm, yyyy] = key.split(".");
+  statsMon     = parseInt(mm);
+  statsYear    = parseInt(yyyy);
+  statsAllMode = false;
+  _activeSource = "";
+  _updateStatsNav();
+  loadStats();
 }
 
-// ─── Source filter sheet ──────────────────────────────────────────────────────
-function openSourceFilterSheet() {
-  haptic.light();
-  document.getElementById("sheetTitle").textContent = "Фильтр по источнику";
-  document.getElementById("sheetDate").textContent  = "";
-
-  const srcEntries = [["", "Все источники"], ...Object.entries(_allSources)];
-  const items = srcEntries.map(([val, label]) => {
-    const checked = _activeSource === val;
-    const displayLabel = typeof label === "number" ? val : label;
-    const cnt = typeof label === "number" ? label : "";
-    return `
-      <div class="filter-sheet-item" onclick="applySourceFilter(${JSON.stringify(val)})">
-        <div class="filter-radio${checked ? " checked" : ""}"></div>
-        <div class="filter-item-name">${escHtml(displayLabel)}</div>
-        ${cnt !== "" ? `<div class="filter-item-cnt">${cnt}</div>` : ""}
-      </div>`;
-  }).join("");
-
-  document.getElementById("sheetContent").innerHTML =
-    `<div class="filter-sheet-list">${items}</div>`;
-  document.getElementById("sheetActions").innerHTML = "";
-  openSheet();
-}
-
-function applySourceFilter(val) {
+function statsToggleSource(src) {
   haptic.select();
-  _activeSource = val;
-  closeSheet();
+  _activeSource = _activeSource === src ? "" : src;
   loadStats();
 }
 
@@ -1000,28 +1102,40 @@ function openViewSheet(day) {
   document.getElementById("sheetDate").textContent  = fmtDate(day.date);
 
   const fields = [
-    ["👤", "Клиент",      day.name        ],
-    ["👥", "Гости",       day.guests      ],
-    ["📞", "Телефон",     fmtPhone(day.phone) ],
-    ["📍", "Источник",    day.source      ],
-    ["🏷",  "Тип",         day.client_type ],
-    ["💬", "Комментарий", day.comment     ],
-  ].filter(([,, v]) => v);
+    ["Клиент",      day.name             ],
+    ["Гости",       day.guests           ],
+    ["Телефон",     fmtPhone(day.phone)  ],
+    ["Источник",    day.source           ],
+    ["Тип",         day.client_type      ],
+    ["Комментарий", day.comment          ],
+  ].filter(([, v]) => v);
 
   document.getElementById("sheetContent").innerHTML =
     `<div class="booking-detail">
-      ${fields.map(([icon, l, v]) =>
-        `<div class="detail-row">
-          <div class="detail-icon">${icon}</div>
-          <div class="detail-label">${l}</div>
-          <div class="detail-value">${escHtml(String(v))}</div>
-        </div>`).join("")}
+      <div class="detail-card">
+        ${fields.map(([l, v]) =>
+          `<div class="detail-row">
+            <div class="detail-label">${l}</div>
+            <div class="detail-value">${escHtml(String(v))}</div>
+          </div>`).join("")}
+      </div>
     </div>`;
 
   const act = document.getElementById("sheetActions");
   act.innerHTML = "";
-  addBtn(act, "btn-primary",   "✏️ Редактировать", () => { haptic.light(); openEditSheet(day); });
-  addBtn(act, "btn-danger",    "🗑 Отменить бронь", () => { haptic.medium(); confirmDelete(day); });
+
+  const editBtn = document.createElement("button");
+  editBtn.className = "btn btn-primary";
+  editBtn.innerHTML = `${ICO.pencil} Редактировать`;
+  editBtn.onclick = () => { haptic.light(); openEditSheet(day); };
+  act.appendChild(editBtn);
+
+  const delBtn = document.createElement("button");
+  delBtn.className = "btn btn-outline-danger";
+  delBtn.innerHTML = `${ICO.trash} Отменить бронь`;
+  delBtn.onclick = () => { haptic.medium(); confirmDelete(day); };
+  act.appendChild(delBtn);
+
   openSheet(null, null);
 }
 
@@ -1035,8 +1149,17 @@ function openAddSheet(day) {
 
   const act = document.getElementById("sheetActions");
   act.innerHTML = "";
-  addBtn(act, "btn-primary",   "💾 Сохранить", () => submitAdd());
-  addBtn(act, "btn-secondary", "Отмена",       closeSheet);
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "btn btn-primary";
+  saveBtn.innerHTML = `${ICO.save} Сохранить`;
+  saveBtn.onclick = () => submitAdd();
+  act.appendChild(saveBtn);
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "btn btn-secondary";
+  cancelBtn.textContent = "Отмена";
+  cancelBtn.onclick = closeSheet;
+  act.appendChild(cancelBtn);
+
   openSheet("Сохранить", () => submitAdd());
   initFormWidgets(data);
 }
@@ -1049,8 +1172,17 @@ function openEditSheet(day) {
 
   const act = document.getElementById("sheetActions");
   act.innerHTML = "";
-  addBtn(act, "btn-primary",   "💾 Сохранить", () => submitEdit(day.date));
-  addBtn(act, "btn-secondary", "← Назад",      () => { haptic.light(); openViewSheet(day); });
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "btn btn-primary";
+  saveBtn.innerHTML = `${ICO.save} Сохранить`;
+  saveBtn.onclick = () => submitEdit(day.date);
+  act.appendChild(saveBtn);
+  const backBtn = document.createElement("button");
+  backBtn.className = "btn btn-secondary";
+  backBtn.innerHTML = `${ICO.back} Назад`;
+  backBtn.onclick = () => { haptic.light(); openViewSheet(day); };
+  act.appendChild(backBtn);
+
   openSheet("Сохранить", () => submitEdit(day.date));
   initFormWidgets(day);
 }
@@ -1060,11 +1192,8 @@ function buildForm(data, showDateField) {
   const dateF = showDateField
     ? `<div class="form-group">
         <label class="form-label">Дата</label>
-        <div class="input-wrap">
-          <span class="input-icon">📅</span>
-          <input class="form-input" id="f-date" type="text"
-                 placeholder="ДД.ММ.ГГГГ" value="${escHtml(data.date||"")}" />
-        </div>
+        <input class="form-input" id="f-date" type="text"
+               placeholder="ДД.ММ.ГГГГ" value="${escHtml(data.date||"")}" />
       </div>`
     : `<input type="hidden" id="f-date" value="${escHtml(data.date||"")}" />`;
 
@@ -1072,11 +1201,8 @@ function buildForm(data, showDateField) {
     ${dateF}
     <div class="form-group">
       <label class="form-label">Имя клиента</label>
-      <div class="input-wrap">
-        <span class="input-icon">👤</span>
-        <input class="form-input" id="f-name" type="text"
-               placeholder="Иван Петров" value="${escHtml(data.name||"")}" />
-      </div>
+      <input class="form-input" id="f-name" type="text"
+             placeholder="Иван Петров" value="${escHtml(data.name||"")}" />
     </div>
     <div class="form-group">
       <label class="form-label">Количество гостей</label>
@@ -1090,12 +1216,9 @@ function buildForm(data, showDateField) {
     </div>
     <div class="form-group">
       <label class="form-label">Телефон</label>
-      <div class="input-wrap">
-        <span class="input-icon">📞</span>
-        <input class="form-input" id="f-phone" type="tel"
-               placeholder="+7 900 000 00 00"
-               value="${escHtml(fmtPhone(data.phone||""))}" />
-      </div>
+      <input class="form-input" id="f-phone" type="tel"
+             placeholder="+7 900 000 00 00"
+             value="${escHtml(fmtPhone(data.phone||""))}" />
     </div>
     <div class="section-sep">Дополнительно</div>
     <div class="form-group">
@@ -1108,12 +1231,9 @@ function buildForm(data, showDateField) {
     </div>
     <div class="form-group">
       <label class="form-label">Тип клиента</label>
-      <div class="input-wrap">
-        <span class="input-icon">🏷</span>
-        <input class="form-input" id="f-client_type" type="text"
-               placeholder="Прямой клиент / Агентство"
-               value="${escHtml(data.client_type||"")}" />
-      </div>
+      <input class="form-input" id="f-client_type" type="text"
+             placeholder="Прямой клиент / Агентство"
+             value="${escHtml(data.client_type||"")}" />
     </div>
     <div class="form-group">
       <label class="form-label">Комментарий</label>
@@ -1170,7 +1290,6 @@ function renderChipSelector() {
     });
   });
 
-  // Show custom input if it's a custom source
   const customWrap  = document.getElementById("chipCustomWrap");
   const customInput = document.getElementById("f-source-custom");
   if (isCustom && customWrap && customInput) {
@@ -1206,7 +1325,7 @@ async function submitAdd() {
     setSheetLoading(true);
     await apiFetch("POST", "/api/booking", data);
     haptic.success();
-    closeSheet(); showToast("✅ Бронь добавлена");
+    closeSheet(); showToast("Бронь добавлена");
     await loadMonth();
   } catch (e) { haptic.error(); showToast("Ошибка: " + e.message); }
   finally { setSheetLoading(false); }
@@ -1219,7 +1338,7 @@ async function submitEdit(dateStr) {
     setSheetLoading(true);
     await apiFetch("PUT", `/api/booking/${encodeURIComponent(dateStr)}`, data);
     haptic.success();
-    closeSheet(); showToast("✅ Бронь обновлена");
+    closeSheet(); showToast("Бронь обновлена");
     await loadMonth();
   } catch (e) { haptic.error(); showToast("Ошибка: " + e.message); }
   finally { setSheetLoading(false); }
@@ -1228,14 +1347,22 @@ async function submitEdit(dateStr) {
 function confirmDelete(day) {
   document.getElementById("sheetContent").innerHTML = `
     <div style="padding:24px 16px;text-align:center">
-      <div style="font-size:44px;margin-bottom:12px">⚠️</div>
+      <div style="color:var(--c-booked);margin-bottom:12px">${ICO.warn}</div>
       <div style="font-size:17px;font-weight:700;margin-bottom:8px">Отменить бронь?</div>
       <div style="font-size:14px;color:var(--hint)">${fmtDate(day.date)}<br>${escHtml(day.name||"")}</div>
     </div>`;
   const act = document.getElementById("sheetActions");
   act.innerHTML = "";
-  addBtn(act, "btn-danger",    "🗑 Да, отменить", () => doDelete(day));
-  addBtn(act, "btn-secondary", "← Назад",         () => { haptic.light(); openViewSheet(day); });
+  const confirmBtn = document.createElement("button");
+  confirmBtn.className = "btn btn-danger";
+  confirmBtn.innerHTML = `${ICO.trash} Да, отменить`;
+  confirmBtn.onclick = () => doDelete(day);
+  act.appendChild(confirmBtn);
+  const backBtn = document.createElement("button");
+  backBtn.className = "btn btn-secondary";
+  backBtn.innerHTML = `${ICO.back} Назад`;
+  backBtn.onclick = () => { haptic.light(); openViewSheet(day); };
+  act.appendChild(backBtn);
 }
 
 async function doDelete(day) {
@@ -1243,7 +1370,7 @@ async function doDelete(day) {
     setSheetLoading(true);
     await apiFetch("DELETE", `/api/booking/${encodeURIComponent(day.date)}`);
     haptic.success();
-    closeSheet(); showToast("🗑 Бронь отменена");
+    closeSheet(); showToast("Бронь отменена");
     await loadMonth();
   } catch (e) { haptic.error(); showToast("Ошибка: " + e.message); }
   finally { setSheetLoading(false); }
@@ -1325,20 +1452,20 @@ function _plural(n, one, few, many) {
   return many;
 }
 
-// ─── Load sources for chip selector ──────────────────────────────────────────
+// ─── Load sources ─────────────────────────────────────────────────────────────
 async function loadSources() {
   try { sourcesData = await apiFetch("GET", "/api/sources"); }
   catch { /* не критично */ }
 }
 
-// ─── Superadmin check ────────────────────────────────────────────────────────
+// ─── Superadmin check ─────────────────────────────────────────────────────────
 const SUPERADMIN_ID = 45028744;
 const myId = twa?.initDataUnsafe?.user?.id || 0;
 if (myId === SUPERADMIN_ID) {
   document.getElementById("tab-admin").style.display = "";
 }
 
-// ─── Admin panel ─────────────────────────────────────────────────────────────
+// ─── Admin panel ──────────────────────────────────────────────────────────────
 async function loadAdminUsers() {
   const list = document.getElementById("adminUsersList");
   try {
@@ -1355,9 +1482,11 @@ async function loadAdminUsers() {
       row.innerHTML = `
         <div style="flex:1">
           <div class="admin-user-name">@${escHtml(u.username || "—")}</div>
-          <div class="admin-user-id">${hasId ? "ID: " + u.telegram_id : "⏳ ещё не писал боту"} · добавлен ${escHtml(u.added_at || "")}</div>
+          <div class="admin-user-id">${hasId ? "ID: " + u.telegram_id : "⏳ ещё не писал боту"} · ${escHtml(u.added_at || "")}</div>
         </div>
-        <button class="admin-remove-btn" data-id="${u.telegram_id}" data-uname="${escHtml(u.username)}">✕</button>
+        <button class="admin-remove-btn" data-id="${u.telegram_id}" data-uname="${escHtml(u.username)}">
+          ${ICO.trash}
+        </button>
       `;
       list.appendChild(row);
     });
@@ -1379,7 +1508,7 @@ async function loadAdminActivity() {
       html += `<tr>
         <td>${r.username ? "@" + escHtml(r.username) : escHtml(String(r.telegram_id))}</td>
         <td>${escHtml(r.action || "")}</td>
-        <td style="white-space:nowrap">${escHtml(r.timestamp || "")}</td>
+        <td style="white-space:nowrap;color:var(--hint)">${escHtml(r.timestamp || "")}</td>
       </tr>`;
     });
     html += "</tbody></table>";
@@ -1389,14 +1518,13 @@ async function loadAdminActivity() {
   }
 }
 
-// Удаление пользователя — делегирование на список
 document.getElementById("adminUsersList").addEventListener("click", async e => {
   const btn = e.target.closest(".admin-remove-btn");
   if (!btn) return;
   const tid = parseInt(btn.dataset.id);
   const uname = btn.dataset.uname;
   if (!tid) {
-    showToast("Нельзя удалить — пользователь ещё не писал боту. Удалите вручную.");
+    showToast("Нельзя удалить — пользователь ещё не писал боту");
     return;
   }
   haptic.medium();
@@ -1413,7 +1541,6 @@ document.getElementById("adminUsersList").addEventListener("click", async e => {
   }
 });
 
-// Добавление пользователей
 document.getElementById("adminAddBtn").addEventListener("click", async () => {
   const raw = document.getElementById("adminUsernamesInput").value.trim();
   if (!raw) return;
@@ -1427,7 +1554,7 @@ document.getElementById("adminAddBtn").addEventListener("click", async () => {
     const res = await apiFetch("POST", "/api/admin/users", { usernames });
     const added = res.added?.length || 0;
     const dupes = res.dupes?.length || 0;
-    let msg = added ? `✅ Добавлено: ${added}` : "";
+    let msg = added ? `Добавлено: ${added}` : "";
     if (dupes) msg += (msg ? ", " : "") + `уже есть: ${dupes}`;
     showToast(msg || "Готово");
     haptic.success();
