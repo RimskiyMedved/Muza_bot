@@ -58,11 +58,8 @@ load_dotenv()
 TOKEN               = os.getenv("TELEGRAM_BOT_TOKEN")
 NOTIFY_USERNAME     = os.getenv("NOTIFY_USERNAME", "@rimskiymedved")
 WEBAPP_URL          = os.getenv("WEBAPP_URL", "")   # https://yourdomain.com — URL мини-апп
-ADMIN_IDS: set[int] = {
-    int(x.strip())
-    for x in os.getenv("ADMIN_CHAT_ID", "0").split(",")
-    if x.strip().isdigit()
-}
+SUPERADMIN_ID: int = int(os.getenv("SUPERADMIN_ID", "45028744"))
+ADMIN_IDS: set[int] = {SUPERADMIN_ID}
 
 # Сокращение для экранирования пользовательских данных в HTML
 _e = html.escape
@@ -345,10 +342,12 @@ def _parse_guests(val: str) -> int:
 
 def is_admin(update: Update) -> bool:
     uid = update.effective_user.id
-    result = uid in ADMIN_IDS
-    if not result:
-        log.warning(f"Команда от НЕ-администратора: user_id={uid}")
-    return result
+    if uid == SUPERADMIN_ID:
+        return True
+    if database.is_allowed_user(uid):
+        return True
+    log.warning(f"Команда от НЕ-администратора: user_id={uid}")
+    return False
 
 
 def _parse_month_arg(args: list) -> tuple[int, int]:
@@ -473,6 +472,13 @@ async def auto_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # При каждом /start — обновляем telegram_id по username (если добавлен по логину)
+    user = update.effective_user
+    if user and user.username:
+        try:
+            database.update_allowed_user_id(user.username, user.id)
+        except Exception:
+            pass
     is_adm = is_admin(update)
     if is_adm:
         text = (

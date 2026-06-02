@@ -72,6 +72,21 @@ def init_db() -> None:
                 source       TEXT DEFAULT '',
                 synced_at    TEXT DEFAULT ''
             );
+
+            CREATE TABLE IF NOT EXISTS allowed_users (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id  INTEGER UNIQUE,
+                username     TEXT DEFAULT '',
+                added_at     TEXT DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS access_log (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id  INTEGER,
+                username     TEXT DEFAULT '',
+                action       TEXT DEFAULT '',
+                timestamp    TEXT DEFAULT ''
+            );
         """)
     log.info("✅ SQLite инициализирована: %s", DB_PATH)
 
@@ -329,3 +344,72 @@ def add_lead(
             (now, name, phone, nick, source, now)
         )
     return True
+
+
+# ─── Разрешённые пользователи ─────────────────────────────────────────────────
+
+def get_allowed_users() -> list[dict]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM allowed_users ORDER BY added_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def is_allowed_user(telegram_id: int) -> bool:
+    with _conn() as con:
+        row = con.execute(
+            "SELECT id FROM allowed_users WHERE telegram_id = ?", (telegram_id,)
+        ).fetchone()
+    return row is not None
+
+
+def add_allowed_user(telegram_id: int, username: str) -> bool:
+    """Добавляет пользователя. Возвращает False если уже есть."""
+    now = datetime.now().strftime("%d.%m.%Y %H:%M")
+    try:
+        with _conn() as con:
+            con.execute(
+                "INSERT INTO allowed_users (telegram_id, username, added_at) VALUES (?,?,?)",
+                (telegram_id, username.lstrip("@"), now)
+            )
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+
+def remove_allowed_user(telegram_id: int) -> bool:
+    with _conn() as con:
+        cur = con.execute(
+            "DELETE FROM allowed_users WHERE telegram_id = ?", (telegram_id,)
+        )
+    return cur.rowcount > 0
+
+
+def update_allowed_user_id(username: str, telegram_id: int) -> None:
+    """Обновляет telegram_id по username (когда пользователь впервые пишет боту)."""
+    username = username.lstrip("@")
+    with _conn() as con:
+        con.execute(
+            "UPDATE allowed_users SET telegram_id = ? WHERE username = ? AND (telegram_id IS NULL OR telegram_id = 0)",
+            (telegram_id, username)
+        )
+
+
+# ─── Лог доступа ──────────────────────────────────────────────────────────────
+
+def log_access(telegram_id: int, username: str, action: str) -> None:
+    now = datetime.now().strftime("%d.%m.%Y %H:%M")
+    with _conn() as con:
+        con.execute(
+            "INSERT INTO access_log (telegram_id, username, action, timestamp) VALUES (?,?,?,?)",
+            (telegram_id, username, action, now)
+        )
+
+
+def get_access_log(limit: int = 100) -> list[dict]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM access_log ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+    return [dict(r) for r in rows]

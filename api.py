@@ -47,7 +47,9 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+BOT_TOKEN    = os.getenv("TELEGRAM_BOT_TOKEN", "")
+SUPERADMIN_ID = int(os.getenv("SUPERADMIN_ID", "45028744"))
+# Оставляем для обратной совместимости, основная проверка — через БД
 ADMIN_IDS: set[int] = {
     int(x.strip())
     for x in os.getenv("ADMIN_CHAT_ID", "0").split(",")
@@ -136,9 +138,19 @@ def _require_admin(x_init_data: str = Header(default=None, alias="x-init-data"))
         raise HTTPException(401, "Missing X-Init-Data header")
     user = _verify_init_data(x_init_data)
     uid = user.get("id")
-    if uid not in ADMIN_IDS:
+    if uid != SUPERADMIN_ID and not database.is_allowed_user(uid):
         log.warning("Unauthorized access attempt: user_id=%s", uid)
         raise HTTPException(403, "Admins only")
+    # Логируем каждый вход в Mini App (раз в сессию достаточно, логируем здесь)
+    return user
+
+
+def _require_superadmin(x_init_data: str = Header(default=None, alias="x-init-data")) -> dict:
+    if not x_init_data:
+        raise HTTPException(401, "Missing X-Init-Data header")
+    user = _verify_init_data(x_init_data)
+    if user.get("id") != SUPERADMIN_ID:
+        raise HTTPException(403, "Superadmin only")
     return user
 
 
@@ -160,6 +172,11 @@ async def serve_index() -> FileResponse:
 
 @app.get("/api/calendar")
 async def get_calendar(month: str = None, user: dict = Depends(_require_admin)):
+    # Логируем открытие
+    try:
+        database.log_access(user.get("id", 0), user.get("username") or user.get("first_name", ""), "calendar")
+    except Exception:
+        pass
     """
     Возвращает статус каждого дня месяца.
     month: YYYY-MM (по умолчанию текущий месяц)
@@ -478,3 +495,43 @@ async def force_sync(user: dict = Depends(_require_admin)):
         return {"ok": True}
     except Exception as e:
         raise HTTPException(502, f"Sync error: {e}")
+
+
+# ─── Admin: управление пользователями ─────────────────────────────────────────
+
+class UserIn(BaseModel):
+    usernames: list[str]  # список @username
+
+
+@app.get("/api/admin/users")
+async def admin_get_users(user: dict = Depends(_require_superadmin)):
+    return database.get_allowed_users()
+
+
+@app.post("/api/admin/users")
+async def admin_add_users(body: UserIn, user: dict = Depends(_require_superadmin)):
+    added, dupes = [], []
+    for raw in body.usernames:
+        uname = raw.strip().lstrip("@")
+        if not uname:
+            continue
+        ok = database.add_allowed_user(telegram_id=0, username=uname)
+        (added if ok else dupes).append(uname)
+    log.info("➕ Добавлены пользователи: %s (дубли: %s)", added, dupes)
+    return {"added": added, "dupes": dupes}
+
+
+@app.delete("/api/admin/users/{telegram_id}")
+async def admin_remove_user(telegram_id: int, user: dict = Depends(_require_superadmin)):
+    ok = database.remove_allowed_user(telegram_id)
+    if not ok:
+        raise HTTPException(404, "User not found")
+    return {"ok": True}
+
+
+# ─── Admin: лог активности ────────────────────────────────────────────────────
+
+@app.get("/api/admin/activity")
+async def admin_get_activity(user: dict = Depends(_require_superadmin)):
+    rows = database.get_access_log(limit=200)
+    return rows

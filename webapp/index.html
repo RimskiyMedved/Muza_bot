@@ -436,6 +436,54 @@
     .filter-item-name { font-size: 14px; flex: 1; }
     .filter-item-cnt  { font-size: 13px; color: var(--hint); }
 
+    /* ── Admin panel ────────────────────────────────────────────────────── */
+    #adminView { padding: 12px 16px 32px; display: none; }
+    .admin-section {
+      background: var(--bg2); border-radius: 16px; padding: 16px;
+      margin-bottom: 14px;
+    }
+    .admin-section-title {
+      font-size: 12px; font-weight: 700; color: var(--hint);
+      text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px;
+    }
+    .admin-users-list { display: flex; flex-direction: column; gap: 8px; }
+    .admin-user-row {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--bg); border-radius: 12px; padding: 10px 12px;
+    }
+    .admin-user-name { flex: 1; font-size: 14px; }
+    .admin-user-id   { font-size: 11px; color: var(--hint); }
+    .admin-remove-btn {
+      background: none; border: none; font-size: 18px;
+      color: var(--c-booked); cursor: pointer; padding: 2px 6px;
+      border-radius: 8px; line-height: 1;
+    }
+    .admin-remove-btn:active { opacity: .6; }
+    .admin-textarea {
+      width: 100%; background: var(--bg); border: 1.5px solid var(--bg2);
+      border-radius: 12px; padding: 10px 12px; font-size: 14px;
+      color: var(--text); font-family: inherit; resize: none; outline: none;
+      min-height: 80px;
+    }
+    .admin-textarea:focus { border-color: var(--btn); }
+    .admin-add-btn {
+      margin-top: 8px; width: 100%; padding: 12px;
+      background: var(--btn); color: var(--btn-text);
+      border: none; border-radius: 12px; font-size: 15px;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .admin-add-btn:active { opacity: .8; }
+    .admin-log-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .admin-log-table th {
+      text-align: left; color: var(--hint); font-weight: 600;
+      padding: 4px 6px 8px; border-bottom: 1px solid var(--bg2);
+    }
+    .admin-log-table td {
+      padding: 7px 6px; border-bottom: 1px solid rgba(0,0,0,.04);
+      vertical-align: top;
+    }
+    .admin-empty { text-align: center; color: var(--hint); font-size: 13px; padding: 12px; }
+
     /* ── Toast ──────────────────────────────────────────────────────────── */
     .toast {
       position: fixed; bottom: 74px; left: 50%;
@@ -497,6 +545,28 @@
   </div>
 </div>
 
+<!-- ── Admin view ───────────────────────────────────────────────────────── -->
+<div id="adminView">
+  <div class="admin-section">
+    <div class="admin-section-title">Пользователи с доступом</div>
+    <div class="admin-users-list" id="adminUsersList">
+      <div class="admin-empty">Загружаем…</div>
+    </div>
+  </div>
+  <div class="admin-section">
+    <div class="admin-section-title">Добавить пользователей</div>
+    <textarea class="admin-textarea" id="adminUsernamesInput"
+      placeholder="@username1&#10;@username2&#10;..."></textarea>
+    <button class="admin-add-btn" id="adminAddBtn">Добавить</button>
+  </div>
+  <div class="admin-section">
+    <div class="admin-section-title">Активность (последние 100)</div>
+    <div id="adminActivityContent">
+      <div class="admin-empty">Загружаем…</div>
+    </div>
+  </div>
+</div>
+
 <!-- FAB -->
 <button class="fab" id="fabBtn" title="Добавить бронь">＋</button>
 
@@ -518,12 +588,15 @@
 </div>
 
 <!-- Bottom nav -->
-<nav class="bottom-nav">
+<nav class="bottom-nav" id="bottomNav">
   <button class="nav-tab active" id="tab-calendar" onclick="switchView('calendar')">
     <span class="tab-icon">📅</span>Календарь
   </button>
   <button class="nav-tab" id="tab-stats" onclick="switchView('stats')">
     <span class="tab-icon">📊</span>Статистика
+  </button>
+  <button class="nav-tab" id="tab-admin" onclick="switchView('admin')" style="display:none">
+    <span class="tab-icon">⚙️</span>Админ
   </button>
 </nav>
 
@@ -621,12 +694,15 @@ function switchView(view) {
   currentView = view;
   document.getElementById("calendarView").style.display  = view === "calendar" ? "block" : "none";
   document.getElementById("statsView").style.display     = view === "stats"    ? "block" : "none";
+  document.getElementById("adminView").style.display     = view === "admin"    ? "block" : "none";
   document.getElementById("calHeader").style.display     = view === "calendar" ? "block" : "none";
   document.getElementById("fabBtn").style.display        = view === "calendar" ? "flex"  : "none";
   document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
-  document.getElementById(`tab-${view}`).classList.add("active");
+  const tabEl = document.getElementById(`tab-${view}`);
+  if (tabEl) tabEl.classList.add("active");
   haptic.select();
-  if (view === "stats") loadStats();
+  if (view === "stats")  loadStats();
+  if (view === "admin")  loadAdminPanel();
 }
 
 // ─── Year / month ──────────────────────────────────────────────────────────────
@@ -1253,6 +1329,122 @@ function _plural(n, one, few, many) {
 async function loadSources() {
   try { sourcesData = await apiFetch("GET", "/api/sources"); }
   catch { /* не критично */ }
+}
+
+// ─── Superadmin check ────────────────────────────────────────────────────────
+const SUPERADMIN_ID = 45028744;
+const myId = twa?.initDataUnsafe?.user?.id || 0;
+if (myId === SUPERADMIN_ID) {
+  document.getElementById("tab-admin").style.display = "";
+}
+
+// ─── Admin panel ─────────────────────────────────────────────────────────────
+async function loadAdminUsers() {
+  const list = document.getElementById("adminUsersList");
+  try {
+    const users = await apiFetch("GET", "/api/admin/users");
+    if (!users.length) {
+      list.innerHTML = '<div class="admin-empty">Нет пользователей</div>';
+      return;
+    }
+    list.innerHTML = "";
+    users.forEach(u => {
+      const row = document.createElement("div");
+      row.className = "admin-user-row";
+      const hasId = u.telegram_id && u.telegram_id !== 0;
+      row.innerHTML = `
+        <div style="flex:1">
+          <div class="admin-user-name">@${escHtml(u.username || "—")}</div>
+          <div class="admin-user-id">${hasId ? "ID: " + u.telegram_id : "⏳ ещё не писал боту"} · добавлен ${escHtml(u.added_at || "")}</div>
+        </div>
+        <button class="admin-remove-btn" data-id="${u.telegram_id}" data-uname="${escHtml(u.username)}">✕</button>
+      `;
+      list.appendChild(row);
+    });
+  } catch(e) {
+    list.innerHTML = `<div class="admin-empty">Ошибка: ${escHtml(e.message)}</div>`;
+  }
+}
+
+async function loadAdminActivity() {
+  const wrap = document.getElementById("adminActivityContent");
+  try {
+    const rows = await apiFetch("GET", "/api/admin/activity");
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="admin-empty">Пока нет активности</div>';
+      return;
+    }
+    let html = '<table class="admin-log-table"><thead><tr><th>Пользователь</th><th>Действие</th><th>Время</th></tr></thead><tbody>';
+    rows.forEach(r => {
+      html += `<tr>
+        <td>${r.username ? "@" + escHtml(r.username) : escHtml(String(r.telegram_id))}</td>
+        <td>${escHtml(r.action || "")}</td>
+        <td style="white-space:nowrap">${escHtml(r.timestamp || "")}</td>
+      </tr>`;
+    });
+    html += "</tbody></table>";
+    wrap.innerHTML = html;
+  } catch(e) {
+    wrap.innerHTML = `<div class="admin-empty">Ошибка: ${escHtml(e.message)}</div>`;
+  }
+}
+
+// Удаление пользователя — делегирование на список
+document.getElementById("adminUsersList").addEventListener("click", async e => {
+  const btn = e.target.closest(".admin-remove-btn");
+  if (!btn) return;
+  const tid = parseInt(btn.dataset.id);
+  const uname = btn.dataset.uname;
+  if (!tid) {
+    showToast("Нельзя удалить — пользователь ещё не писал боту. Удалите вручную.");
+    return;
+  }
+  haptic.medium();
+  btn.disabled = true;
+  try {
+    await apiFetch("DELETE", `/api/admin/users/${tid}`);
+    showToast(`@${uname} удалён`);
+    haptic.success();
+    loadAdminUsers();
+  } catch(e) {
+    haptic.error();
+    showToast("Ошибка: " + e.message);
+    btn.disabled = false;
+  }
+});
+
+// Добавление пользователей
+document.getElementById("adminAddBtn").addEventListener("click", async () => {
+  const raw = document.getElementById("adminUsernamesInput").value.trim();
+  if (!raw) return;
+  const usernames = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  if (!usernames.length) return;
+  haptic.medium();
+  const btn = document.getElementById("adminAddBtn");
+  btn.disabled = true;
+  btn.textContent = "Добавляем…";
+  try {
+    const res = await apiFetch("POST", "/api/admin/users", { usernames });
+    const added = res.added?.length || 0;
+    const dupes = res.dupes?.length || 0;
+    let msg = added ? `✅ Добавлено: ${added}` : "";
+    if (dupes) msg += (msg ? ", " : "") + `уже есть: ${dupes}`;
+    showToast(msg || "Готово");
+    haptic.success();
+    document.getElementById("adminUsernamesInput").value = "";
+    loadAdminUsers();
+  } catch(e) {
+    haptic.error();
+    showToast("Ошибка: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Добавить";
+  }
+});
+
+function loadAdminPanel() {
+  loadAdminUsers();
+  loadAdminActivity();
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
