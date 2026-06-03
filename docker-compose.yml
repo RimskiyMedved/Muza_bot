@@ -31,7 +31,7 @@ services:
       uvicorn api:app
       --host 0.0.0.0
       --port 8001
-      --workers 1
+      --reload
       --log-level info
     env_file: .env
     restart: unless-stopped
@@ -42,6 +42,9 @@ services:
       - ./database.db:/app/database.db
       - ./credentials.json:/app/credentials.json
       - ./webapp:/app/webapp   # hot-reload: изменения без rebuild
+      - ./api.py:/app/api.py   # hot-reload: изменения без rebuild
+      - ./sheets.py:/app/sheets.py
+      - ./database.py:/app/database.py
 
   # ── Caddy — HTTPS reverse proxy ──────────────────────────────────────────────
   caddy:
