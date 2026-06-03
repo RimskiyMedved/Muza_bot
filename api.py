@@ -470,8 +470,8 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
         m = ((m - 1) % 12) + 1
         key = f"{m:02d}.{y}"
         cnt = by_month.get(key, 0)
-        # Показываем только месяцы с данными + текущий месяц
-        if cnt > 0 or delta == 0:
+        # Прошлые 12 + текущий — всегда; будущие — только с данными
+        if delta <= 0 or cnt > 0:
             month_labels.append(MONTH_NAMES[m - 1][:3] + f" {y}")
             month_counts.append(cnt)
             month_keys.append(key)
