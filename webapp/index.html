@@ -1444,10 +1444,11 @@ function openViewSheet(day) {
     ["Комментарий", day.comment          ],
   ].filter(([, v]) => v);
 
-  const tgRow = day.tg_nick
+  const tgPhone = (day.phone || "").replace(/\D/g, "");
+  const tgRow = tgPhone
     ? `<div class="detail-row">
          <div class="detail-label">Telegram</div>
-         <div class="detail-value"><a href="https://t.me/${escHtml(day.tg_nick)}" target="_blank" style="color:#7A2E44;text-decoration:none">@${escHtml(day.tg_nick)}</a></div>
+         <div class="detail-value"><a href="tg://resolve?phone=${escHtml(tgPhone)}" style="display:inline-flex;align-items:center;gap:5px;color:#0088cc;text-decoration:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L8.32 14.617l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.828.942z"/></svg>Открыть профиль</a></div>
        </div>`
     : "";
 
@@ -1545,11 +1546,6 @@ function buildForm(data, showDateField) {
       <label class="form-label">Имя клиента</label>
       <input class="form-input" id="f-name" type="text"
              placeholder="Иван Петров" value="${escHtml(data.name||"")}" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Ник в Telegram</label>
-      <input class="form-input" id="f-tg_nick" type="text"
-             placeholder="@username" value="${escHtml(data.tg_nick||"")}" />
     </div>
     <div class="form-group">
       <label class="form-label">Количество гостей</label>
@@ -2011,16 +2007,15 @@ function renderList() {
         <span class="list-card-weekday">${escHtml(b.weekday)}</span>
       </div>
       <div class="list-card-guests">${guests}</div>
-      <div class="list-card-name">${
-        b.tg_nick
-          ? `<a href="https://t.me/${escHtml(b.tg_nick)}" target="_blank" style="color:inherit;text-decoration:none;border-bottom:1px dashed rgba(60,46,34,.35)">${escHtml(b.name || "—")}</a>`
-          : escHtml(b.name || "—")
-      }</div>
+      <div class="list-card-name">${escHtml(b.name || "—")}</div>
       <div class="list-card-phone">
         ${normPhone
           ? `<a href="tel:${escHtml(rawPhone)}">${escHtml(normPhone)}</a>`
           : `<span class="no-phone">Нет телефона</span>`}
-        ${src}
+        <span style="display:flex;align-items:center;gap:6px">
+          ${rawPhone ? `<a href="tg://resolve?phone=${escHtml(rawPhone.replace(/\D/g,''))}" title="Открыть в Telegram" style="display:flex;align-items:center;color:#0088cc;opacity:.85"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L8.32 14.617l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.828.942z"/></svg></a>` : ""}
+          ${src}
+        </span>
       </div>
     </div>`;
   }).join("");
