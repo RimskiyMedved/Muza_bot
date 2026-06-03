@@ -49,6 +49,7 @@ from sheets import (
     remove_booking,
 )
 # get_all_bookings берём из SQLite — быстрее и консистентно с Mini App
+import database
 from database import get_all_bookings
 
 # ─── Конфиг ───────────────────────────────────────────────────────────────────
@@ -454,14 +455,29 @@ async def auto_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # При каждом /start — обновляем telegram_id по username (если добавлен по логину)
     user = update.effective_user
+
+    # Проверяем ДО обновления — был ли ID уже привязан
+    was_linked = database.is_allowed_user(user.id) if user else False
+
     if user and user.username:
         try:
             database.update_allowed_user_id(user.username, user.id)
         except Exception:
             pass
+
     is_adm = is_admin(update)
+
+    # Первый вход: был неизвестен, стал админом → приветствие
+    if is_adm and not was_linked and user.id != SUPERADMIN_ID:
+        await update.message.reply_text(
+            "🎉 <b>Добро пожаловать!</b>\n\n"
+            "Теперь у вас есть доступ к системе бронирований «Муза».\n\n"
+            "Нажмите /app чтобы открыть календарь.",
+            parse_mode="HTML",
+        )
+        return
+
     if is_adm:
         text = (
             "<b>Команды бота</b>\n\n"

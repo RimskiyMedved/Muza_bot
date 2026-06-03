@@ -56,6 +56,7 @@ def init_db() -> None:
                 client_type  TEXT DEFAULT '',
                 comment      TEXT DEFAULT '',
                 weekday      TEXT DEFAULT '',
+                tg_nick      TEXT DEFAULT '',
                 changed_by   TEXT DEFAULT '',
                 changed_at   TEXT DEFAULT '',
                 synced_at    TEXT DEFAULT ''
@@ -91,6 +92,12 @@ def init_db() -> None:
                 timestamp    TEXT DEFAULT ''
             );
         """)
+    # Добавляем колонку если БД уже существует без неё
+    try:
+        with _conn() as con:
+            con.execute("ALTER TABLE bookings ADD COLUMN tg_nick TEXT DEFAULT ''")
+    except Exception:
+        pass  # колонка уже есть
     log.info("✅ SQLite инициализирована: %s", DB_PATH)
 
 
@@ -178,6 +185,7 @@ def check_date(target: date) -> dict:
             "client_type": row["client_type"],
             "comment":     row["comment"],
             "weekday":     row["weekday"],
+            "tg_nick":     row["tg_nick"] if "tg_nick" in row.keys() else "",
         }
     return {"found": False}
 
@@ -201,6 +209,7 @@ def get_all_bookings() -> list[dict]:
                 "client_type": row["client_type"],
                 "comment":     row["comment"],
                 "weekday":     row["weekday"],
+                "tg_nick":     row["tg_nick"] if "tg_nick" in row.keys() else "",
                 "future":      d >= today,
             })
         except ValueError:
@@ -218,6 +227,7 @@ def upsert_booking(
     client_type: str = "",
     comment: str = "",
     weekday: str = "",
+    tg_nick: str = "",
     changed_by: str = "",
 ) -> None:
     """Добавляет или обновляет бронь в SQLite."""
@@ -226,16 +236,17 @@ def upsert_booking(
     with _conn() as con:
         con.execute("""
             INSERT INTO bookings
-            (date, guests, name, phone, source, client_type, comment, weekday, changed_by, changed_at, synced_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            (date, guests, name, phone, source, client_type, comment, weekday, tg_nick, changed_by, changed_at, synced_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(date) DO UPDATE SET
                 guests=excluded.guests, name=excluded.name, phone=excluded.phone,
                 source=excluded.source, client_type=excluded.client_type,
                 comment=excluded.comment, weekday=excluded.weekday,
+                tg_nick=excluded.tg_nick,
                 changed_by=excluded.changed_by, changed_at=excluded.changed_at,
                 synced_at=excluded.synced_at
         """, (target_str, guests, name, phone, source, client_type,
-              comment, weekday, changed_by, now, now))
+              comment, weekday, tg_nick, changed_by, now, now))
 
 
 def delete_booking(target: date) -> bool:
@@ -249,7 +260,7 @@ def delete_booking(target: date) -> bool:
 def update_booking_fields(target: date, changed_by: str = "", **fields) -> bool:
     """Обновляет отдельные поля брони."""
     target_str = target.strftime(DATE_FMT)
-    allowed = {"guests", "name", "phone", "source", "client_type", "comment"}
+    allowed = {"guests", "name", "phone", "source", "client_type", "comment", "tg_nick"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return False
