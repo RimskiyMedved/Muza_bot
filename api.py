@@ -580,11 +580,20 @@ async def admin_get_summary(user: dict = Depends(_require_superadmin)):
     with database._conn() as con:
         leads_count = con.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
         users_count = con.execute("SELECT COUNT(*) FROM allowed_users").fetchone()[0]
+        action_rows = con.execute("""
+            SELECT username, COUNT(*) as cnt
+            FROM access_log
+            WHERE username != ''
+            GROUP BY username
+            ORDER BY cnt DESC
+        """).fetchall()
+    manager_actions = [{"username": r[0], "count": r[1]} for r in action_rows]
     return {
-        "bookings_total":  len(bookings),
-        "bookings_future": len(future),
-        "bookings_past":   len(past),
-        "guests_total":    total_guests,
-        "leads_total":     leads_count,
-        "managers_count":  users_count,
+        "bookings_total":   len(bookings),
+        "bookings_future":  len(future),
+        "bookings_past":    len(past),
+        "guests_total":     total_guests,
+        "leads_total":      leads_count,
+        "managers_count":   users_count,
+        "manager_actions":  manager_actions,
     }

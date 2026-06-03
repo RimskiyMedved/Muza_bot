@@ -146,14 +146,14 @@
     .day-cell.free    { background: var(--bg-free); }
     .day-cell.past    { opacity: .2; }
     .day-cell.today   { background: var(--bg-today); border: 1px solid rgba(196,168,130,.45); }
-    .day-cell.wknd-col .day-number { color: rgba(196,120,142,.7); }
+    .day-cell.wknd-col .day-number { color: rgba(139,58,82,.65); }
 
     .day-number {
       font-size: clamp(12px,3.6vw,15px); font-weight: 500; line-height: 1;
-      color: rgba(240,232,220,.65);
+      color: rgba(42,30,20,.55);
     }
-    .day-cell.booked  .day-number { color: #EBC4CF; }
-    .day-cell.free    .day-number { color: #A8D4BC; }
+    .day-cell.booked  .day-number { color: #8B3A52; font-weight: 600; }
+    .day-cell.free    .day-number { color: #2E7A56; font-weight: 600; }
     .day-cell.today   .day-number { color: var(--gold); font-weight: 600; }
 
     /* Status dot — only for neutral/booked-no-name cells */
@@ -168,27 +168,30 @@
       max-width: 90%; overflow: hidden; text-overflow: ellipsis;
       white-space: nowrap; text-align: center; line-height: 1.1; font-weight: 500;
     }
-    .day-cell.booked .day-name { color: rgba(235,196,207,.8); }
-    .day-cell.free   .day-name { color: rgba(168,212,188,.8); }
+    .day-cell.booked .day-name { color: rgba(139,58,82,.75); }
+    .day-cell.free   .day-name { color: rgba(46,122,86,.75); }
 
     /* Source badge */
     .src-badge {
       position: absolute; top: 3px; right: 4px;
       font-size: clamp(4.5px,1.2vw,6px); font-weight: 700;
-      color: rgba(196,120,142,.6); line-height: 1;
+      color: rgba(139,58,82,.85); line-height: 1;
       letter-spacing: -.2px;
     }
 
     /* ── Mini stats ────────────────────────────────────────────────── */
     .cal-mini-stats {
       padding: 6px 14px 14px;
-      display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
     }
-    .cal-mini-total { font-size: 11px; font-weight: 600; color: rgba(196,168,130,.6); }
+    .cal-mini-total {
+      font-size: 12px; font-weight: 700; color: var(--gold);
+      margin-bottom: 6px; display: block;
+    }
+    .cal-mini-chips { display: flex; flex-wrap: wrap; gap: 5px; }
     .cal-mini-chip {
-      background: rgba(0,0,0,.05); border-radius: 100px;
-      padding: 3px 10px; font-size: 10px; color: rgba(196,168,130,.45); font-weight: 500;
-      border: 1px solid rgba(196,168,130,.1);
+      background: rgba(196,168,130,.12); border-radius: 100px;
+      padding: 4px 11px; font-size: 11px; color: rgba(42,30,20,.6); font-weight: 600;
+      border: 1px solid rgba(196,168,130,.2);
     }
 
     /* ── FAB ──────────────────────────────────────────────────────── */
@@ -640,9 +643,9 @@
     }
     .list-search:focus { border-color: rgba(196,168,130,.5); }
     .list-search::placeholder { color: var(--hint); }
-    .list-cards { display: flex; flex-direction: column; gap: 10px; }
+    .list-cards { display: flex; flex-direction: column; gap: 6px; }
     .list-card {
-      background: rgba(0,0,0,.04); border-radius: 16px; padding: 14px 16px;
+      background: rgba(0,0,0,.04); border-radius: 12px; padding: 10px 13px;
       border-left: 3px solid var(--c-booked);
       border-top: 0.5px solid rgba(196,168,130,.12);
       border-right: 0.5px solid rgba(196,168,130,.12);
@@ -651,10 +654,10 @@
     .list-card.future { border-left-color: var(--c-free); }
     .list-card-head {
       display: flex; align-items: baseline; justify-content: space-between;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
     }
     .list-card-date {
-      font-size: 15px; font-weight: 700; color: var(--text); line-height: 1;
+      font-size: 14px; font-weight: 700; color: var(--text); line-height: 1;
     }
     .list-card-weekday {
       font-size: 11px; color: var(--hint); margin-left: 6px;
@@ -663,17 +666,17 @@
       font-size: 13px; color: var(--hint);
     }
     .list-card-name {
-      font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 4px;
+      font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px;
     }
     .list-card-row {
       display: flex; align-items: center; gap: 6px;
-      font-size: 13px; color: var(--hint); margin-top: 3px;
+      font-size: 12px; color: var(--hint); margin-top: 2px;
     }
     .list-card-row a {
       color: var(--gold); text-decoration: none; font-weight: 500;
     }
     .list-card-source {
-      display: inline-block; margin-top: 8px;
+      display: inline-block; margin-top: 5px;
       font-size: 11px; font-weight: 600; letter-spacing: .3px;
       background: rgba(196,168,130,.18); color: var(--gold);
       border-radius: 100px; padding: 3px 10px;
@@ -684,6 +687,19 @@
     }
     .list-count {
       font-size: 12px; color: var(--hint); margin-bottom: 10px; text-align: right;
+    }
+    .list-month-wrap {
+      margin-bottom: 10px;
+    }
+    .list-month-select {
+      width: 100%; box-sizing: border-box;
+      background: rgba(0,0,0,.05); border: 1px solid rgba(196,168,130,.2);
+      border-radius: 13px; padding: 9px 14px; font-size: 14px;
+      color: var(--text); font-family: inherit; outline: none;
+      -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23C4A882' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center;
+      cursor: pointer;
     }
     /* ── Toast ──────────────────────────────────────────────────────── */
     .toast {
@@ -758,6 +774,7 @@
     <button class="list-filter-btn" data-filter="past" onclick="setListFilter('past',this)">Прошедшие</button>
   </div>
   <input class="list-search" id="listSearch" type="search" placeholder="Поиск по имени или телефону…">
+  <div class="list-month-wrap"><select class="list-month-select" id="listMonthSelect"><option value="">Все месяцы</option></select></div>
   <div class="list-count" id="listCount"></div>
   <div class="list-cards" id="listCards"><div class="list-empty">Загружаем…</div></div>
 </div>
@@ -1104,7 +1121,7 @@ function renderMiniStats() {
   const chips = Object.entries(srcMap).sort((a,b)=>b[1]-a[1])
     .map(([s,c]) => `<span class="cal-mini-chip">${escHtml(s.length>13?s.slice(0,13)+"…":s)}: ${c}</span>`)
     .join("");
-  el.innerHTML = `<span class="cal-mini-total">${n} ${word}</span>${chips}`;
+  el.innerHTML = `<span class="cal-mini-total">${n} ${word}</span><div class="cal-mini-chips">${chips}</div>`;
 }
 
 // ─── Source grouping ──────────────────────────────────────────────────────────
@@ -1771,6 +1788,15 @@ async function loadAdminActivity() {
   const wrap = document.getElementById("adminActivityContent");
   try {
     const s = await apiFetch("GET", "/api/admin/summary");
+    const actPart = (s.manager_actions && s.manager_actions.length)
+      ? `<div style="margin-top:14px">
+          <div class="admin-section-title" style="margin-bottom:8px">Действия менеджеров</div>
+          ${s.manager_actions.map(m => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;margin-bottom:6px;background:rgba(0,0,0,.04);border-radius:10px;border:0.5px solid rgba(196,168,130,.1)">
+              <span style="font-size:13px;font-weight:600;color:var(--text)">@${escHtml(m.username)}</span>
+              <span style="font-size:13px;font-weight:700;color:var(--gold)">${m.count}</span>
+            </div>`).join("")}
+        </div>` : "";
     wrap.innerHTML = `
       <div class="summary-grid">
         <div class="summary-card">
@@ -1797,7 +1823,7 @@ async function loadAdminActivity() {
           <div class="s-value">${s.managers_count}</div>
           <div class="s-label">Менеджеров</div>
         </div>
-      </div>`;
+      </div>${actPart}`;
   } catch(e) {
     wrap.innerHTML = `<div class="admin-empty">Ошибка: ${escHtml(e.message)}</div>`;
   }
@@ -1864,15 +1890,19 @@ loadSources();
 let _listData = [];
 let _listFilter = "all";
 let _listQuery = "";
+let _listMonth = "";
 
 async function loadList() {
   const cards = document.getElementById("listCards");
   try {
     _listData = await apiFetch("GET", "/api/bookings");
+    populateMonthSelect();
     renderList();
     // поисковый input
     const inp = document.getElementById("listSearch");
     inp.oninput = () => { _listQuery = inp.value.trim().toLowerCase(); renderList(); };
+    const sel = document.getElementById("listMonthSelect");
+    sel.onchange = () => { _listMonth = sel.value; renderList(); };
   } catch(e) {
     cards.innerHTML = `<div class="list-empty">Ошибка: ${escHtml(e.message)}</div>`;
   }
@@ -1892,6 +1922,8 @@ function renderList() {
   if (_listFilter === "future") data = data.filter(b => b.future);
   if (_listFilter === "past")   data = data.filter(b => !b.future);
 
+  if (_listMonth) data = data.filter(b => b.date.slice(3, 10) === _listMonth);
+
   if (_listQuery) {
     data = data.filter(b =>
       (b.name  || "").toLowerCase().includes(_listQuery) ||
@@ -1910,8 +1942,10 @@ function renderList() {
 
   cards.innerHTML = data.map(b => {
     const future = b.future ? "future" : "";
-    const phone = b.phone
-      ? `<a href="tel:${escHtml(b.phone)}">${escHtml(b.phone)}</a>`
+    const rawPhone = b.phone || "";
+    const normPhone = rawPhone ? formatPhone(rawPhone) : "";
+    const phone = normPhone
+      ? `<a href="tel:${escHtml(rawPhone)}">${escHtml(normPhone)}</a>`
       : '<span style="opacity:.5">Нет телефона</span>';
     const guests = b.guests ? `${escHtml(b.guests)} гост.` : "";
     const src = b.source
@@ -1928,6 +1962,31 @@ function renderList() {
       ${src}${comment}
     </div>`;
   }).join("");
+}
+
+function populateMonthSelect() {
+  const sel = document.getElementById("listMonthSelect");
+  const months = new Set(_listData.map(b => b.date.slice(3, 10)));
+  const sorted = [...months].sort((a, b) => {
+    const [ma, ya] = a.split(".").map(Number);
+    const [mb, yb] = b.split(".").map(Number);
+    return ya !== yb ? ya - yb : ma - mb;
+  });
+  const RU_MONTHS = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
+  sel.innerHTML = '<option value="">Все месяцы</option>' +
+    sorted.map(mk => {
+      const [m, y] = mk.split(".").map(Number);
+      return `<option value="${mk}">${RU_MONTHS[m-1]} ${y}</option>`;
+    }).join("");
+}
+
+function formatPhone(p) {
+  const d = p.replace(/\D/g, "");
+  if (d.length === 11 && (d[0] === "7" || d[0] === "8"))
+    return `+7 (${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7,9)}-${d.slice(9,11)}`;
+  if (d.length === 10)
+    return `+7 (${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6,8)}-${d.slice(8,10)}`;
+  return p;
 }
 
 function pluralBron(n) {
