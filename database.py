@@ -42,6 +42,9 @@ def _conn():
 
 def init_db() -> None:
     """Создаёт таблицы если их нет. Вызывается при старте бота."""
+    # WAL-режим: лучше переносит одновременные записи из бота и API
+    with _conn() as con:
+        con.execute("PRAGMA journal_mode=WAL")
     with _conn() as con:
         con.executescript("""
             CREATE TABLE IF NOT EXISTS bookings (
@@ -104,6 +107,9 @@ def sync_from_sheets() -> None:
 
         # Бронирования
         bookings = get_all_bookings()
+        if not bookings:
+            log.warning("⚠️  Sheets вернул 0 бронирований — пропускаем sync во избежание потери данных")
+            return
         with _conn() as con:
             con.execute("DELETE FROM bookings")
             for b in bookings:
@@ -386,10 +392,11 @@ def add_allowed_user(telegram_id: int, username: str) -> bool:
     return True
 
 
-def remove_allowed_user(telegram_id: int) -> bool:
+def remove_allowed_user(row_id: int) -> bool:
+    """Удаляет пользователя по row id (работает даже если telegram_id ещё NULL)."""
     with _conn() as con:
         cur = con.execute(
-            "DELETE FROM allowed_users WHERE telegram_id = ?", (telegram_id,)
+            "DELETE FROM allowed_users WHERE id = ?", (row_id,)
         )
     return cur.rowcount > 0
 

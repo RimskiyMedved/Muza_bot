@@ -48,10 +48,11 @@ from sheets import (
     add_lead,
     check_date,
     edit_booking,
-    get_all_bookings,
     get_free_dates,
     remove_booking,
 )
+# get_all_bookings берём из SQLite — быстрее и консистентно с Mini App
+from database import get_all_bookings
 
 # ─── Конфиг ───────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -104,7 +105,7 @@ FAQ_CAPACITY = (
 
 # ─── Состояния диалогов ───────────────────────────────────────────────────────
 class Add(Enum):
-    DATE = auto(); GUESTS = auto(); NAME = auto()
+    DATE = auto(); CONFIRM_OVERWRITE = auto(); GUESTS = auto(); NAME = auto()
     PHONE = auto(); SOURCE = auto(); CLIENT_TYPE = auto(); COMMENT = auto()
 
 class Cancel(Enum):
@@ -119,6 +120,11 @@ class Edit(Enum):
 KB_CANCEL = ReplyKeyboardMarkup(
     [["❌ Отмена"]],
     resize_keyboard=True, one_time_keyboard=False,
+)
+
+KB_CONFIRM_OVERWRITE = ReplyKeyboardMarkup(
+    [["✅ Да, перезаписать"], ["❌ Отмена"]],
+    resize_keyboard=True, one_time_keyboard=True,
 )
 
 KB_SOURCE = ReplyKeyboardMarkup([
@@ -139,7 +145,7 @@ KB_TYPE = ReplyKeyboardMarkup(
 KB_EDIT_FIELD = ReplyKeyboardMarkup([
     ["Имя", "Кол-во гостей"],
     ["Телефон", "Источник рекламы"],
-    ["Комментарий"],
+    ["Тип клиента", "Комментарий"],
     ["❌ Отменить бронь", "✅ Готово"],
 ], resize_keyboard=True, one_time_keyboard=True)
 
@@ -148,6 +154,7 @@ EDIT_FIELD_MAP = {
     "Кол-во гостей":    "guests",
     "Телефон":          "phone",
     "Источник рекламы": "source",
+    "Тип клиента":      "client_type",
     "Комментарий":      "comment",
 }
 
@@ -370,8 +377,7 @@ def _parse_month_arg(args: list) -> tuple[int, int]:
 
 # ─── Состояние чата ───────────────────────────────────────────────────────────
 
-_seen_users:      set[int] = set()   # для авто-приветствия
-_waiting_contact: set[int] = set()   # ждём контакт после свободной даты
+_seen_users: set[int] = set()   # для авто-приветствия
 
 _PRICE_KEYWORDS    = {"цена","цены","стоимость","сколько стоит","прайс",
                       "расценки","сколько","почём","почем","аренда стоит"}
@@ -432,6 +438,26 @@ async def auto_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         log.info("   ↳ Ключевое слово: стат")
         await cmd_stats(update, context)
         return
+    # ── Сначала проверяем дату — FAQ идёт после, чтобы «сколько стоит 15 июня?»
+    #    дало оба ответа (статус даты + цена), а не только цену
+    d = parse_date(text)
+    if d is not None:
+        log.info(f"   ↳ Дата: {d.strftime('%d.%m.%Y')}")
+        try:
+            result = check_date(d)
+        except Exception as e:
+            log.error(f"   ↳ ОШИБКА check_date: {e}", exc_info=True)
+            return
+        if result["found"]:
+            log.info("   ↳ ЗАНЯТО")
+            await update.message.reply_text(BUSY_TEXT)
+        else:
+            log.info("   ↳ СВОБОДНО → тегаем менеджера")
+            await update.message.reply_text(FREE_TEXT)
+            await update.message.reply_text(NOTIFY_USERNAME)
+        return
+
+    # ── Дата не найдена — проверяем FAQ и приветствие ────────────────────────
     if _is_price_question(text):
         log.info("   ↳ FAQ: цена")
         await update.message.reply_text(FAQ_PRICE, parse_mode="HTML")
@@ -441,30 +467,13 @@ async def auto_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text(FAQ_CAPACITY, parse_mode="HTML")
         return
 
-    if user.id not in _seen_users and user.id not in ADMIN_IDS:
+    if user.id not in _seen_users and not is_admin(update):
         _seen_users.add(user.id)
         log.info("   ↳ Новый пользователь — приветствие")
         await update.message.reply_text(GREETING_TEXT)
-
-    d = parse_date(text)
-    if d is None:
-        log.info("   ↳ Дата не найдена — пропускаем")
         return
 
-    log.info(f"   ↳ Дата: {d.strftime('%d.%m.%Y')}")
-    try:
-        result = check_date(d)
-    except Exception as e:
-        log.error(f"   ↳ ОШИБКА check_date: {e}", exc_info=True)
-        return
-
-    if result["found"]:
-        log.info("   ↳ ЗАНЯТО")
-        await update.message.reply_text(BUSY_TEXT)
-    else:
-        log.info("   ↳ СВОБОДНО → тегаем менеджера")
-        await update.message.reply_text(FREE_TEXT)
-        await update.message.reply_text(NOTIFY_USERNAME)
+    log.info("   ↳ Дата не найдена — пропускаем")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1108,14 +1117,27 @@ async def add_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     try:
         r = check_date(d)
         if r["found"]:
+            context.user_data["date"] = d
             await update.message.reply_text(
-                f"⚠️ <b>{fmt_date(d)}</b> уже занята.\n"
-                "Продолжайте чтобы перезаписать — или нажмите ❌ Отмена.",
-                parse_mode="HTML", reply_markup=KB_CANCEL,
+                f"⚠️ <b>{fmt_date(d)}</b> уже занята!\n\n"
+                f"Клиент: {_e(r.get('name') or '—')}\n"
+                "Перезаписать эту бронь?",
+                parse_mode="HTML", reply_markup=KB_CONFIRM_OVERWRITE,
             )
+            return Add.CONFIRM_OVERWRITE
     except Exception as e:
         log.error(f"Ошибка check_date: {e}", exc_info=True)
     context.user_data["date"] = d
+    await update.message.reply_text(
+        f"✅ Дата: <b>{fmt_date(d)}</b>\n\nСколько гостей?",
+        parse_mode="HTML", reply_markup=KB_CANCEL,
+    )
+    return Add.GUESTS
+
+
+async def add_overwrite_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Подтверждение перезаписи уже занятой даты."""
+    d = context.user_data.get("date")
     await update.message.reply_text(
         f"✅ Дата: <b>{fmt_date(d)}</b>\n\nСколько гостей?",
         parse_mode="HTML", reply_markup=KB_CANCEL,
@@ -1138,7 +1160,18 @@ async def add_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def add_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["phone"] = (update.message.text or "").strip()
+    raw = (update.message.text or "").strip()
+    # Принимаем «—» / «нет» как пропуск; иначе проверяем что есть хотя бы 7 цифр
+    skip_values = ("—", "-", "нет", "н/а", ".", "пропустить", "skip")
+    digits = re.sub(r"\D", "", raw)
+    if raw.lower() not in skip_values and len(digits) < 7:
+        await update.message.reply_text(
+            "Похоже, это не номер телефона. Введите номер (например +79001234567) "
+            "или «—» чтобы пропустить:",
+            reply_markup=KB_CANCEL,
+        )
+        return Add.PHONE
+    context.user_data["phone"] = "" if raw.lower() in skip_values else raw
     await update.message.reply_text("Источник рекламы 👇", reply_markup=KB_SOURCE)
     return Add.SOURCE
 
@@ -1474,7 +1507,17 @@ def main() -> None:
     log.info("=" * 60)
     log.info("  Запуск бота бронирования «Муза»")
     log.info("=" * 60)
-    log.info(f"  ADMIN_IDS      : {ADMIN_IDS or '⚠️  НЕ ЗАДАНЫ'}")
+    log.info(f"  Суперадмин     : {SUPERADMIN_ID}")
+    try:
+        _extra_admins = database.get_allowed_users()
+        if _extra_admins:
+            for _u in _extra_admins:
+                _tid = _u['telegram_id'] or '⏳ не писал боту'
+                log.info(f"  Администратор  : @{_u['username']} (tg_id={_tid})")
+        else:
+            log.info("  Администраторы : только суперадмин")
+    except Exception:
+        log.info("  Администраторы : БД недоступна при старте")
     log.info(f"  SPREADSHEET_ID : {os.getenv('SPREADSHEET_ID','⚠️  НЕ ЗАДАН')}")
     log.info(f"  credentials    : {'✅' if os.path.exists(os.getenv('GOOGLE_CREDENTIALS_PATH','credentials.json')) else '❌ НЕ НАЙДЕН'}")
 
@@ -1538,6 +1581,11 @@ def main() -> None:
                 CallbackQueryHandler(add_cal_date,  pattern=r"^acal_date:"),
                 CallbackQueryHandler(add_cal_no, pattern=r"^acal_no$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, add_date),
+            ],
+            Add.CONFIRM_OVERWRITE: [
+                MessageHandler(cancel_filter, stop),
+                MessageHandler(filters.Regex(r"^✅ Да, перезаписать$"), add_overwrite_confirm),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, stop),
             ],
             Add.GUESTS:      [MessageHandler(cancel_filter, stop),
                               MessageHandler(filters.TEXT & ~filters.COMMAND, add_guests)],

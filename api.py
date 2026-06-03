@@ -74,11 +74,21 @@ WEBAPP_DIR = Path(__file__).parent / "webapp"
 
 app = FastAPI(title="Муза API", docs_url=None, redoc_url=None)
 
+_ALLOWED_ORIGINS = [
+    "https://web.telegram.org",
+    "https://webk.telegram.org",
+    "https://webz.telegram.org",
+]
+# Добавляем ngrok/кастомный домен из env если задан
+_webapp_origin = os.getenv("WEBAPP_URL", "").rstrip("/")
+if _webapp_origin:
+    _ALLOWED_ORIGINS.append(_webapp_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "X-Init-Data"],
 )
 
 
@@ -172,15 +182,7 @@ async def serve_index() -> FileResponse:
 
 @app.get("/api/calendar")
 async def get_calendar(month: str = None, user: dict = Depends(_require_admin)):
-    # Логируем открытие
-    try:
-        database.log_access(user.get("id", 0), user.get("username") or user.get("first_name", ""), "calendar")
-    except Exception:
-        pass
-    """
-    Возвращает статус каждого дня месяца.
-    month: YYYY-MM (по умолчанию текущий месяц)
-    """
+    """Возвращает статус каждого дня месяца. month: YYYY-MM (по умолчанию текущий)."""
     if not month:
         today = date.today()
         month = today.strftime("%Y-%m")
@@ -279,19 +281,13 @@ async def create_booking(body: BookingIn, user: dict = Depends(_require_admin)):
     weekday  = WEEKDAYS_FULL[d.weekday()]
     username = _username(user)
 
+    # sheets.add_booking() внутри уже пишет в SQLite — дублировать не нужно
     _sheets_write("add", d=d, guests=body.guests, name=body.name,
                   phone=body.phone, source=body.source,
                   client_type=body.client_type, comment=body.comment,
                   changed_by=username)
 
-    database.upsert_booking(
-        target=d, guests=body.guests, name=body.name,
-        phone=body.phone, source=body.source,
-        client_type=body.client_type, comment=body.comment,
-        weekday=weekday, changed_by=username,
-    )
-    database.remove_free_date(d)
-
+    database.log_access(user.get("id", 0), username, f"create:{body.date}")
     log.info("✅ Бронь создана: %s  (%s, by %s)", body.date, body.name, username)
     return {"ok": True, "date": body.date}
 
@@ -307,17 +303,13 @@ async def update_booking(date_str: str, body: BookingIn, user: dict = Depends(_r
 
     username = _username(user)
 
+    # sheets.edit_booking() внутри уже пишет в SQLite — дублировать не нужно
     _sheets_write("edit", d=d, guests=body.guests, name=body.name,
                   phone=body.phone, source=body.source,
                   client_type=body.client_type, comment=body.comment,
                   changed_by=username)
 
-    database.update_booking_fields(
-        target=d, changed_by=username,
-        guests=body.guests, name=body.name, phone=body.phone,
-        source=body.source, client_type=body.client_type, comment=body.comment,
-    )
-
+    database.log_access(user.get("id", 0), username, f"edit:{date_str}")
     log.info("✏️  Бронь изменена: %s  (by %s)", date_str, username)
     return {"ok": True, "date": date_str}
 
@@ -333,9 +325,10 @@ async def delete_booking_endpoint(date_str: str, user: dict = Depends(_require_a
 
     username = _username(user)
 
+    # sheets.remove_booking() внутри уже пишет в SQLite — дублировать не нужно
     _sheets_write("remove", d=d, changed_by=username)
-    database.delete_booking(d)
 
+    database.log_access(user.get("id", 0), username, f"delete:{date_str}")
     log.info("🗑  Бронь отменена: %s  (by %s)", date_str, username)
     return {"ok": True, "date": date_str}
 
@@ -476,9 +469,11 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
         y = today.year + (m - 1) // 12
         m = ((m - 1) % 12) + 1
         key = f"{m:02d}.{y}"
-        if by_month.get(key, 0) > 0 or delta >= 0:
+        cnt = by_month.get(key, 0)
+        # Показываем только месяцы с данными + текущий месяц
+        if cnt > 0 or delta == 0:
             month_labels.append(MONTH_NAMES[m - 1][:3] + f" {y}")
-            month_counts.append(by_month.get(key, 0))
+            month_counts.append(cnt)
             month_keys.append(key)
 
     by_source_full = {
@@ -538,9 +533,10 @@ async def admin_add_users(body: UserIn, user: dict = Depends(_require_superadmin
     return {"added": added, "dupes": dupes}
 
 
-@app.delete("/api/admin/users/{telegram_id}")
-async def admin_remove_user(telegram_id: int, user: dict = Depends(_require_superadmin)):
-    ok = database.remove_allowed_user(telegram_id)
+@app.delete("/api/admin/users/{row_id}")
+async def admin_remove_user(row_id: int, user: dict = Depends(_require_superadmin)):
+    """Удаляет пользователя по row id (работает даже если telegram_id ещё NULL)."""
+    ok = database.remove_allowed_user(row_id)
     if not ok:
         raise HTTPException(404, "User not found")
     return {"ok": True}

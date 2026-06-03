@@ -41,6 +41,7 @@ services:
     volumes:
       - ./database.db:/app/database.db
       - ./credentials.json:/app/credentials.json
+      - ./webapp:/app/webapp   # hot-reload: изменения без rebuild
 
   # ── Caddy — HTTPS reverse proxy ──────────────────────────────────────────────
   caddy:

@@ -350,14 +350,6 @@ def edit_booking(target: date, changed_by: str = "", **fields) -> bool:
 
 # ─── Лист «Авито» (лиды) ─────────────────────────────────────────────────────
 
-def _normalize_phone(phone: str) -> str:
-    """Убирает всё кроме цифр, приводит к виду 79xxxxxxxxx."""
-    digits = re.sub(r"\D", "", phone)
-    if len(digits) == 11 and digits[0] in ("7", "8"):
-        digits = "7" + digits[1:]
-    return digits
-
-
 def add_lead(name: str, phone: str = "", nick: str = "", source: str = "Авито") -> None:
     """
     Записывает лид в лист «Авито».
@@ -377,11 +369,11 @@ def add_lead(name: str, phone: str = "", nick: str = "", source: str = "Авит
 
     # Проверяем дубль по телефону
     if phone:
-        norm_new = _normalize_phone(phone)
+        norm_new = _db._normalize_phone(phone)
         data_rows = rows[1:] if rows[0][0] == "Дата/Время" else rows
         for i, row in enumerate(data_rows, start=2):  # +2: заголовок + 1-based
             existing_phone = row[2].strip() if len(row) > 2 else ""
-            if existing_phone and _normalize_phone(existing_phone) == norm_new:
+            if existing_phone and _db._normalize_phone(existing_phone) == norm_new:
                 # Телефон уже есть — добавляем ник если его не было
                 if nick:
                     existing_nick = row[3].strip() if len(row) > 3 else ""
