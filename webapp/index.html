@@ -688,7 +688,7 @@
     }
     .list-card-phone a {
       font-size: 14px; font-weight: 700;
-      color: #7A2E44; text-decoration: none; letter-spacing: .2px;
+      color: #1A1410; text-decoration: none; letter-spacing: .2px;
     }
     .list-card-phone .no-phone {
       font-size: 12px; color: var(--hint); font-style: italic;
@@ -1444,6 +1444,13 @@ function openViewSheet(day) {
     ["Комментарий", day.comment          ],
   ].filter(([, v]) => v);
 
+  const tgRow = day.tg_nick
+    ? `<div class="detail-row">
+         <div class="detail-label">Telegram</div>
+         <div class="detail-value"><a href="https://t.me/${escHtml(day.tg_nick)}" target="_blank" style="color:#7A2E44;text-decoration:none">@${escHtml(day.tg_nick)}</a></div>
+       </div>`
+    : "";
+
   document.getElementById("sheetContent").innerHTML =
     `<div class="booking-detail">
       <div class="detail-card">
@@ -1452,6 +1459,7 @@ function openViewSheet(day) {
             <div class="detail-label">${l}</div>
             <div class="detail-value">${escHtml(String(v))}</div>
           </div>`).join("")}
+        ${tgRow}
       </div>
     </div>`;
 
@@ -1478,7 +1486,7 @@ function openAddSheet(day) {
   document.getElementById("sheetTitle").textContent = "Новая бронь";
   document.getElementById("sheetDate").textContent  = day ? fmtDate(day.date) : "";
 
-  const data = { date: day?.date||"", guests:"", name:"", phone:"", source:"", client_type:"", comment:"" };
+  const data = { date: day?.date||"", guests:"", name:"", phone:"", source:"", client_type:"", comment:"", tg_nick:"" };
   document.getElementById("sheetContent").innerHTML = buildForm(data, !day);
 
   const act = document.getElementById("sheetActions");
@@ -1537,6 +1545,11 @@ function buildForm(data, showDateField) {
       <label class="form-label">Имя клиента</label>
       <input class="form-input" id="f-name" type="text"
              placeholder="Иван Петров" value="${escHtml(data.name||"")}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Ник в Telegram</label>
+      <input class="form-input" id="f-tg_nick" type="text"
+             placeholder="@username" value="${escHtml(data.tg_nick||"")}" />
     </div>
     <div class="form-group">
       <label class="form-label">Количество гостей</label>
@@ -1646,6 +1659,7 @@ function getFormData() {
     source:      finalSource,
     client_type: document.getElementById("f-client_type")?.value.trim() || "",
     comment:     document.getElementById("f-comment")?.value.trim()     || "",
+    tg_nick:     document.getElementById("f-tg_nick")?.value.trim().replace(/^@/, "") || "",
   };
 }
 
@@ -1997,7 +2011,11 @@ function renderList() {
         <span class="list-card-weekday">${escHtml(b.weekday)}</span>
       </div>
       <div class="list-card-guests">${guests}</div>
-      <div class="list-card-name">${escHtml(b.name || "—")}</div>
+      <div class="list-card-name">${
+        b.tg_nick
+          ? `<a href="https://t.me/${escHtml(b.tg_nick)}" target="_blank" style="color:inherit;text-decoration:none;border-bottom:1px dashed rgba(60,46,34,.35)">${escHtml(b.name || "—")}</a>`
+          : escHtml(b.name || "—")
+      }</div>
       <div class="list-card-phone">
         ${normPhone
           ? `<a href="tel:${escHtml(rawPhone)}">${escHtml(normPhone)}</a>`

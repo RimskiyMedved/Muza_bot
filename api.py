@@ -226,6 +226,7 @@ async def get_calendar(month: str = None, user: dict = Depends(_require_admin)):
             entry["source"]      = b.get("source", "")
             entry["client_type"] = b.get("client_type", "")
             entry["comment"]     = b.get("comment", "")
+            entry["tg_nick"]     = b.get("tg_nick", "")
         elif d_str in free_set:
             entry["status"] = "free"
         else:
@@ -267,6 +268,7 @@ class BookingIn(BaseModel):
     source:      str = ""
     client_type: str = ""
     comment:     str = ""
+    tg_nick:     str = ""
 
 
 # ─── Create booking ───────────────────────────────────────────────────────────
@@ -285,7 +287,7 @@ async def create_booking(body: BookingIn, user: dict = Depends(_require_admin)):
     _sheets_write("add", d=d, guests=body.guests, name=body.name,
                   phone=body.phone, source=body.source,
                   client_type=body.client_type, comment=body.comment,
-                  changed_by=username)
+                  tg_nick=body.tg_nick, changed_by=username)
 
     database.log_access(user.get("id", 0), username, f"create:{body.date}")
     log.info("✅ Бронь создана: %s  (%s, by %s)", body.date, body.name, username)
@@ -307,7 +309,7 @@ async def update_booking(date_str: str, body: BookingIn, user: dict = Depends(_r
     _sheets_write("edit", d=d, guests=body.guests, name=body.name,
                   phone=body.phone, source=body.source,
                   client_type=body.client_type, comment=body.comment,
-                  changed_by=username)
+                  tg_nick=body.tg_nick, changed_by=username)
 
     database.log_access(user.get("id", 0), username, f"edit:{date_str}")
     log.info("✏️  Бронь изменена: %s  (by %s)", date_str, username)
@@ -360,6 +362,7 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 client_type=kwargs.get("client_type", ""),
                 comment=kwargs.get("comment", ""),
                 changed_by=changed_by,
+                tg_nick=kwargs.get("tg_nick", ""),
             )
         elif action == "edit":
             edit_booking(
@@ -371,6 +374,7 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 source=kwargs.get("source", ""),
                 client_type=kwargs.get("client_type", ""),
                 comment=kwargs.get("comment", ""),
+                tg_nick=kwargs.get("tg_nick", ""),
             )
         elif action == "remove":
             remove_booking(target=d)
@@ -512,6 +516,7 @@ async def get_bookings(user: dict = Depends(_require_admin)):
             "source":      b["source"],
             "client_type": b["client_type"],
             "comment":     b["comment"],
+            "tg_nick":     b.get("tg_nick", ""),
             "future":      b["future"],
         }
         for b in bookings

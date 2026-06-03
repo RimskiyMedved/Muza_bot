@@ -52,7 +52,7 @@ WEEKDAYS = [
 HEADERS_BOOKINGS = [
     "Дата", "Кол-во гостей", "Имя клиента", "Телефон",
     "Источник рекламы", "Прямой клиент / Агентство", "Комментарий", "День недели",
-    "Изменил", "Дата изм.",
+    "Изменил", "Дата изм.", "Ник ТГ",
 ]
 HEADERS_FREE  = ["Дата", "День недели"]
 HEADERS_LEADS = ["Дата/Время", "Имя", "Телефон", "Ник ТГ", "Объявление"]
@@ -206,6 +206,7 @@ def check_date(target: date) -> dict:
             "client_type": v(5),
             "comment":     v(6),
             "weekday":     v(7),
+            "tg_nick":     v(10),
             "row":         i,
         }
     return {"found": False, "row": None}
@@ -229,6 +230,7 @@ def get_all_bookings() -> list[dict]:
                 "client_type": row[5].strip() if len(row) > 5 else "",
                 "comment":     row[6].strip() if len(row) > 6 else "",
                 "weekday":     row[7].strip() if len(row) > 7 else "",
+                "tg_nick":     row[10].strip() if len(row) > 10 else "",
                 "future":      d >= today,
             })
         except ValueError:
@@ -246,6 +248,7 @@ def add_booking(
     client_type: str,
     comment: str,
     changed_by: str = "",
+    tg_nick: str = "",
 ) -> None:
     """
     Добавляет или перезаписывает бронь.
@@ -257,7 +260,7 @@ def add_booking(
     new_row = [
         target_str, str(guests), name, phone,
         source, client_type, comment, _weekday(target),
-        changed_by, now_str,
+        changed_by, now_str, tg_nick,
     ]
     rows = _data_rows(ws)
     found = False
@@ -277,7 +280,7 @@ def add_booking(
             _db.upsert_booking(
                 target, guests=guests, name=name, phone=phone,
                 source=source, client_type=client_type, comment=comment,
-                weekday=_weekday(target), changed_by=changed_by,
+                weekday=_weekday(target), changed_by=changed_by, tg_nick=tg_nick,
             )
             _db.remove_free_date(target)
         except Exception as _e:
@@ -321,13 +324,13 @@ def edit_booking(target: date, changed_by: str = "", **fields) -> bool:
     target_str = target.strftime(DATE_FMT)
     field_map = {
         "guests": 1, "name": 2, "phone": 3,
-        "source": 4, "client_type": 5, "comment": 6,
+        "source": 4, "client_type": 5, "comment": 6, "tg_nick": 10,
     }
     rows = _data_rows(ws)
     for i, row in enumerate(rows):
         if not row or row[0].strip() != target_str:
             continue
-        while len(row) < 10:
+        while len(row) < 11:
             row.append("")
         for field, value in fields.items():
             if field in field_map:
