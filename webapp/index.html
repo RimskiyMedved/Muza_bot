@@ -7,23 +7,24 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
-      --bg:       var(--tg-theme-bg-color,            #FFFFFF);
-      --bg2:      var(--tg-theme-secondary-bg-color,  #F2F4F6);
-      --text:     var(--tg-theme-text-color,          #2C2C2E);
-      --hint:     var(--tg-theme-hint-color,          #9A9A9E);
-      --btn:      var(--tg-theme-button-color,        #5B8DB8);
+      --bg:       var(--tg-theme-bg-color,            #FDFAF7);
+      --bg2:      var(--tg-theme-secondary-bg-color,  #F3EEE9);
+      --text:     var(--tg-theme-text-color,          #2A2220);
+      --hint:     var(--tg-theme-hint-color,          #9C9189);
+      --btn:      var(--tg-theme-button-color,        #9E7B8E);
       --btn-text: var(--tg-theme-button-text-color,   #FFFFFF);
 
-      /* Пастельная палитра */
-      --c-booked:  #B8706A;
-      --c-free:    #6BA882;
-      --bg-booked: rgba(184,112,106,.09);
-      --bg-free:   rgba(107,168,130,.09);
-      --bg-today:  rgba(91,141,184,.10);
+      /* Тёплая элегантная палитра */
+      --c-booked:   #B8706A;   /* пыльная роза */
+      --c-free:     #6B9E82;   /* шалфей */
+      --bg-booked:  rgba(184,112,106,.10);
+      --bg-free:    rgba(107,158,130,.10);
+      --bg-today:   rgba(158,123,142,.12);
 
-      /* Приглушённые акценты */
-      --accent:    #5B8DB8;
-      --accent-soft: rgba(91,141,184,.15);
+      /* Акцент — пыльная слива */
+      --accent:      #9E7B8E;
+      --accent-soft: rgba(158,123,142,.13);
+      --gold:        #C4A882;   /* шампань/золото для заголовков */
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -314,27 +315,37 @@
       opacity: .6; transition: width .4s;
     }
     /* Группировка источников */
-    .source-group-row {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 0; cursor: pointer;
+    .src-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 11px 0; cursor: pointer;
     }
-    .source-group-row + .source-group-row,
-    .source-group-row + .source-row,
-    .source-row + .source-group-row { border-top: 1px solid rgba(0,0,0,.04); }
-    .source-group-expand {
-      font-size: 11px; color: var(--hint); width: 16px; text-align: center;
-      transition: transform .2s; flex-shrink: 0;
+    .src-row + .src-row,
+    .src-child + .src-row,
+    .src-row + .src-child { border-top: 1px solid rgba(0,0,0,.05); }
+    .src-row.active { background: var(--accent-soft); border-radius: 12px; padding: 11px 8px; margin: 0 -8px; }
+
+    .src-label { flex: 1; }
+    .src-name  { font-size: 14px; font-weight: 600; }
+    .src-sub   { font-size: 11px; color: var(--hint); margin-top: 1px; }
+    .src-bar-wrap { width: 48px; height: 3px; background: rgba(0,0,0,.08); border-radius: 100px; flex-shrink: 0; }
+    .src-bar      { height: 100%; background: var(--accent); border-radius: 100px; opacity: .6; }
+    .src-count    { font-size: 15px; font-weight: 700; color: var(--accent); width: 28px; text-align: right; flex-shrink: 0; }
+    .src-arrow    {
+      font-size: 12px; color: var(--hint); width: 18px; text-align: center;
+      flex-shrink: 0; transition: transform .22s ease;
     }
-    .source-group-expand.open { transform: rotate(90deg); }
-    .source-child-row {
-      display: flex; align-items: center; gap: 10px;
-      padding: 7px 0 7px 20px;
-      border-top: 1px solid rgba(0,0,0,.03);
-      font-size: 13px;
+    .src-arrow.open { transform: rotate(90deg); }
+
+    /* Дочерние строки */
+    .src-child {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 0 8px 16px;
+      border-top: 1px solid rgba(0,0,0,.04);
     }
-    .source-child-name  { flex: 1; color: var(--hint); }
-    .source-child-count { font-weight: 600; color: var(--accent); font-size: 13px; }
-    .source-child-guests { font-size: 11px; color: var(--hint); opacity: .7; }
+    .src-child.active { background: var(--accent-soft); border-radius: 10px; padding: 8px 8px 8px 22px; margin: 0 -8px; }
+    .src-child-name  { flex: 1; font-size: 13px; color: var(--hint); font-weight: 500; }
+    .src-child-count { font-size: 13px; font-weight: 700; color: var(--accent); width: 28px; text-align: right; flex-shrink: 0; }
+    .src-child-x     { font-size: 10px; color: var(--hint); width: 14px; text-align: right; flex-shrink: 0; }
 
     .stats-loading {
       display: flex; align-items: center; justify-content: center;
@@ -975,60 +986,49 @@ function _renderSources(bySource, maxCount) {
   Object.entries(groups)
     .sort((a,b) => b[1].count - a[1].count)
     .forEach(([key, g]) => {
-      const childEntries = Object.entries(g.children);
+      const childEntries = Object.entries(g.children).sort((a,b) => b[1].count - a[1].count);
       const hasChildren  = childEntries.length > 1;
-      const isActive     = _activeSource === key || childEntries.some(([s]) => _activeSource === s);
       const isExpanded   = _expandedGroups.has(key);
+      const isActive     = _activeSource === key || childEntries.some(([s]) => _activeSource === s);
       const barW         = Math.round(g.count / maxCount * 100);
-      const guestsHtml   = g.guests > 0 ? `<div class="source-guests">${g.guests} гостей</div>` : "";
+      const guestsHtml   = g.guests > 0 ? `<div class="src-sub">${g.guests} гостей</div>` : "";
 
       if (hasChildren) {
-        html += `
-          <div class="source-group-row${isActive ? " source-row-active" : ""}"
-               onclick="statsToggleGroup(${JSON.stringify(key)})">
-            <div style="flex:1">
-              <div class="source-name">${escHtml(key)}</div>
-              ${guestsHtml}
-            </div>
-            <div class="source-bar-wrap">
-              <div class="source-bar" style="width:${barW}%"></div>
-            </div>
-            <div class="source-count">${g.count}</div>
-            <div class="source-group-expand${isExpanded ? " open" : ""}">›</div>
-          </div>`;
+        html += `<div class="src-row${isActive ? " active" : ""}" data-toggle-group="${escHtml(key)}">
+          <div class="src-label">
+            <div class="src-name">${escHtml(key)}</div>
+            ${guestsHtml}
+          </div>
+          <div class="src-bar-wrap"><div class="src-bar" style="width:${barW}%"></div></div>
+          <div class="src-count">${g.count}</div>
+          <div class="src-arrow${isExpanded ? " open" : ""}">›</div>
+        </div>`;
         if (isExpanded) {
-          childEntries.sort((a,b) => b[1].count - a[1].count).forEach(([src, d]) => {
-            const cActive = _activeSource === src;
-            const cGuests = d.guests > 0 ? ` · ${d.guests} г.` : "";
-            html += `
-              <div class="source-child-row${cActive ? " source-row-active" : ""}"
-                   onclick="statsToggleSource(${JSON.stringify(src)})">
-                <div class="source-child-name">${escHtml(src)}${cGuests ? `<span style="opacity:.6">${cGuests}</span>` : ""}</div>
-                <div class="source-child-count">${d.count}</div>
-                ${cActive ? `<div style="color:var(--hint);font-size:11px">✕</div>` : ""}
-              </div>`;
+          childEntries.forEach(([src, d]) => {
+            const cActive  = _activeSource === src;
+            const cGuests  = d.guests > 0 ? ` · ${d.guests} г.` : "";
+            html += `<div class="src-child${cActive ? " active" : ""}" data-toggle-source="${escHtml(src)}">
+              <div class="src-child-name">${escHtml(src)}${cGuests ? `<span style="font-size:10px;opacity:.6">${cGuests}</span>` : ""}</div>
+              <div class="src-child-count">${d.count}</div>
+              <div class="src-child-x">${cActive ? "✕" : ""}</div>
+            </div>`;
           });
         }
       } else {
-        // Одиночный источник — обычная строка
-        const src     = childEntries[0]?.[0] || key;
-        const srcAct  = _activeSource === src;
-        html += `
-          <div class="source-row${srcAct ? " source-row-active" : ""}"
-               onclick="statsToggleSource(${JSON.stringify(src)})">
-            <div style="flex:1">
-              <div class="source-name">${escHtml(src)}</div>
-              ${guestsHtml}
-            </div>
-            <div class="source-bar-wrap">
-              <div class="source-bar" style="width:${barW}%"></div>
-            </div>
-            <div class="source-count">${g.count}</div>
-            ${srcAct ? `<div style="color:var(--hint);font-size:12px">✕</div>` : ""}
-          </div>`;
+        const src    = childEntries[0]?.[0] || key;
+        const srcAct = _activeSource === src;
+        html += `<div class="src-row${srcAct ? " active" : ""}" data-toggle-source="${escHtml(src)}">
+          <div class="src-label">
+            <div class="src-name">${escHtml(src)}</div>
+            ${guestsHtml}
+          </div>
+          <div class="src-bar-wrap"><div class="src-bar" style="width:${barW}%"></div></div>
+          <div class="src-count">${g.count}</div>
+          <div class="src-arrow">${srcAct ? "✕" : ""}</div>
+        </div>`;
       }
     });
-  return html || `<div style="text-align:center;color:var(--hint);padding:16px;font-size:14px">Нет данных</div>`;
+  return html || `<div style="text-align:center;color:var(--hint);padding:20px;font-size:14px">Нет данных</div>`;
 }
 
 function statsToggleGroup(key) {
@@ -1092,6 +1092,14 @@ document.getElementById("statsNextBtn").addEventListener("click", () => {
   _activeSource = "";
   _updateStatsNav();
   loadStats();
+});
+
+// ─── Stats content event delegation ──────────────────────────────────────────
+document.getElementById("statsContent").addEventListener("click", function(e) {
+  const groupEl = e.target.closest("[data-toggle-group]");
+  if (groupEl) { statsToggleGroup(groupEl.dataset.toggleGroup); return; }
+  const srcEl = e.target.closest("[data-toggle-source]");
+  if (srcEl) { statsToggleSource(srcEl.dataset.toggleSource); return; }
 });
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
