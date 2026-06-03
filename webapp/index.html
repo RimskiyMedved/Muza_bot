@@ -144,7 +144,7 @@
     .day-cell.empty   { cursor: default; pointer-events: none; background: transparent; }
     .day-cell.booked  { background: var(--bg-booked); }
     .day-cell.free    { background: var(--bg-free); }
-    .day-cell.past    { opacity: .2; }
+    .day-cell.past    { opacity: .55; }
     .day-cell.today   { background: var(--bg-today); border: 1px solid rgba(196,168,130,.45); }
     .day-cell.wknd-col .day-number { color: rgba(139,58,82,.65); }
 
@@ -841,6 +841,12 @@
 <!-- ── Admin view ───────────────────────────────────────────────────────── -->
 <div id="adminView">
   <div class="admin-section">
+    <div class="admin-section-title">Общая статистика</div>
+    <div id="adminActivityContent">
+      <div class="admin-empty">Загружаем…</div>
+    </div>
+  </div>
+  <div class="admin-section">
     <div class="admin-section-title">Пользователи с доступом</div>
     <div class="admin-users-list" id="adminUsersList">
       <div class="admin-empty">Загружаем…</div>
@@ -851,12 +857,6 @@
     <textarea class="admin-textarea" id="adminUsernamesInput"
       placeholder="@username1&#10;@username2&#10;..."></textarea>
     <button class="admin-add-btn" id="adminAddBtn">Добавить</button>
-  </div>
-  <div class="admin-section">
-    <div class="admin-section-title">Общая статистика</div>
-    <div id="adminActivityContent">
-      <div class="admin-empty">Загружаем…</div>
-    </div>
   </div>
 </div>
 
@@ -2026,10 +2026,16 @@ function populateMonthPills() {
 
 function renderMonthPills() {
   const panel = document.getElementById("listMonthPanel");
-  panel.innerHTML = _monthPills.map(p =>
+  panel.innerHTML = _monthPills.map((p, i) =>
     `<button class="list-month-pill${_listMonth === p.key ? " active" : ""}"
-      onclick="setListMonth(${JSON.stringify(p.key)},this)">${escHtml(p.label)}</button>`
+      data-month-idx="${i}">${escHtml(p.label)}</button>`
   ).join("");
+  panel.querySelectorAll(".list-month-pill").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = parseInt(btn.dataset.monthIdx);
+      setListMonth(_monthPills[idx].key, btn);
+    });
+  });
 }
 
 function toggleMonthDropdown() {
