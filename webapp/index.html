@@ -10,10 +10,10 @@
   <style>
     :root {
       /* ── Премиум: горький шоколад + золото ── */
-      --bg:       #3C2E22;
-      --bg2:      #2E2218;
-      --text:     #F0E8DC;
-      --hint:     rgba(196,168,130,.5);
+      --bg:       #EEE0CC;
+      --bg2:      #DFD0B5;
+      --text:     #2A1E14;
+      --hint:     rgba(60,46,34,.42);
       --btn:      #C4A882;
       --btn-text: #1A1410;
 
@@ -21,10 +21,10 @@
       --c-free:     #6BAF8C;
       --bg-booked:  rgba(196,120,142,.26);
       --bg-free:    rgba(107,175,140,.26);
-      --bg-today:   rgba(196,168,130,.14);
+      --bg-today:   rgba(196,168,130,.35);
 
       --accent:      #C4A882;
-      --accent-soft: rgba(196,168,130,.1);
+      --accent-soft: rgba(196,168,130,.18);
       --gold:        #C4A882;
     }
 
@@ -138,7 +138,7 @@
       cursor: pointer; position: relative;
       transition: transform .15s, opacity .15s;
       user-select: none;
-      background: rgba(255,255,255,.05);
+      background: rgba(0,0,0,.04);
     }
     .day-cell:active:not(.empty) { transform: scale(.82); }
     .day-cell.empty   { cursor: default; pointer-events: none; background: transparent; }
@@ -186,7 +186,7 @@
     }
     .cal-mini-total { font-size: 11px; font-weight: 600; color: rgba(196,168,130,.6); }
     .cal-mini-chip {
-      background: rgba(255,255,255,.06); border-radius: 100px;
+      background: rgba(0,0,0,.05); border-radius: 100px;
       padding: 3px 10px; font-size: 10px; color: rgba(196,168,130,.45); font-weight: 500;
       border: 1px solid rgba(196,168,130,.1);
     }
@@ -199,7 +199,7 @@
       border: 1.5px solid rgba(196,168,130,.4); border-radius: 50%;
       width: 52px; height: 52px;
       cursor: pointer;
-      box-shadow: 0 4px 20px rgba(0,0,0,.35);
+      box-shadow: 0 4px 20px rgba(0,0,0,.15);
       z-index: 20; display: flex; align-items: center; justify-content: center;
       transition: transform .12s, background .15s;
     }
@@ -216,7 +216,7 @@
     }
     .stats-nav-btn {
       width: 32px; height: 32px; border-radius: 50%;
-      background: rgba(255,255,255,.06);
+      background: rgba(0,0,0,.05);
       border: 1px solid rgba(196,168,130,.2);
       cursor: pointer; color: var(--gold);
       display: flex; align-items: center; justify-content: center;
@@ -241,7 +241,7 @@
       gap: 10px; margin-bottom: 6px;
     }
     .stat-card {
-      background: rgba(255,255,255,.05); border-radius: 18px;
+      background: rgba(0,0,0,.04); border-radius: 18px;
       padding: 16px 14px; border: 1px solid rgba(196,168,130,.08);
     }
     .stat-card.stat-wide {
@@ -283,14 +283,14 @@
     /* Filter pill */
     .filter-pill {
       display: flex; align-items: center; gap: 5px;
-      background: rgba(255,255,255,.06); border: 1px solid rgba(196,168,130,.15);
+      background: rgba(0,0,0,.05); border: 1px solid rgba(196,168,130,.15);
       border-radius: 100px; padding: 5px 12px; font-size: 12px; color: rgba(240,232,220,.7);
       cursor: pointer; font-family: inherit; font-weight: 500;
     }
     .filter-pill:active { opacity: .7; }
     .filter-pill.active { background: var(--gold); color: var(--btn-text); border-color: var(--gold); }
     .filter-pill-badge {
-      background: rgba(255,255,255,.28); border-radius: 8px;
+      background: rgba(0,0,0,.07); border-radius: 8px;
       padding: 1px 5px; font-size: 10px; font-weight: 700;
     }
 
@@ -309,7 +309,7 @@
     .month-bar-wrap:active { opacity: .7; }
     .month-bar-inner { height: 70px; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
     .month-bar {
-      width: 100%; background: rgba(255,255,255,.07);
+      width: 100%; background: rgba(0,0,0,.06);
       border-radius: 100px;
       transition: height .3s, background .2s; min-height: 4px;
     }
@@ -365,7 +365,7 @@
     .src-child {
       display: flex; align-items: center; gap: 8px;
       padding: 8px 0 8px 16px;
-      border-top: 1px solid rgba(0,0,0,.04);
+      border-top: 1px solid rgba(0,0,0,.10);
     }
     .src-child.active { background: rgba(196,168,130,.08); border-radius: 10px; padding: 8px 8px 8px 22px; margin: 0 -8px; }
     .src-child-name  { flex: 1; font-size: 13px; color: var(--hint); font-weight: 500; }
@@ -412,7 +412,7 @@
     .sheet-overlay.visible { opacity: 1; pointer-events: auto; }
     .sheet {
       position: fixed; bottom: 0; left: 0; right: 0;
-      background: #2A1E16; border-radius: 24px 24px 0 0;
+      background: #D8C6AD; border-radius: 24px 24px 0 0;
       border-top: 1px solid rgba(196,168,130,.15);
       z-index: 50; transform: translateY(100%);
       transition: transform .28s cubic-bezier(.4,0,.2,1);
@@ -431,7 +431,7 @@
     .sheet-title { font-size: 18px; font-weight: 600; color: var(--text); }
     .sheet-date  { font-size: 12px; color: rgba(196,168,130,.5); margin-top: 4px; letter-spacing: .2px; }
     .close-btn {
-      background: rgba(255,255,255,.07); border: 1px solid rgba(196,168,130,.15);
+      background: rgba(0,0,0,.06); border: 1px solid rgba(196,168,130,.15);
       border-radius: 50%; width: 30px; height: 30px; font-size: 15px;
       cursor: pointer; color: rgba(196,168,130,.5); flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
@@ -441,7 +441,7 @@
     /* ── Booking detail ───────────────────────────────────────────── */
     .booking-detail { padding: 12px 16px 4px; }
     .detail-card {
-      background: rgba(255,255,255,.05); border-radius: 16px; overflow: hidden;
+      background: rgba(0,0,0,.04); border-radius: 16px; overflow: hidden;
       border: 1px solid rgba(196,168,130,.1);
     }
     .detail-row {
@@ -457,26 +457,26 @@
     .form-group { display: flex; flex-direction: column; gap: 6px; }
     .form-label { font-size: 12px; color: var(--hint); font-weight: 600; letter-spacing: .2px; }
     .form-input {
-      background: rgba(255,255,255,.06); border: 1px solid rgba(196,168,130,.15);
+      background: rgba(0,0,0,.05); border: 1px solid rgba(196,168,130,.15);
       border-radius: 13px; padding: 12px 14px;
       font-size: 15px; color: var(--text); width: 100%;
       outline: none; transition: border-color .15s; font-family: inherit;
       -webkit-appearance: none;
     }
-    .form-input:focus { border-color: rgba(196,168,130,.5); background: rgba(255,255,255,.08); }
+    .form-input:focus { border-color: rgba(196,168,130,.5); background: rgba(0,0,0,.07); }
     .form-textarea {
-      background: rgba(255,255,255,.06); border: 1px solid rgba(196,168,130,.15);
+      background: rgba(0,0,0,.05); border: 1px solid rgba(196,168,130,.15);
       border-radius: 13px; padding: 12px 14px;
       font-size: 15px; color: var(--text); width: 100%;
       outline: none; resize: none; min-height: 72px;
       transition: border-color .15s; font-family: inherit;
     }
-    .form-textarea:focus { border-color: rgba(196,168,130,.5); background: rgba(255,255,255,.08); }
+    .form-textarea:focus { border-color: rgba(196,168,130,.5); background: rgba(0,0,0,.07); }
 
     /* Stepper */
     .stepper {
       display: flex; align-items: center;
-      background: rgba(255,255,255,.06); border-radius: 13px;
+      background: rgba(0,0,0,.05); border-radius: 13px;
       border: 1px solid rgba(196,168,130,.15);
     }
     .step-btn {
@@ -505,7 +505,7 @@
     .chip-selector { display: flex; flex-wrap: wrap; gap: 7px; }
     .chip-option {
       padding: 7px 14px; border-radius: 100px; font-size: 13px;
-      border: 1px solid rgba(196,168,130,.2); background: rgba(255,255,255,.05);
+      border: 1px solid rgba(196,168,130,.2); background: rgba(0,0,0,.04);
       color: rgba(240,232,220,.7); cursor: pointer;
       transition: all .15s; user-select: none; font-weight: 500;
     }
@@ -532,7 +532,7 @@
     .btn:active { opacity: .72; }
     .btn:disabled { opacity: .4; }
     .btn-primary        { background: var(--gold); color: var(--btn-text); }
-    .btn-secondary      { background: rgba(255,255,255,.07); color: var(--text); border: 1px solid rgba(196,168,130,.12); }
+    .btn-secondary      { background: rgba(0,0,0,.05); color: var(--text); border: 1px solid rgba(196,168,130,.25); }
     .btn-danger         { background: rgba(196,120,142,.2); color: #E8B4C2; }
     .btn-outline-danger {
       background: transparent; color: #E8B4C2;
@@ -563,7 +563,7 @@
     /* ── Admin panel ────────────────────────────────────────────────── */
     #adminView { padding: 14px 16px 32px; display: none; }
     .admin-section {
-      background: rgba(255,255,255,.04); border-radius: 18px; padding: 16px;
+      background: rgba(0,0,0,.04); border-radius: 18px; padding: 16px;
       margin-bottom: 12px; border: 1px solid rgba(196,168,130,.08);
     }
     .admin-section-title {
@@ -573,7 +573,7 @@
     .admin-users-list { display: flex; flex-direction: column; gap: 8px; }
     .admin-user-row {
       display: flex; align-items: center; gap: 10px;
-      background: rgba(255,255,255,.04); border-radius: 12px; padding: 10px 12px;
+      background: rgba(0,0,0,.04); border-radius: 12px; padding: 10px 12px;
       border: 1px solid rgba(196,168,130,.07);
     }
     .admin-user-name { flex: 1; font-size: 14px; font-weight: 600; }
@@ -585,7 +585,7 @@
     }
     .admin-remove-btn:active { opacity: .4; }
     .admin-textarea {
-      width: 100%; background: rgba(255,255,255,.06); border: 1px solid rgba(196,168,130,.15);
+      width: 100%; background: rgba(0,0,0,.05); border: 1px solid rgba(196,168,130,.15);
       border-radius: 13px; padding: 12px 14px; font-size: 14px;
       color: var(--text); font-family: inherit; resize: none; outline: none;
       min-height: 80px; transition: border-color .15s;
@@ -598,22 +598,98 @@
       font-weight: 600; cursor: pointer; font-family: inherit;
     }
     .admin-add-btn:active { opacity: .8; }
-    .admin-log-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .admin-log-table th {
-      text-align: left; color: var(--hint); font-weight: 700;
-      padding: 4px 6px 8px; border-bottom: 1px solid rgba(0,0,0,.06);
-    }
-    .admin-log-table td {
-      padding: 7px 6px; border-bottom: 1px solid rgba(0,0,0,.04);
-      vertical-align: top;
-    }
     .admin-empty { text-align: center; color: var(--hint); font-size: 13px; padding: 12px; }
+    .summary-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px;
+    }
+    .summary-card {
+      background: var(--accent-soft); border: 1px solid rgba(196,168,130,.15);
+      border-radius: 10px; padding: 12px 14px; text-align: center;
+    }
+    .summary-card .s-value {
+      font-size: 26px; font-weight: 700; color: var(--gold); line-height: 1.1;
+    }
+    .summary-card .s-label {
+      font-size: 11px; color: var(--hint); margin-top: 3px; line-height: 1.3;
+    }
 
+
+    /* ── List view ──────────────────────────────────────────────────── */
+    #listView { padding: 12px 16px 100px; display: none; }
+    .list-filters {
+      display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;
+      margin-bottom: 14px; scrollbar-width: none;
+    }
+    .list-filters::-webkit-scrollbar { display: none; }
+    .list-filter-btn {
+      flex-shrink: 0; padding: 6px 14px; border-radius: 100px;
+      border: 1px solid rgba(196,168,130,.3); background: transparent;
+      font-size: 13px; font-family: inherit; color: var(--text);
+      cursor: pointer; transition: background .15s, color .15s;
+    }
+    .list-filter-btn.active {
+      background: var(--gold); color: var(--btn-text);
+      border-color: var(--gold); font-weight: 600;
+    }
+    .list-search {
+      width: 100%; box-sizing: border-box;
+      background: rgba(0,0,0,.05); border: 1px solid rgba(196,168,130,.2);
+      border-radius: 13px; padding: 10px 14px; font-size: 14px;
+      color: var(--text); font-family: inherit; outline: none;
+      margin-bottom: 14px; transition: border-color .15s;
+    }
+    .list-search:focus { border-color: rgba(196,168,130,.5); }
+    .list-search::placeholder { color: var(--hint); }
+    .list-cards { display: flex; flex-direction: column; gap: 10px; }
+    .list-card {
+      background: rgba(0,0,0,.04); border-radius: 16px; padding: 14px 16px;
+      border-left: 3px solid var(--c-booked);
+      border-top: 0.5px solid rgba(196,168,130,.12);
+      border-right: 0.5px solid rgba(196,168,130,.12);
+      border-bottom: 0.5px solid rgba(196,168,130,.12);
+    }
+    .list-card.future { border-left-color: var(--c-free); }
+    .list-card-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .list-card-date {
+      font-size: 15px; font-weight: 700; color: var(--text); line-height: 1;
+    }
+    .list-card-weekday {
+      font-size: 11px; color: var(--hint); margin-left: 6px;
+    }
+    .list-card-guests {
+      font-size: 13px; color: var(--hint);
+    }
+    .list-card-name {
+      font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 4px;
+    }
+    .list-card-row {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: var(--hint); margin-top: 3px;
+    }
+    .list-card-row a {
+      color: var(--gold); text-decoration: none; font-weight: 500;
+    }
+    .list-card-source {
+      display: inline-block; margin-top: 8px;
+      font-size: 11px; font-weight: 600; letter-spacing: .3px;
+      background: rgba(196,168,130,.18); color: var(--gold);
+      border-radius: 100px; padding: 3px 10px;
+    }
+    .list-empty {
+      text-align: center; color: var(--hint); font-size: 14px;
+      padding: 40px 0;
+    }
+    .list-count {
+      font-size: 12px; color: var(--hint); margin-bottom: 10px; text-align: right;
+    }
     /* ── Toast ──────────────────────────────────────────────────────── */
     .toast {
       position: fixed; bottom: 74px; left: 50%;
       transform: translateX(-50%) translateY(20px);
-      background: rgba(30,22,14,.95); color: #F0E8DC; border: 1px solid rgba(196,168,130,.2);
+      background: rgba(42,30,20,.93); color: #F0E8DC; border: 1px solid rgba(196,168,130,.2);
       padding: 9px 18px; border-radius: 100px;
       font-size: 13px; font-weight: 500; z-index: 300;
       opacity: 0; transition: opacity .2s, transform .2s;
@@ -674,6 +750,18 @@
 </div>
 
 <!-- ── Stats view ───────────────────────────────────────────────────────── -->
+
+<div id="listView">
+  <div class="list-filters" id="listFilters">
+    <button class="list-filter-btn active" data-filter="all" onclick="setListFilter('all',this)">Все</button>
+    <button class="list-filter-btn" data-filter="future" onclick="setListFilter('future',this)">Предстоящие</button>
+    <button class="list-filter-btn" data-filter="past" onclick="setListFilter('past',this)">Прошедшие</button>
+  </div>
+  <input class="list-search" id="listSearch" type="search" placeholder="Поиск по имени или телефону…">
+  <div class="list-count" id="listCount"></div>
+  <div class="list-cards" id="listCards"><div class="list-empty">Загружаем…</div></div>
+</div>
+
 <div id="statsView">
   <div class="stats-month-nav">
     <button class="stats-nav-btn" id="statsPrevBtn">‹</button>
@@ -703,7 +791,7 @@
     <button class="admin-add-btn" id="adminAddBtn">Добавить</button>
   </div>
   <div class="admin-section">
-    <div class="admin-section-title">Активность (последние 100)</div>
+    <div class="admin-section-title">Общая статистика</div>
     <div id="adminActivityContent">
       <div class="admin-empty">Загружаем…</div>
     </div>
@@ -746,7 +834,14 @@
     </svg>
     Календарь
   </button>
-  <button class="nav-tab" id="tab-stats" onclick="switchView('stats')">
+  <button class="nav-tab" id="tab-list" onclick="switchView('list')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+      <circle cx="3" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="3" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="3" cy="18" r="1" fill="currentColor" stroke="none"/>
+    </svg>
+    Список
+  </button>
+    <button class="nav-tab" id="tab-stats" onclick="switchView('stats')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/>
     </svg>
@@ -869,6 +964,7 @@ function switchView(view) {
   document.getElementById("calendarView").style.display  = view === "calendar" ? "block" : "none";
   document.getElementById("statsView").style.display     = view === "stats"    ? "block" : "none";
   document.getElementById("adminView").style.display     = view === "admin"    ? "block" : "none";
+  document.getElementById("listView").style.display      = view === "list"     ? "block" : "none";
   document.getElementById("calHeader").style.display     = view === "calendar" ? "block" : "none";
   document.getElementById("fabBtn").style.display        = view === "calendar" ? "flex"  : "none";
   document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
@@ -876,6 +972,7 @@ function switchView(view) {
   if (tabEl) tabEl.classList.add("active");
   haptic.select();
   if (view === "stats") loadStats();
+  if (view === "list")  loadList();
   if (view === "admin") loadAdminPanel();
 }
 
@@ -1673,21 +1770,34 @@ async function loadAdminUsers() {
 async function loadAdminActivity() {
   const wrap = document.getElementById("adminActivityContent");
   try {
-    const rows = await apiFetch("GET", "/api/admin/activity");
-    if (!rows.length) {
-      wrap.innerHTML = '<div class="admin-empty">Пока нет активности</div>';
-      return;
-    }
-    let html = '<table class="admin-log-table"><thead><tr><th>Пользователь</th><th>Действие</th><th>Время</th></tr></thead><tbody>';
-    rows.forEach(r => {
-      html += `<tr>
-        <td>${r.username ? "@" + escHtml(r.username) : escHtml(String(r.telegram_id))}</td>
-        <td>${escHtml(r.action || "")}</td>
-        <td style="white-space:nowrap;color:var(--hint)">${escHtml(r.timestamp || "")}</td>
-      </tr>`;
-    });
-    html += "</tbody></table>";
-    wrap.innerHTML = html;
+    const s = await apiFetch("GET", "/api/admin/summary");
+    wrap.innerHTML = `
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="s-value">${s.bookings_total}</div>
+          <div class="s-label">Всего броней</div>
+        </div>
+        <div class="summary-card">
+          <div class="s-value">${s.bookings_future}</div>
+          <div class="s-label">Предстоящих</div>
+        </div>
+        <div class="summary-card">
+          <div class="s-value">${s.bookings_past}</div>
+          <div class="s-label">Прошедших</div>
+        </div>
+        <div class="summary-card">
+          <div class="s-value">${s.guests_total || "—"}</div>
+          <div class="s-label">Гостей всего</div>
+        </div>
+        <div class="summary-card">
+          <div class="s-value">${s.leads_total}</div>
+          <div class="s-label">Лидов с Авито</div>
+        </div>
+        <div class="summary-card">
+          <div class="s-value">${s.managers_count}</div>
+          <div class="s-label">Менеджеров</div>
+        </div>
+      </div>`;
   } catch(e) {
     wrap.innerHTML = `<div class="admin-empty">Ошибка: ${escHtml(e.message)}</div>`;
   }
@@ -1748,6 +1858,84 @@ function loadAdminPanel() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 loadMonth();
 loadSources();
+
+
+// ─── List view ────────────────────────────────────────────────────────────────
+let _listData = [];
+let _listFilter = "all";
+let _listQuery = "";
+
+async function loadList() {
+  const cards = document.getElementById("listCards");
+  try {
+    _listData = await apiFetch("GET", "/api/bookings");
+    renderList();
+    // поисковый input
+    const inp = document.getElementById("listSearch");
+    inp.oninput = () => { _listQuery = inp.value.trim().toLowerCase(); renderList(); };
+  } catch(e) {
+    cards.innerHTML = `<div class="list-empty">Ошибка: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function setListFilter(f, btn) {
+  _listFilter = f;
+  document.querySelectorAll(".list-filter-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  haptic.light();
+  renderList();
+}
+
+function renderList() {
+  let data = _listData;
+
+  if (_listFilter === "future") data = data.filter(b => b.future);
+  if (_listFilter === "past")   data = data.filter(b => !b.future);
+
+  if (_listQuery) {
+    data = data.filter(b =>
+      (b.name  || "").toLowerCase().includes(_listQuery) ||
+      (b.phone || "").toLowerCase().includes(_listQuery)
+    );
+  }
+
+  const count = document.getElementById("listCount");
+  count.textContent = data.length ? `${data.length} ${pluralBron(data.length)}` : "";
+
+  const cards = document.getElementById("listCards");
+  if (!data.length) {
+    cards.innerHTML = '<div class="list-empty">Ничего не найдено</div>';
+    return;
+  }
+
+  cards.innerHTML = data.map(b => {
+    const future = b.future ? "future" : "";
+    const phone = b.phone
+      ? `<a href="tel:${escHtml(b.phone)}">${escHtml(b.phone)}</a>`
+      : '<span style="opacity:.5">Нет телефона</span>';
+    const guests = b.guests ? `${escHtml(b.guests)} гост.` : "";
+    const src = b.source
+      ? `<span class="list-card-source">${escHtml(b.source)}</span>` : "";
+    const comment = b.comment
+      ? `<div class="list-card-row" style="margin-top:6px;font-size:12px;font-style:italic">${escHtml(b.comment)}</div>` : "";
+    return `<div class="list-card ${future}">
+      <div class="list-card-head">
+        <div><span class="list-card-date">${escHtml(b.date)}</span><span class="list-card-weekday">${escHtml(b.weekday)}</span></div>
+        <div class="list-card-guests">${guests}</div>
+      </div>
+      <div class="list-card-name">${escHtml(b.name || "—")}</div>
+      <div class="list-card-row">${phone}</div>
+      ${src}${comment}
+    </div>`;
+  }).join("");
+}
+
+function pluralBron(n) {
+  const mod10 = n % 10, mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "бронь";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "брони";
+  return "броней";
+}
 </script>
 </body>
 </html>

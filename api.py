@@ -496,6 +496,28 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
     }
 
 
+# ─── Список всех бронирований ────────────────────────────────────────────────
+
+@app.get("/api/bookings")
+async def get_bookings(user: dict = Depends(_require_admin)):
+    """Все бронирования, отсортированные по дате (для вкладки «Список»)."""
+    bookings = database.get_all_bookings()
+    return [
+        {
+            "date":        b["date"],
+            "weekday":     b["weekday"],
+            "name":        b["name"],
+            "phone":       b["phone"],
+            "guests":      b["guests"],
+            "source":      b["source"],
+            "client_type": b["client_type"],
+            "comment":     b["comment"],
+            "future":      b["future"],
+        }
+        for b in bookings
+    ]
+
+
 # ─── Force sync ───────────────────────────────────────────────────────────────
 
 @app.post("/api/sync")
@@ -542,9 +564,27 @@ async def admin_remove_user(row_id: int, user: dict = Depends(_require_superadmi
     return {"ok": True}
 
 
-# ─── Admin: лог активности ────────────────────────────────────────────────────
+# ─── Admin: сводная статистика ────────────────────────────────────────────────
 
-@app.get("/api/admin/activity")
-async def admin_get_activity(user: dict = Depends(_require_superadmin)):
-    rows = database.get_access_log(limit=200)
-    return rows
+@app.get("/api/admin/summary")
+async def admin_get_summary(user: dict = Depends(_require_superadmin)):
+    from datetime import date as _date
+    bookings = database.get_all_bookings()
+    today = _date.today()
+    future = [b for b in bookings if b["date_obj"] >= today]
+    past   = [b for b in bookings if b["date_obj"] <  today]
+    total_guests = sum(
+        int(b["guests"]) for b in bookings
+        if b["guests"] and b["guests"].isdigit()
+    )
+    with database._conn() as con:
+        leads_count = con.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
+        users_count = con.execute("SELECT COUNT(*) FROM allowed_users").fetchone()[0]
+    return {
+        "bookings_total":  len(bookings),
+        "bookings_future": len(future),
+        "bookings_past":   len(past),
+        "guests_total":    total_guests,
+        "leads_total":     leads_count,
+        "managers_count":  users_count,
+    }
