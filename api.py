@@ -468,13 +468,14 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
             pass
 
     month_labels, month_counts, month_keys = [], [], []
-    for delta in range(0, 7):
+    for delta in range(-6, 7):
         m = today.month + delta
         y = today.year + (m - 1) // 12
         m = ((m - 1) % 12) + 1
         key = f"{m:02d}.{y}"
         cnt = by_month.get(key, 0)
-        if True:
+        # Прошлые — только если есть брони (не показываем пустые); текущий и будущие — всегда
+        if delta >= 0 or cnt > 0:
             month_labels.append(MONTH_NAMES[m - 1][:3] + f" {y}")
             month_counts.append(cnt)
             month_keys.append(key)
