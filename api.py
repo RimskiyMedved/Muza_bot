@@ -468,13 +468,12 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
             pass
 
     month_labels, month_counts, month_keys = [], [], []
-    for delta in range(-6, 7):
+    for delta in range(0, 7):
         m = today.month + delta
         y = today.year + (m - 1) // 12
         m = ((m - 1) % 12) + 1
         key = f"{m:02d}.{y}"
         cnt = by_month.get(key, 0)
-        # Всегда показываем все 13 месяцев (±6 от текущего)
         if True:
             month_labels.append(MONTH_NAMES[m - 1][:3] + f" {y}")
             month_counts.append(cnt)
