@@ -464,7 +464,7 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
             pass
 
     month_labels, month_counts, month_keys = [], [], []
-    for delta in range(-1, 12):
+    for delta in range(-12, 4):
         m = today.month + delta
         y = today.year + (m - 1) // 12
         m = ((m - 1) % 12) + 1

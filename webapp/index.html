@@ -13,7 +13,7 @@
       --bg:       #EEE0CC;
       --bg2:      #DFD0B5;
       --text:     #2A1E14;
-      --hint:     rgba(60,46,34,.42);
+      --hint:     rgba(60,46,34,.72);
       --btn:      #C4A882;
       --btn-text: #1A1410;
 
@@ -60,11 +60,11 @@
       position: sticky; top: 0; z-index: 10;
       background: var(--bg);
       padding: 12px 16px 10px;
-      border-bottom: 1px solid rgba(196,168,130,.1);
+      border-bottom: 1px solid rgba(60,46,34,.15);
     }
     .header-eyebrow {
       text-align: center; font-size: 9px; letter-spacing: 2.5px;
-      color: rgba(196,168,130,.45); text-transform: uppercase;
+      color: rgba(60,46,34,.6); text-transform: uppercase;
       font-weight: 500; margin-bottom: 8px;
     }
     .year-row {
@@ -73,14 +73,14 @@
     }
     .year-nav {
       background: none; border: none; font-size: 14px;
-      cursor: pointer; color: rgba(196,168,130,.35); padding: 2px 6px;
+      cursor: pointer; color: rgba(60,46,34,.6); padding: 2px 6px;
       border-radius: 6px; line-height: 1;
     }
     .year-nav:active { color: var(--gold); }
-    .year-label { font-size: 11px; font-weight: 600; color: rgba(196,168,130,.5); letter-spacing: 1px; }
+    .year-label { font-size: 11px; font-weight: 600; color: rgba(60,46,34,.65); letter-spacing: 1px; }
     .sync-btn {
       background: none; border: none;
-      cursor: pointer; color: rgba(196,168,130,.3); padding: 4px 6px; border-radius: 8px;
+      cursor: pointer; color: rgba(60,46,34,.55); padding: 4px 6px; border-radius: 8px;
       display: flex; align-items: center;
     }
     .sync-btn:active { color: var(--gold); }
@@ -150,7 +150,7 @@
 
     .day-number {
       font-size: clamp(12px,3.6vw,15px); font-weight: 500; line-height: 1;
-      color: rgba(42,30,20,.55);
+      color: rgba(42,30,20,.7);
     }
     .day-cell.booked  .day-number { color: #8B3A52; font-weight: 600; }
     .day-cell.free    .day-number { color: #2E7A56; font-weight: 600; }
@@ -189,9 +189,9 @@
     }
     .cal-mini-chips { display: flex; flex-wrap: wrap; gap: 5px; }
     .cal-mini-chip {
-      background: rgba(196,168,130,.12); border-radius: 100px;
-      padding: 4px 11px; font-size: 11px; color: rgba(42,30,20,.6); font-weight: 600;
-      border: 1px solid rgba(196,168,130,.2);
+      background: rgba(60,46,34,.08); border-radius: 100px;
+      padding: 4px 11px; font-size: 11px; color: rgba(42,30,20,.78); font-weight: 600;
+      border: 1px solid rgba(60,46,34,.18);
     }
 
     /* ── FAB ──────────────────────────────────────────────────────── */
@@ -214,7 +214,7 @@
     .stats-month-nav {
       display: flex; align-items: center; justify-content: space-between;
       padding: 10px 16px 8px;
-      border-bottom: 1px solid rgba(196,168,130,.1);
+      border-bottom: 1px solid rgba(60,46,34,.15);
       position: sticky; top: 0; background: var(--bg); z-index: 5;
     }
     .stats-nav-btn {
@@ -388,14 +388,14 @@
     .bottom-nav {
       position: fixed; bottom: 0; left: 0; right: 0;
       background: var(--bg);
-      border-top: 1px solid rgba(196,168,130,.1);
+      border-top: 1px solid rgba(60,46,34,.15);
       display: flex; height: 58px; z-index: 30;
     }
     .nav-tab {
       flex: 1; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       gap: 0; background: none; border: none;
-      cursor: pointer; color: rgba(196,168,130,.3);
+      cursor: pointer; color: rgba(60,46,34,.55);
       font-size: 0; transition: color .15s; position: relative;
     }
     .nav-tab svg { width: 22px; height: 22px; }
@@ -458,29 +458,29 @@
     /* ── Form ──────────────────────────────────────────────────────── */
     .form-body { padding: 12px 16px 4px; display: flex; flex-direction: column; gap: 12px; }
     .form-group { display: flex; flex-direction: column; gap: 6px; }
-    .form-label { font-size: 12px; color: var(--hint); font-weight: 600; letter-spacing: .2px; }
+    .form-label { font-size: 12px; color: rgba(42,30,20,.7); font-weight: 700; letter-spacing: .2px; }
     .form-input {
-      background: rgba(0,0,0,.05); border: 1px solid rgba(196,168,130,.15);
+      background: rgba(0,0,0,.06); border: 1.5px solid rgba(60,46,34,.25);
       border-radius: 13px; padding: 12px 14px;
       font-size: 15px; color: var(--text); width: 100%;
-      outline: none; transition: border-color .15s; font-family: inherit;
+      outline: none; transition: border-color .15s, background .15s; font-family: inherit;
       -webkit-appearance: none;
     }
-    .form-input:focus { border-color: rgba(196,168,130,.5); background: rgba(0,0,0,.07); }
+    .form-input:focus { border-color: #8B3A52; background: rgba(139,58,82,.06); }
     .form-textarea {
-      background: rgba(0,0,0,.05); border: 1px solid rgba(196,168,130,.15);
+      background: rgba(0,0,0,.06); border: 1.5px solid rgba(60,46,34,.25);
       border-radius: 13px; padding: 12px 14px;
       font-size: 15px; color: var(--text); width: 100%;
       outline: none; resize: none; min-height: 72px;
-      transition: border-color .15s; font-family: inherit;
+      transition: border-color .15s, background .15s; font-family: inherit;
     }
-    .form-textarea:focus { border-color: rgba(196,168,130,.5); background: rgba(0,0,0,.07); }
+    .form-textarea:focus { border-color: #8B3A52; background: rgba(139,58,82,.06); }
 
     /* Stepper */
     .stepper {
       display: flex; align-items: center;
-      background: rgba(0,0,0,.05); border-radius: 13px;
-      border: 1px solid rgba(196,168,130,.15);
+      background: rgba(0,0,0,.06); border-radius: 13px;
+      border: 1.5px solid rgba(60,46,34,.25);
     }
     .step-btn {
       width: 48px; height: 48px; background: none; border: none;
@@ -509,7 +509,7 @@
     .chip-option {
       padding: 7px 14px; border-radius: 100px; font-size: 13px;
       border: 1px solid rgba(196,168,130,.2); background: rgba(0,0,0,.04);
-      color: rgba(240,232,220,.7); cursor: pointer;
+      color: rgba(42,30,20,.75); cursor: pointer;
       transition: all .15s; user-select: none; font-weight: 500;
     }
     .chip-option.selected {
@@ -518,7 +518,7 @@
     .chip-option:active { opacity: .7; }
     .chip-custom-wrap { margin-top: 8px; display: none; }
     .chip-custom-input {
-      background: var(--bg2); border: 1.5px solid var(--btn);
+      background: rgba(0,0,0,.06); border: 1.5px solid rgba(60,46,34,.3);
       border-radius: 13px; padding: 12px 14px;
       font-size: 15px; color: var(--text); width: 100%;
       outline: none; font-family: inherit;
@@ -536,10 +536,10 @@
     .btn:disabled { opacity: .4; }
     .btn-primary        { background: var(--gold); color: var(--btn-text); }
     .btn-secondary      { background: rgba(0,0,0,.05); color: var(--text); border: 1px solid rgba(196,168,130,.25); }
-    .btn-danger         { background: rgba(196,120,142,.2); color: #E8B4C2; }
+    .btn-danger         { background: rgba(196,120,142,.2); color: #8B3A52; }
     .btn-outline-danger {
       background: transparent; color: #E8B4C2;
-      border: 1px solid rgba(196,120,142,.3);
+      border: 1px solid rgba(139,58,82,.4);
     }
 
     /* ── Source filter sheet ──────────────────────────────────────── */
@@ -643,9 +643,9 @@
     }
     .list-search:focus { border-color: rgba(196,168,130,.5); }
     .list-search::placeholder { color: var(--hint); }
-    .list-cards { display: flex; flex-direction: column; gap: 6px; }
+    .list-cards { display: flex; flex-direction: column; gap: 4px; }
     .list-card {
-      background: rgba(0,0,0,.04); border-radius: 12px; padding: 10px 13px;
+      background: rgba(0,0,0,.04); border-radius: 10px; padding: 7px 11px;
       border-left: 3px solid var(--c-booked);
       border-top: 0.5px solid rgba(196,168,130,.12);
       border-right: 0.5px solid rgba(196,168,130,.12);
@@ -654,10 +654,10 @@
     .list-card.future { border-left-color: var(--c-free); }
     .list-card-head {
       display: flex; align-items: baseline; justify-content: space-between;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
     .list-card-date {
-      font-size: 14px; font-weight: 700; color: var(--text); line-height: 1;
+      font-size: 13px; font-weight: 700; color: var(--text); line-height: 1;
     }
     .list-card-weekday {
       font-size: 11px; color: var(--hint); margin-left: 6px;
@@ -666,20 +666,20 @@
       font-size: 13px; color: var(--hint);
     }
     .list-card-name {
-      font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px;
+      font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 1px;
     }
     .list-card-row {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 12px; color: var(--hint); margin-top: 2px;
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; color: var(--hint); margin-top: 1px;
     }
     .list-card-row a {
       color: var(--gold); text-decoration: none; font-weight: 500;
     }
     .list-card-source {
-      display: inline-block; margin-top: 5px;
-      font-size: 11px; font-weight: 600; letter-spacing: .3px;
-      background: rgba(196,168,130,.18); color: var(--gold);
-      border-radius: 100px; padding: 3px 10px;
+      display: inline-block; margin-top: 4px;
+      font-size: 10px; font-weight: 600; letter-spacing: .3px;
+      background: rgba(60,46,34,.08); color: rgba(42,30,20,.65);
+      border-radius: 100px; padding: 2px 8px;
     }
     .list-empty {
       text-align: center; color: var(--hint); font-size: 14px;
@@ -688,18 +688,20 @@
     .list-count {
       font-size: 12px; color: var(--hint); margin-bottom: 10px; text-align: right;
     }
-    .list-month-wrap {
-      margin-bottom: 10px;
+    .list-month-pills {
+      display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;
+      margin-bottom: 10px; scrollbar-width: none;
     }
-    .list-month-select {
-      width: 100%; box-sizing: border-box;
-      background: rgba(0,0,0,.05); border: 1px solid rgba(196,168,130,.2);
-      border-radius: 13px; padding: 9px 14px; font-size: 14px;
-      color: var(--text); font-family: inherit; outline: none;
-      -webkit-appearance: none; appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23C4A882' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat; background-position: right 14px center;
-      cursor: pointer;
+    .list-month-pills::-webkit-scrollbar { display: none; }
+    .list-month-pill {
+      flex-shrink: 0; padding: 5px 13px; border-radius: 100px;
+      border: 1px solid rgba(60,46,34,.2); background: transparent;
+      font-size: 12px; font-family: inherit; color: rgba(42,30,20,.7);
+      cursor: pointer; white-space: nowrap; transition: all .15s;
+    }
+    .list-month-pill.active {
+      background: rgba(42,30,20,.85); color: #F4EDE1;
+      border-color: rgba(42,30,20,.85); font-weight: 600;
     }
     /* ── Toast ──────────────────────────────────────────────────────── */
     .toast {
@@ -774,7 +776,7 @@
     <button class="list-filter-btn" data-filter="past" onclick="setListFilter('past',this)">Прошедшие</button>
   </div>
   <input class="list-search" id="listSearch" type="search" placeholder="Поиск по имени или телефону…">
-  <div class="list-month-wrap"><select class="list-month-select" id="listMonthSelect"><option value="">Все месяцы</option></select></div>
+  <div class="list-month-pills" id="listMonthPills"></div>
   <div class="list-count" id="listCount"></div>
   <div class="list-cards" id="listCards"><div class="list-empty">Загружаем…</div></div>
 </div>
@@ -1896,13 +1898,11 @@ async function loadList() {
   const cards = document.getElementById("listCards");
   try {
     _listData = await apiFetch("GET", "/api/bookings");
-    populateMonthSelect();
+    populateMonthPills();
     renderList();
     // поисковый input
     const inp = document.getElementById("listSearch");
     inp.oninput = () => { _listQuery = inp.value.trim().toLowerCase(); renderList(); };
-    const sel = document.getElementById("listMonthSelect");
-    sel.onchange = () => { _listMonth = sel.value; renderList(); };
   } catch(e) {
     cards.innerHTML = `<div class="list-empty">Ошибка: ${escHtml(e.message)}</div>`;
   }
@@ -1964,8 +1964,8 @@ function renderList() {
   }).join("");
 }
 
-function populateMonthSelect() {
-  const sel = document.getElementById("listMonthSelect");
+function populateMonthPills() {
+  const wrap = document.getElementById("listMonthPills");
   const months = new Set(_listData.map(b => b.date.slice(3, 10)));
   const sorted = [...months].sort((a, b) => {
     const [ma, ya] = a.split(".").map(Number);
@@ -1973,11 +1973,22 @@ function populateMonthSelect() {
     return ya !== yb ? ya - yb : ma - mb;
   });
   const RU_MONTHS = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
-  sel.innerHTML = '<option value="">Все месяцы</option>' +
-    sorted.map(mk => {
-      const [m, y] = mk.split(".").map(Number);
-      return `<option value="${mk}">${RU_MONTHS[m-1]} ${y}</option>`;
-    }).join("");
+  const pills = [{ key: "", label: "Все" }, ...sorted.map(mk => {
+    const [m, y] = mk.split(".").map(Number);
+    return { key: mk, label: RU_MONTHS[m-1] + " " + String(y).slice(2) };
+  })];
+  wrap.innerHTML = pills.map(p =>
+    `<button class="list-month-pill${_listMonth === p.key ? " active" : ""}"
+      onclick="setListMonth(${JSON.stringify(p.key)},this)">${p.label}</button>`
+  ).join("");
+}
+
+function setListMonth(key, btn) {
+  _listMonth = key;
+  document.querySelectorAll(".list-month-pill").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  haptic.light();
+  renderList();
 }
 
 function formatPhone(p) {
