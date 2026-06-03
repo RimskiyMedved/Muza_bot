@@ -55,7 +55,27 @@ import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from avito import AvitoClient
+from config import (
+    NOTIFY_USERNAME          as ADMIN_TG_USERNAME,
+    AVITO_NOTIFY_GROUP,
+    AVITO_POLL_INTERVAL      as POLL_INTERVAL,
+    AVITO_POLL_STALE_CHECK_EVERY  as STALE_CHECK_EVERY,
+    AVITO_POLL_BROAD_CHATS_EVERY  as BROAD_CHATS_EVERY,
+    AVITO_POLL_BROAD_CHATS_LIMIT  as BROAD_CHATS_LIMIT,
+    AVITO_POLL_MESSAGES_LIMIT     as MESSAGES_FETCH_LIMIT,
+    AVITO_POLL_MAX_INBOUND_BURST  as MAX_INBOUND_BURST,
+    AVITO_POLL_RECOVERY_PENDING_LIMIT as RECOVERY_PENDING_LIMIT,
+)
 from sheets import add_lead
+from utils import (
+    MONTHS,
+    has_phone,
+    has_tg_nick,
+    extract_phone,
+    extract_tg_nick,
+    parse_date as _parse_date_util,
+    parse_all_dates,
+)
 
 log = logging.getLogger("AVITO_POLL")
 _e = html.escape
@@ -69,26 +89,6 @@ except ImportError:
     log.info("check_date → Google Sheets")
 
 # ─── Конфиг ──────────────────────────────────────────────────────────────────
-
-POLL_INTERVAL      = int(os.getenv("AVITO_POLL_INTERVAL", "20"))
-AVITO_NOTIFY_GROUP = int(os.getenv("AVITO_NOTIFY_GROUP_ID", "0"))
-ADMIN_TG_USERNAME  = os.getenv("NOTIFY_USERNAME", "")
-# Раз в N циклов опроса догоняем новые входящие в уже известных чатах (см. приветствие).
-# Нужно, когда ответ клиента не переводит чат в «непрочитанный» в API Авито.
-# 0 — отключить.
-STALE_CHECK_EVERY  = int(os.getenv("AVITO_POLL_STALE_CHECK_EVERY", "2"))
-# Раз в M циклов — запрашиваем последние чаты без фильтра unread (и новые лиды).
-# Ловит диалоги, которые не в «непрочитанных» и ещё не в состоянии бота.
-# 0 — отключить. Лимит — сколько чатов за один такой запрос (каждый потом get_messages).
-BROAD_CHATS_EVERY    = int(os.getenv("AVITO_POLL_BROAD_CHATS_EVERY", "3"))
-BROAD_CHATS_LIMIT    = int(os.getenv("AVITO_POLL_BROAD_CHATS_LIMIT", "10"))
-# Сколько последних сообщений чата запрашивать (несколько исходящих подряд не должны «выдавливать» входящие).
-MESSAGES_FETCH_LIMIT = int(os.getenv("AVITO_POLL_MESSAGES_LIMIT", "100"))
-# За один вызов _process_chat максимум новых входящих подряд (защита от бесконечного цикла).
-MAX_INBOUND_BURST    = int(os.getenv("AVITO_POLL_MAX_INBOUND_BURST", "15"))
-# Если last_handled выпал из окна API, восстанавливаем не 1, а несколько последних входящих.
-# Это снижает риск пропуска пачки сообщений клиента между циклами.
-RECOVERY_PENDING_LIMIT = int(os.getenv("AVITO_POLL_RECOVERY_PENDING_LIMIT", "3"))
 
 STATE_FILE = os.path.join(os.path.dirname(__file__), "bot_state.json")
 
@@ -274,14 +274,21 @@ async def _notify_critical_error(application, error: Exception, context: str = "
 # ─── Сохранение / загрузка состояния ─────────────────────────────────────────
 
 def _load_state() -> None:
-    """Загружает состояние из файла при старте бота."""
-    global _greeted_chats, _last_handled, _msg_content, _awaiting_contact, _asked_date, _lead_received, _chat_context, _offered_alternatives, _faq_count, _stuck_notified, _ignored_chats
-    try:
-        with open(STATE_FILE, encoding="utf-8") as f:
-            data = json.load(f)
+    """
+    Загружает состояние из SQLite.
+    При первом старте (если существует bot_state.json) мигрирует данные из JSON → SQLite,
+    затем переименовывает файл в .migrated.
+    """
+    global _greeted_chats, _last_handled, _awaiting_contact, _asked_date
+    global _lead_received, _chat_context, _offered_alternatives
+    global _faq_count, _stuck_notified, _ignored_chats
+
+    def _parse_json_into_globals(data: dict) -> None:
+        global _greeted_chats, _last_handled, _awaiting_contact, _asked_date
+        global _lead_received, _chat_context, _offered_alternatives
+        global _faq_count, _stuck_notified, _ignored_chats
         _greeted_chats        = set(data.get("greeted_chats", []))
         _last_handled         = data.get("last_handled", {})
-        _msg_content          = data.get("msg_content", {})
         _awaiting_contact     = set(data.get("awaiting_contact", []))
         _asked_date           = set(data.get("asked_date", []))
         _lead_received        = set(data.get("lead_received", []))
@@ -289,8 +296,7 @@ def _load_state() -> None:
         _faq_count            = {k: int(v) for k, v in data.get("faq_count", {}).items()}
         _stuck_notified       = set(data.get("stuck_notified", []))
         _ignored_chats        = set(data.get("ignored_chats", []))
-        # Контекст чата: дата хранится как ISO-строка, восстанавливаем в date
-        _chat_context = {}
+        _chat_context.clear()
         for cid, v in data.get("chat_context", {}).items():
             d = None
             if v.get("date"):
@@ -304,42 +310,93 @@ def _load_state() -> None:
                 "event":  v.get("event", ""),
                 "phone":  v.get("phone", ""),
             }
-        log.info("✅ Состояние загружено: %d чатов, %d с контекстом", len(_greeted_chats), len(_chat_context))
-    except FileNotFoundError:
-        log.info("ℹ️  Файл состояния не найден — старт с чистого листа")
-    except Exception as e:
-        log.warning("⚠️  Не удалось загрузить состояние: %s", e)
 
+    # ── Миграция из JSON (однократно) ────────────────────────────────────────
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, encoding="utf-8") as f:
+                data = json.load(f)
+            _parse_json_into_globals(data)
+            # Записываем в SQLite
+            all_chats = _greeted_chats | set(_last_handled.keys())
+            for cid in all_chats:
+                _save_state(cid)
+            os.rename(STATE_FILE, STATE_FILE + ".migrated")
+            log.info(
+                "✅ Состояние мигрировано JSON → SQLite: %d чатов, %d с контекстом",
+                len(_greeted_chats), len(_chat_context),
+            )
+        except Exception as e:
+            log.warning("⚠️  Не удалось мигрировать состояние из JSON: %s", e)
+        return
 
-def _save_state() -> None:
-    """Сохраняет состояние в файл."""
+    # ── Загрузка из SQLite ────────────────────────────────────────────────────
     try:
-        # _chat_context содержит объекты date — сериализуем в ISO-строки
-        ctx_serializable = {
-            cid: {
-                "date":   v["date"].isoformat() if v.get("date") else None,
-                "guests": v.get("guests", ""),
-                "event":  v.get("event", ""),
-                "phone":  v.get("phone", ""),
+        from database import get_all_avito_chat_states
+        rows = get_all_avito_chat_states()
+        for r in rows:
+            cid = r["chat_id"]
+            if r["greeted"]:          _greeted_chats.add(cid)
+            if r["awaiting_contact"]: _awaiting_contact.add(cid)
+            if r["asked_date"]:       _asked_date.add(cid)
+            if r["lead_received"]:    _lead_received.add(cid)
+            if r["offered_alt"]:      _offered_alternatives.add(cid)
+            if r["faq_count"]:        _faq_count[cid] = r["faq_count"]
+            if r["stuck_notified"]:   _stuck_notified.add(cid)
+            if r["ignored"]:          _ignored_chats.add(cid)
+            if r["last_handled_id"]:  _last_handled[cid] = r["last_handled_id"]
+            ctx_date = None
+            if r["ctx_date"]:
+                try:
+                    ctx_date = date.fromisoformat(r["ctx_date"])
+                except Exception:
+                    pass
+            _chat_context[cid] = {
+                "date":   ctx_date,
+                "guests": r["ctx_guests"] or "",
+                "event":  r["ctx_event"]  or "",
+                "phone":  r["ctx_phone"]  or "",
             }
-            for cid, v in _chat_context.items()
-        }
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump({
-                "greeted_chats":        list(_greeted_chats),
-                "last_handled":         _last_handled,
-                "msg_content":          _msg_content,
-                "awaiting_contact":     list(_awaiting_contact),
-                "asked_date":           list(_asked_date),
-                "lead_received":        list(_lead_received),
-                "offered_alternatives": list(_offered_alternatives),
-                "faq_count":            _faq_count,
-                "stuck_notified":       list(_stuck_notified),
-                "ignored_chats":        list(_ignored_chats),
-                "chat_context":         ctx_serializable,
-            }, f, ensure_ascii=False)
+        log.info(
+            "✅ Состояние загружено из SQLite: %d чатов, %d с контекстом",
+            len(_greeted_chats), len(_chat_context),
+        )
     except Exception as e:
-        log.warning("⚠️  Не удалось сохранить состояние: %s", e)
+        log.warning("⚠️  Не удалось загрузить состояние из SQLite: %s", e)
+
+
+def _save_state(chat_id: str | None = None) -> None:
+    """
+    Сохраняет состояние в SQLite.
+    chat_id — если задан, пишем только этот чат (вызов после каждого сообщения).
+              если None — пишем все известные чаты (полный сброс при необходимости).
+    """
+    try:
+        from database import upsert_avito_chat_state
+        targets: list[str] = (
+            [chat_id] if chat_id
+            else list(_greeted_chats | set(_last_handled.keys()))
+        )
+        for cid in targets:
+            ctx = _chat_context.get(cid, {})
+            upsert_avito_chat_state(
+                cid,
+                greeted          = cid in _greeted_chats,
+                awaiting_contact = cid in _awaiting_contact,
+                asked_date       = cid in _asked_date,
+                lead_received    = cid in _lead_received,
+                offered_alt      = cid in _offered_alternatives,
+                faq_count        = _faq_count.get(cid, 0),
+                stuck_notified   = cid in _stuck_notified,
+                ignored          = cid in _ignored_chats,
+                last_handled_id  = _last_handled.get(cid, ""),
+                ctx_date         = ctx["date"].isoformat() if ctx.get("date") else "",
+                ctx_guests       = ctx.get("guests", ""),
+                ctx_event        = ctx.get("event",  ""),
+                ctx_phone        = ctx.get("phone",  ""),
+            )
+    except Exception as e:
+        log.warning("⚠️  Не удалось сохранить состояние в SQLite: %s", e)
 
 
 # ─── Ключевые слова ──────────────────────────────────────────────────────────
@@ -406,25 +463,7 @@ _EVENT_TYPES       = ["свадьб","день рождения","корпора
                       "вечеринк","праздник","торжеств","мероприяти","выпускной",
                       "помолвк","крестин","детский праздник","фуршет"]
 
-_MONTHS = {
-    "января":1,"январь":1,"янв":1,
-    "февраля":2,"февраль":2,"фев":2,
-    "марта":3,"март":3,"мар":3,
-    "апреля":4,"апрель":4,"апр":4,
-    "мая":5,"май":5,
-    "июня":6,"июнь":6,"июн":6,
-    "июля":7,"июль":7,"июл":7,
-    "августа":8,"август":8,"авг":8,
-    "сентября":9,"сентябрь":9,"сен":9,
-    "октября":10,"октябрь":10,"окт":10,
-    "ноября":11,"ноябрь":11,"ноя":11,
-    "декабря":12,"декабрь":12,"дек":12,
-}
-
-_MONTHS_SHORT = {
-    1:"янв",2:"фев",3:"мар",4:"апр",5:"май",6:"июн",
-    7:"июл",8:"авг",9:"сен",10:"окт",11:"ноя",12:"дек",
-}
+_MONTHS = MONTHS
 
 
 # ─── Функции определения содержимого сообщения ───────────────────────────────
@@ -493,114 +532,13 @@ def _has_event_type(text: str) -> bool:
     return any(ev in t for ev in _EVENT_TYPES)
 
 
-def _has_phone(text: str) -> bool:
-    return bool(re.search(
-        r'(\+?[78][\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}'  # +7/8 xxx xxx xx xx
-        r'|\b\d{11}\b'                                                          # 11 цифр подряд
-        r'|\b[789]\d{9}\b)',                                                    # 10 цифр с 7/8/9
-        text,
-    ))
-
-
-def _extract_phone(text: str) -> str:
-    m = re.search(
-        r'\+?[78][\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}'
-        r'|\b\d{11}\b'
-        r'|\b[789]\d{9}\b',
-        text,
-    )
-    return m.group(0) if m else ""
-
-
-def _has_tg_nick(text: str) -> bool:
-    return bool(re.search(r'@[a-zA-Z][a-zA-Z0-9_]{3,}', text))
-
-
-def _extract_tg_nick(text: str) -> str:
-    m = re.search(r'@[a-zA-Z][a-zA-Z0-9_]{3,}', text)
-    return m.group(0) if m else ""
-
-
-def _parse_date(text: str) -> date | None:
-    """Извлекает дату из произвольного текста."""
-    t = text.lower()
-    today = date.today()
-
-    m = re.search(r"\b(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?\b", t)
-    if m:
-        day, mon = int(m.group(1)), int(m.group(2))
-        yr_raw = m.group(3)
-        yr = (int(yr_raw) + (2000 if int(yr_raw) < 100 else 0)) if yr_raw else today.year
-        try:
-            c = date(yr, mon, day)
-            if not yr_raw and c < today:
-                c = date(yr + 1, mon, day)
-            return c
-        except ValueError:
-            pass
-
-    m = re.search(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b", t)
-    if m:
-        try:
-            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        except ValueError:
-            pass
-
-    pat = r"\b(\d{1,2})\s+(" + "|".join(_MONTHS) + r")(?:\s+(\d{4}))?\b"
-    m = re.search(pat, t)
-    if m:
-        day, mon = int(m.group(1)), _MONTHS[m.group(2)]
-        yr = int(m.group(3)) if m.group(3) else today.year
-        try:
-            c = date(yr, mon, day)
-            if not m.group(3) and c < today:
-                c = date(yr + 1, mon, day)
-            return c
-        except ValueError:
-            pass
-
-    return None
-
-
-def _parse_all_dates(text: str) -> list[date]:
-    """Извлекает все даты из текста (для случая когда клиент пишет две даты)."""
-    t = text.lower()
-    today = date.today()
-    found: list[date] = []
-    seen: set[tuple] = set()
-
-    def _add(d: date | None):
-        if d and (d.month, d.day) not in seen:
-            seen.add((d.month, d.day))
-            found.append(d)
-
-    # дд.мм / дд/мм / дд.мм.гг
-    for m in re.finditer(r"\b(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?\b", t):
-        day, mon = int(m.group(1)), int(m.group(2))
-        yr_raw = m.group(3)
-        yr = (int(yr_raw) + (2000 if int(yr_raw) < 100 else 0)) if yr_raw else today.year
-        try:
-            c = date(yr, mon, day)
-            if not yr_raw and c < today:
-                c = date(yr + 1, mon, day)
-            _add(c)
-        except ValueError:
-            pass
-
-    # дд месяц [год]
-    pat = r"\b(\d{1,2})\s+(" + "|".join(_MONTHS) + r")(?:\s+(\d{4}))?\b"
-    for m in re.finditer(pat, t):
-        day, mon = int(m.group(1)), _MONTHS[m.group(2)]
-        yr = int(m.group(3)) if m.group(3) else today.year
-        try:
-            c = date(yr, mon, day)
-            if not m.group(3) and c < today:
-                c = date(yr + 1, mon, day)
-            _add(c)
-        except ValueError:
-            pass
-
-    return found
+# Алиасы из utils — единая реализация для всего проекта
+_has_phone      = has_phone
+_extract_phone  = extract_phone
+_has_tg_nick    = has_tg_nick
+_extract_tg_nick = extract_tg_nick
+_parse_date     = _parse_date_util
+_parse_all_dates = parse_all_dates
 
 
 def _find_nearby_free_dates(
@@ -1202,7 +1140,7 @@ async def _process_chat(
         log.info("   [dbg] → сообщение старее запуска — только last_handled и следующий в очереди")
         _last_handled[chat_id] = msg_id
         _msg_content[msg_id] = body_for_card
-        _save_state()
+        _save_state(chat_id)
         await _process_chat(
             client, {"id": chat_id}, application, uid_self, account_name,
             _burst_depth=_burst_depth + 1,
@@ -1247,7 +1185,7 @@ async def _process_chat(
     if chat_id in _ignored_chats:
         log.info("   ↳ чат в игноре (продавец/спам) — пропуск")
         _last_handled[chat_id] = msg_id
-        _save_state()
+        _save_state(chat_id)
         try:
             await client.mark_read(chat_id)
         except Exception:
@@ -1258,7 +1196,7 @@ async def _process_chat(
         log.info("   ↳ Обнаружен продавец — вежливый отказ и игнор чата")
         _ignored_chats.add(chat_id)
         _last_handled[chat_id] = msg_id
-        _save_state()
+        _save_state(chat_id)
         try:
             await client.send_message(
                 chat_id,
@@ -1446,6 +1384,10 @@ async def _process_chat(
                     _offered_alternatives.add(chat_id)
                 auto_replies.append(reply)
 
+    # faq_asked_phone используется ниже, после блока if/elif/else.
+    # Объявляем до ветвления, чтобы не нужен был locals().get().
+    faq_asked_phone = False
+
     # ── Первое сообщение ─────────────────────────────────────────────────────
     if is_first:
         log.info("   ↳ Первое сообщение — приветствие")
@@ -1512,9 +1454,9 @@ async def _process_chat(
     #   «Сколько стоит? Хочу 15 июня, мой номер 89251234567»
     #   → ответить на FAQ + сохранить контакт + проверить дату
     else:
-        faq_answered       = False
-        faq_asked_phone    = False  # флаг: уже попросили телефон внутри FAQ-ответа
-        awaiting = chat_id in _awaiting_contact   # снимок до обработки
+        faq_answered    = False
+        faq_asked_phone = False  # флаг: уже попросили телефон внутри FAQ-ответа
+        awaiting        = chat_id in _awaiting_contact   # снимок до обработки
 
         # ── Шаг 1: FAQ-ответы + CTA ───────────────────────────────────────────
         #   Приоритет CTA:
@@ -1635,12 +1577,12 @@ async def _process_chat(
     # ── Напоминание о контакте (если ждали ДО этого сообщения) ──────────────
     # Клиент написал что-то (не контакт), мы ответили, но контакт так и не получили.
     # Не добавляем если FAQ-ответ уже содержит просьбу о телефоне (faq_asked_phone).
-    _faq_asked_phone = locals().get("faq_asked_phone", False)
+    # Примечание: faq_asked_phone объявляется в блоке else выше; вне него — False.
     if (
         was_awaiting_contact
         and chat_id in _awaiting_contact   # контакт не был получен в этом сообщении
         and auto_replies                    # мы что-то отвечаем (не молчим)
-        and not _faq_asked_phone           # не дублируем — телефон уже в FAQ-ответе
+        and not faq_asked_phone            # не дублируем — телефон уже в FAQ-ответе
     ):
         log.info("   ↳ напоминаем о контакте (awaiting_contact)")
         auto_replies.append(
@@ -1672,7 +1614,7 @@ async def _process_chat(
     # ══ Сохраняем состояние ══════════════════════════════════════════════════
 
     _last_handled[chat_id] = msg_id
-    _save_state()
+    _save_state(chat_id)
 
     try:
         messages_tail = await client.get_messages(chat_id, limit=MESSAGES_FETCH_LIMIT)

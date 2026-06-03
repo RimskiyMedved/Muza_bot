@@ -24,21 +24,20 @@ import hashlib
 import hmac
 import json
 import logging
-import os
 import time
+from contextlib import asynccontextmanager
 from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import parse_qsl
 
-from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 import database
 
-load_dotenv()
+from config import TELEGRAM_BOT_TOKEN, SUPERADMIN_ID, WEBAPP_URL as _WEBAPP_URL
 
 log = logging.getLogger("MUZA_API")
 logging.basicConfig(
@@ -47,14 +46,7 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-BOT_TOKEN    = os.getenv("TELEGRAM_BOT_TOKEN", "")
-SUPERADMIN_ID = int(os.getenv("SUPERADMIN_ID", "45028744"))
-# Оставляем для обратной совместимости, основная проверка — через БД
-ADMIN_IDS: set[int] = {
-    int(x.strip())
-    for x in os.getenv("ADMIN_CHAT_ID", "0").split(",")
-    if x.strip().isdigit()
-}
+BOT_TOKEN = TELEGRAM_BOT_TOKEN
 
 DATE_FMT = "%d.%m.%Y"
 
@@ -70,9 +62,21 @@ MONTH_NAMES = [
 
 WEBAPP_DIR = Path(__file__).parent / "webapp"
 
+
+# ─── Lifespan ─────────────────────────────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    database.init_db()          # init_db уже включает WAL внутри себя
+    database.sync_from_sheets()
+    log.info("✅ API готов")
+    yield                       # приложение работает
+    # (здесь можно закрыть ресурсы при shutdown)
+
+
 # ─── FastAPI app ───────────────────────────────────────────────────────────────
 
-app = FastAPI(title="Муза API", docs_url=None, redoc_url=None)
+app = FastAPI(title="Муза API", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 _ALLOWED_ORIGINS = [
     "https://web.telegram.org",
@@ -80,7 +84,7 @@ _ALLOWED_ORIGINS = [
     "https://webz.telegram.org",
 ]
 # Добавляем ngrok/кастомный домен из env если задан
-_webapp_origin = os.getenv("WEBAPP_URL", "").rstrip("/")
+_webapp_origin = _WEBAPP_URL.rstrip("/")
 if _webapp_origin:
     _ALLOWED_ORIGINS.append(_webapp_origin)
 
@@ -90,23 +94,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "X-Init-Data"],
 )
-
-
-# ─── Startup ──────────────────────────────────────────────────────────────────
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    database.init_db()
-    # Включаем WAL для лучшей конкурентной записи (бот + апи одновременно)
-    try:
-        import sqlite3
-        con = sqlite3.connect(database.DB_PATH)
-        con.execute("PRAGMA journal_mode=WAL")
-        con.close()
-    except Exception as e:
-        log.warning("WAL mode error: %s", e)
-    database.sync_from_sheets()
-    log.info("✅ API готов")
 
 
 # ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -389,14 +376,7 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
 async def get_sources(user: dict = Depends(_require_admin)):
     """Уникальные источники из реальных броней в базе."""
     try:
-        import sqlite3
-        con = sqlite3.connect(database.DB_PATH)
-        con.row_factory = sqlite3.Row
-        rows = con.execute(
-            "SELECT DISTINCT source FROM bookings WHERE source != '' ORDER BY source"
-        ).fetchall()
-        con.close()
-        return [row["source"] for row in rows]
+        return database.get_distinct_sources()
     except Exception:
         return []
 
@@ -573,32 +553,4 @@ async def admin_remove_user(row_id: int, user: dict = Depends(_require_superadmi
 
 @app.get("/api/admin/summary")
 async def admin_get_summary(user: dict = Depends(_require_superadmin)):
-    from datetime import date as _date
-    bookings = database.get_all_bookings()
-    today = _date.today()
-    future = [b for b in bookings if b["date_obj"] >= today]
-    past   = [b for b in bookings if b["date_obj"] <  today]
-    total_guests = sum(
-        int(b["guests"]) for b in bookings
-        if b["guests"] and b["guests"].isdigit()
-    )
-    with database._conn() as con:
-        leads_count = con.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
-        users_count = con.execute("SELECT COUNT(*) FROM allowed_users").fetchone()[0]
-        action_rows = con.execute("""
-            SELECT username, COUNT(*) as cnt
-            FROM access_log
-            WHERE username != ''
-            GROUP BY username
-            ORDER BY cnt DESC
-        """).fetchall()
-    manager_actions = [{"username": r[0], "count": r[1]} for r in action_rows]
-    return {
-        "bookings_total":   len(bookings),
-        "bookings_future":  len(future),
-        "bookings_past":    len(past),
-        "guests_total":     total_guests,
-        "leads_total":      leads_count,
-        "managers_count":   users_count,
-        "manager_actions":  manager_actions,
-    }
+    return database.get_admin_summary()

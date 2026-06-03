@@ -32,6 +32,15 @@ from datetime import date, datetime, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
 
+from config import (
+    SPREADSHEET_ID,
+    GOOGLE_CREDENTIALS_PATH,
+    SHEET_NAME,
+    FREE_SHEET_NAME,
+    LEADS_SHEET_NAME,
+)
+from utils import normalize_phone
+
 # SQLite-зеркало (необязательная зависимость)
 try:
     import database as _db
@@ -88,29 +97,28 @@ _spreadsheet_cache: gspread.Spreadsheet | None = None
 
 def _spreadsheet() -> gspread.Spreadsheet:
     global _gc_client, _spreadsheet_cache
-    sid = os.getenv("SPREADSHEET_ID")
     if _gc_client is None:
         creds = Credentials.from_service_account_file(
-            os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json"),
+            GOOGLE_CREDENTIALS_PATH,
             scopes=SCOPES,
         )
         _gc_client = gspread.authorize(creds)
         _spreadsheet_cache = None
     if _spreadsheet_cache is None:
-        _spreadsheet_cache = _gc_client.open_by_key(sid)
+        _spreadsheet_cache = _gc_client.open_by_key(SPREADSHEET_ID)
     return _spreadsheet_cache
 
 
 def _sheet_bookings() -> gspread.Worksheet:
-    return _spreadsheet().worksheet(os.getenv("SHEET_NAME", "Бронирования"))
+    return _spreadsheet().worksheet(SHEET_NAME)
 
 
 def _sheet_free() -> gspread.Worksheet:
-    return _spreadsheet().worksheet(os.getenv("FREE_SHEET_NAME", "Свободные"))
+    return _spreadsheet().worksheet(FREE_SHEET_NAME)
 
 
 def _sheet_leads() -> gspread.Worksheet:
-    return _spreadsheet().worksheet(os.getenv("LEADS_SHEET_NAME", "Авито"))
+    return _spreadsheet().worksheet(LEADS_SHEET_NAME)
 
 
 # ─── Внутренние утилиты ───────────────────────────────────────────────────────
@@ -132,10 +140,28 @@ def _data_rows(ws: gspread.Worksheet) -> list[list]:
 
 
 def _rewrite_sheet(ws: gspread.Worksheet, headers: list, data_rows: list[list]) -> None:
-    """Перезаписывает лист: заголовки + строки, отсортированные по дате."""
+    """
+    Перезаписывает лист одним вызовом API (без ws.clear() → ws.update()).
+
+    Вместо двух вызовов (clear + write) делаем один: записываем новые данные
+    и затираем лишние строки пустыми значениями. Это исключает потерю данных
+    при сбое между двумя API-запросами.
+    """
     data_rows.sort(key=_sort_key)
-    ws.clear()
-    ws.update("A1", [headers] + data_rows, value_input_option="USER_ENTERED")
+    new_data = [headers] + data_rows
+
+    # Определяем сколько строк сейчас в листе (через кеш, без лишнего API-запроса)
+    cached = _caches.get(ws.title)
+    old_row_count = len(cached[0]) if cached else len(new_data)
+
+    # Если старых строк больше — дописываем пустые строки для перезаписи остатка
+    if old_row_count > len(new_data):
+        blank = [""] * len(headers)
+        upload = new_data + [blank] * (old_row_count - len(new_data))
+    else:
+        upload = new_data
+
+    ws.update("A1", upload, value_input_option="USER_ENTERED")
     _invalidate(ws.title)
 
 
@@ -372,11 +398,11 @@ def add_lead(name: str, phone: str = "", nick: str = "", source: str = "Авит
 
     # Проверяем дубль по телефону
     if phone:
-        norm_new = _db._normalize_phone(phone)
+        norm_new = normalize_phone(phone)
         data_rows = rows[1:] if rows[0][0] == "Дата/Время" else rows
         for i, row in enumerate(data_rows, start=2):  # +2: заголовок + 1-based
             existing_phone = row[2].strip() if len(row) > 2 else ""
-            if existing_phone and _db._normalize_phone(existing_phone) == norm_new:
+            if existing_phone and normalize_phone(existing_phone) == norm_new:
                 # Телефон уже есть — добавляем ник если его не было
                 if nick:
                     existing_nick = row[3].strip() if len(row) > 3 else ""
