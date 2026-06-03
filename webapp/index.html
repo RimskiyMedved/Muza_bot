@@ -8,17 +8,22 @@
   <style>
     :root {
       --bg:       var(--tg-theme-bg-color,            #FFFFFF);
-      --bg2:      var(--tg-theme-secondary-bg-color,  #F5F5F7);
-      --text:     var(--tg-theme-text-color,          #1C1C1E);
-      --hint:     var(--tg-theme-hint-color,          #8E8E93);
-      --btn:      var(--tg-theme-button-color,        #2481cc);
+      --bg2:      var(--tg-theme-secondary-bg-color,  #F2F4F6);
+      --text:     var(--tg-theme-text-color,          #2C2C2E);
+      --hint:     var(--tg-theme-hint-color,          #9A9A9E);
+      --btn:      var(--tg-theme-button-color,        #5B8DB8);
       --btn-text: var(--tg-theme-button-text-color,   #FFFFFF);
 
-      --c-booked:  #E5534B;
-      --c-free:    #30D158;
-      --bg-booked: rgba(229,83,75,.09);
-      --bg-free:   rgba(48,209,88,.09);
-      --bg-today:  rgba(36,129,204,.10);
+      /* Пастельная палитра */
+      --c-booked:  #B8706A;
+      --c-free:    #6BA882;
+      --bg-booked: rgba(184,112,106,.09);
+      --bg-free:   rgba(107,168,130,.09);
+      --bg-today:  rgba(91,141,184,.10);
+
+      /* Приглушённые акценты */
+      --accent:    #5B8DB8;
+      --accent-soft: rgba(91,141,184,.15);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -230,7 +235,12 @@
       display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
     }
     .stat-pill {
-      background: rgba(36,129,204,.12); color: var(--btn);
+      background: var(--accent-soft); color: var(--accent);
+      font-size: 12px; font-weight: 600;
+      padding: 4px 10px; border-radius: 100px;
+    }
+    .stat-guests-pill {
+      background: rgba(107,168,130,.12); color: var(--c-free);
       font-size: 12px; font-weight: 600;
       padding: 4px 10px; border-radius: 100px;
     }
@@ -294,14 +304,37 @@
       padding: 10px 0; cursor: pointer;
     }
     .source-row + .source-row { border-top: 1px solid rgba(0,0,0,.04); }
-    .source-row-active { background: rgba(36,129,204,.05); border-radius: 12px; padding: 10px 8px; margin: 0 -8px; }
+    .source-row-active { background: var(--accent-soft); border-radius: 12px; padding: 10px 8px; margin: 0 -8px; }
     .source-name  { font-size: 14px; flex: 1; font-weight: 500; }
-    .source-count { font-size: 15px; font-weight: 700; color: var(--btn); min-width: 26px; text-align: right; }
+    .source-guests { font-size: 11px; color: var(--hint); margin-top: 2px; }
+    .source-count { font-size: 15px; font-weight: 700; color: var(--accent); min-width: 26px; text-align: right; }
     .source-bar-wrap { width: 56px; height: 3px; background: var(--bg2); border-radius: 100px; overflow: hidden; }
     .source-bar {
-      height: 100%; background: var(--btn); border-radius: 100px;
-      opacity: .7; transition: width .4s;
+      height: 100%; background: var(--accent); border-radius: 100px;
+      opacity: .6; transition: width .4s;
     }
+    /* Группировка источников */
+    .source-group-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 0; cursor: pointer;
+    }
+    .source-group-row + .source-group-row,
+    .source-group-row + .source-row,
+    .source-row + .source-group-row { border-top: 1px solid rgba(0,0,0,.04); }
+    .source-group-expand {
+      font-size: 11px; color: var(--hint); width: 16px; text-align: center;
+      transition: transform .2s; flex-shrink: 0;
+    }
+    .source-group-expand.open { transform: rotate(90deg); }
+    .source-child-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 0 7px 20px;
+      border-top: 1px solid rgba(0,0,0,.03);
+      font-size: 13px;
+    }
+    .source-child-name  { flex: 1; color: var(--hint); }
+    .source-child-count { font-weight: 600; color: var(--accent); font-size: 13px; }
+    .source-child-guests { font-size: 11px; color: var(--hint); opacity: .7; }
 
     .stats-loading {
       display: flex; align-items: center; justify-content: center;
@@ -918,6 +951,100 @@ function renderMiniStats() {
   el.innerHTML = `<span class="cal-mini-total">${n} ${word}</span>${chips}`;
 }
 
+// ─── Source grouping ──────────────────────────────────────────────────────────
+let _expandedGroups = new Set();
+
+function _groupSources(bySource) {
+  // bySource = { "Таня ВК": {count,guests}, "Таня": {count,guests}, ... }
+  const groups = {};
+  Object.entries(bySource).forEach(([src, data]) => {
+    const cnt    = typeof data === "number" ? data : (data.count || 0);
+    const guests = typeof data === "number" ? 0    : (data.guests || 0);
+    const key    = src.split(/\s+/)[0]; // первое слово
+    if (!groups[key]) groups[key] = { count: 0, guests: 0, children: {} };
+    groups[key].count  += cnt;
+    groups[key].guests += guests;
+    groups[key].children[src] = { count: cnt, guests };
+  });
+  return groups;
+}
+
+function _renderSources(bySource, maxCount) {
+  const groups = _groupSources(bySource);
+  let html = "";
+  Object.entries(groups)
+    .sort((a,b) => b[1].count - a[1].count)
+    .forEach(([key, g]) => {
+      const childEntries = Object.entries(g.children);
+      const hasChildren  = childEntries.length > 1;
+      const isActive     = _activeSource === key || childEntries.some(([s]) => _activeSource === s);
+      const isExpanded   = _expandedGroups.has(key);
+      const barW         = Math.round(g.count / maxCount * 100);
+      const guestsHtml   = g.guests > 0 ? `<div class="source-guests">${g.guests} гостей</div>` : "";
+
+      if (hasChildren) {
+        html += `
+          <div class="source-group-row${isActive ? " source-row-active" : ""}"
+               onclick="statsToggleGroup(${JSON.stringify(key)})">
+            <div style="flex:1">
+              <div class="source-name">${escHtml(key)}</div>
+              ${guestsHtml}
+            </div>
+            <div class="source-bar-wrap">
+              <div class="source-bar" style="width:${barW}%"></div>
+            </div>
+            <div class="source-count">${g.count}</div>
+            <div class="source-group-expand${isExpanded ? " open" : ""}">›</div>
+          </div>`;
+        if (isExpanded) {
+          childEntries.sort((a,b) => b[1].count - a[1].count).forEach(([src, d]) => {
+            const cActive = _activeSource === src;
+            const cGuests = d.guests > 0 ? ` · ${d.guests} г.` : "";
+            html += `
+              <div class="source-child-row${cActive ? " source-row-active" : ""}"
+                   onclick="statsToggleSource(${JSON.stringify(src)})">
+                <div class="source-child-name">${escHtml(src)}${cGuests ? `<span style="opacity:.6">${cGuests}</span>` : ""}</div>
+                <div class="source-child-count">${d.count}</div>
+                ${cActive ? `<div style="color:var(--hint);font-size:11px">✕</div>` : ""}
+              </div>`;
+          });
+        }
+      } else {
+        // Одиночный источник — обычная строка
+        const src     = childEntries[0]?.[0] || key;
+        const srcAct  = _activeSource === src;
+        html += `
+          <div class="source-row${srcAct ? " source-row-active" : ""}"
+               onclick="statsToggleSource(${JSON.stringify(src)})">
+            <div style="flex:1">
+              <div class="source-name">${escHtml(src)}</div>
+              ${guestsHtml}
+            </div>
+            <div class="source-bar-wrap">
+              <div class="source-bar" style="width:${barW}%"></div>
+            </div>
+            <div class="source-count">${g.count}</div>
+            ${srcAct ? `<div style="color:var(--hint);font-size:12px">✕</div>` : ""}
+          </div>`;
+      }
+    });
+  return html || `<div style="text-align:center;color:var(--hint);padding:16px;font-size:14px">Нет данных</div>`;
+}
+
+function statsToggleGroup(key) {
+  haptic.select();
+  if (_expandedGroups.has(key)) _expandedGroups.delete(key);
+  else _expandedGroups.add(key);
+  // перерисовываем только секцию источников
+  const el = document.querySelector(".stats-sources-section");
+  if (!el || !_lastStatsData) { loadStats(); return; }
+  const bySource = _lastStatsData.by_source;
+  const maxSrc   = Math.max(1, ...Object.values(bySource).map(v => typeof v === "number" ? v : v.count));
+  el.innerHTML   = _renderSources(bySource, maxSrc);
+}
+
+let _lastStatsData = null;
+
 // ─── Stats state ──────────────────────────────────────────────────────────────
 const MONTH_NAMES_RU = ["Январь","Февраль","Март","Апрель","Май","Июнь",
                         "Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
@@ -979,9 +1106,10 @@ async function loadStats() {
     const qs = params.toString() ? "?" + params.toString() : "";
     const s = await apiFetch("GET", "/api/stats" + qs);
 
-    _allSources = s.by_source;
+    _lastStatsData = s;
+    _allSources    = s.by_source;
 
-    // Month chart bars — clicking navigates to that month
+    // Month chart bars
     const keys = s.by_month.keys || [];
     const maxM = Math.max(1, ...s.by_month.counts);
     const monthBars = s.by_month.labels.map((lbl, i) => {
@@ -1002,39 +1130,30 @@ async function loadStats() {
         </div>`;
     }).join("");
 
-    // Source rows — clicking toggles source filter
-    const srcEntries = Object.entries(s.by_source);
-    const maxSrc = Math.max(1, ...srcEntries.map(e => e[1]));
-    const srcRows = srcEntries.length ? srcEntries.map(([src, cnt]) => {
-      const active = _activeSource === src;
-      return `
-        <div class="source-row${active ? " source-row-active" : ""}"
-             onclick="statsToggleSource(${JSON.stringify(src)})">
-          <div class="source-name">${escHtml(src)}</div>
-          <div class="source-bar-wrap">
-            <div class="source-bar" style="width:${Math.round(cnt/maxSrc*100)}%"></div>
-          </div>
-          <div class="source-count">${cnt}</div>
-          ${active ? `<div style="color:var(--hint);font-size:12px">✕</div>` : ""}
-        </div>`;
-    }).join("")
-    : `<div style="text-align:center;color:var(--hint);padding:16px;font-size:14px">Нет данных</div>`;
+    // Source rows — grouped by first word
+    const bySource = s.by_source;
+    const maxSrc   = Math.max(1, ...Object.values(bySource).map(v => typeof v === "number" ? v : (v.count||0)));
+    const srcHtml  = _renderSources(bySource, maxSrc);
 
-    // Header label
+    // Bento cards
     const monthLabel = !statsAllMode ? MONTH_NAMES_RU[statsMon-1] + " " + statsYear : "";
-    const srcLabel   = _activeSource ? ` · ${_activeSource}` : "";
-    const wideBadge  = statsAllMode
-      ? `<span class="stat-pill">${s.future} впереди</span>`
-      : "";
+    const srcLabel   = _activeSource ? `<span style="color:var(--accent)"> · ${escHtml(_activeSource)}</span>` : "";
+    const guestsBadge = s.total_guests > 0
+      ? `<span class="stat-guests-pill">${s.total_guests} гостей</span>` : "";
+    const futureBadge = statsAllMode
+      ? `<span class="stat-pill">${s.future} впереди</span>` : "";
 
     el.innerHTML = `
       <div class="stats-bento">
         <div class="stat-card stat-wide">
           <div>
-            <div class="stat-label">${monthLabel ? escHtml(monthLabel) : "Все время"}${srcLabel ? `<span style="color:var(--btn)"> · ${escHtml(_activeSource)}</span>` : ""}</div>
+            <div class="stat-label">${monthLabel ? escHtml(monthLabel) : "Все время"}${srcLabel}</div>
             <div class="stat-number">${s.total}</div>
           </div>
-          ${wideBadge ? `<div class="stat-wide-badges">${wideBadge}</div>` : ""}
+          <div class="stat-wide-badges">
+            ${futureBadge}
+            ${guestsBadge}
+          </div>
         </div>
         ${statsAllMode ? `
         <div class="stat-card">
@@ -1056,7 +1175,7 @@ async function loadStats() {
         <div class="stats-section-title">По источникам</div>
         ${_activeSource ? `<button class="filter-pill active" onclick="statsToggleSource('')">Сбросить</button>` : ""}
       </div>
-      ${srcRows}
+      <div class="stats-sources-section">${srcHtml}</div>
     `;
 
     // Scroll active month bar into view

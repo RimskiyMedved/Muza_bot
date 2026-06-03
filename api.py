@@ -449,6 +449,17 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
     # По источникам — в рамках выбранного месяца (если задан)
     source_counts = Counter(b.get("source") or "Не указан" for b in month_only)
 
+    # Гости по источникам
+    def _guests(b: dict) -> int:
+        try: return int(b.get("guests") or 0)
+        except: return 0
+
+    source_guests: dict = defaultdict(int)
+    for b in month_only:
+        source_guests[b.get("source") or "Не указан"] += _guests(b)
+
+    total_guests = sum(_guests(b) for b in filtered)
+
     # По месяцам — в рамках выбранного источника (если задан)
     by_month: dict = defaultdict(int)
     for b in source_only:
@@ -470,13 +481,19 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
             month_counts.append(by_month.get(key, 0))
             month_keys.append(key)
 
+    by_source_full = {
+        src: {"count": cnt, "guests": source_guests.get(src, 0)}
+        for src, cnt in source_counts.most_common(30)
+    }
+
     return {
-        "total":      len(filtered),
-        "future":     len(future),
-        "this_month": len(this_month_bk),
-        "next_month": len(next_month_bk),
-        "by_source":  dict(source_counts.most_common(20)),
-        "by_month":   {"labels": month_labels, "counts": month_counts, "keys": month_keys},
+        "total":        len(filtered),
+        "total_guests": total_guests,
+        "future":       len(future),
+        "this_month":   len(this_month_bk),
+        "next_month":   len(next_month_bk),
+        "by_source":    by_source_full,
+        "by_month":     {"labels": month_labels, "counts": month_counts, "keys": month_keys},
         "this_month_name": MONTH_NAMES[today.month - 1],
         "next_month_name": MONTH_NAMES[next_m - 1],
         "active_source": source or "",
