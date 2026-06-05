@@ -1506,7 +1506,6 @@ async function loadStats() {
         </div>` : ""}
       </div>
 
-      ${s.total > 0 ? `
       <div class="fin-summary-row">
         <div class="fin-sum-card">
           <div class="fin-sum-label">Доходы</div>
@@ -1518,9 +1517,12 @@ async function loadStats() {
         </div>
         <div class="fin-sum-card">
           <div class="fin-sum-label">Прибыль</div>
-          <div class="fin-sum-value fin-sum-profit ${s.fin_profit >= 0 ? 'pos' : 'neg'}">${s.fin_profit >= 0 ? '+' : ''}${fmtMoneyK(s.fin_profit)}</div>
+          <div id="fin-profit-stat" class="fin-sum-value fin-sum-profit"
+               style="color:${(s.fin_profit||0)>0?'#2E7A56':(s.fin_profit||0)<0?'#8B3A52':'var(--hint)'}">
+            ${(s.fin_profit||0)>0?'+':''}${fmtMoneyK(s.fin_profit)}
+          </div>
         </div>
-      </div>` : ""}
+      </div>
 
       <div class="section-header">
         <div class="stats-section-title">По месяцам</div>
@@ -1590,6 +1592,12 @@ async function openViewSheet(day) {
   editBtn.onclick = () => { haptic.light(); openEditSheet(_lastFullBooking || day); };
   act.appendChild(editBtn);
 
+  const copyBtn = document.createElement("button");
+  copyBtn.className = "btn btn-outline";
+  copyBtn.innerHTML = `${ICO.pencil} Скопировать`;
+  copyBtn.onclick = () => { haptic.light(); openCopySheet(_lastFullBooking || day); };
+  act.appendChild(copyBtn);
+
   const delBtn = document.createElement("button");
   delBtn.className = "btn btn-outline-danger";
   delBtn.innerHTML = `${ICO.trash} Отменить бронь`;
@@ -1658,7 +1666,11 @@ function _buildFinanceTabHtml(b) {
   const staff_c         = parseInt(b.staff_cooks)       || 0;
 
   if (!total_income && !b.paid_advance && !b.paid_rent && !b.paid_final) {
-    return `<div class="fin-empty">Финансовые данные не заполнены.<br>Нажмите «Редактировать» → откройте блок «Финансы».</div>`;
+    return `<div class="fin-empty" style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px 0">
+      <div style="font-size:13px;color:var(--hint);text-align:center">Финансовые данные не заполнены</div>
+      <button class="btn btn-primary" style="padding:10px 20px;font-size:14px"
+              onclick="haptic.light();openEditSheet(_lastFullBooking)">Заполнить финансы</button>
+    </div>`;
   }
 
   const pSign = profit > 0 ? "+" : "";
@@ -1774,8 +1786,8 @@ function buildForm(data, showDateField) {
   const dateF = showDateField
     ? `<div class="form-group">
         <label class="form-label">Дата</label>
-        <input class="form-input" id="f-date" type="text"
-               placeholder="ДД.ММ.ГГГГ" value="${escHtml(data.date||"")}" />
+        <input class="form-input" id="f-date" type="date"
+               value="${toInputDate(data.date||"")}" />
       </div>`
     : `<input type="hidden" id="f-date" value="${escHtml(data.date||"")}" />`;
 
@@ -1834,19 +1846,30 @@ function buildForm(data, showDateField) {
     <div class="section-sep">Финансы</div>
     <div class="form-group">
       <label class="form-label">Дата договора</label>
-      <input class="form-input" id="f-contract_date" type="text"
-             placeholder="ДД.ММ.ГГГГ" value="${escHtml(data.contract_date||"")}"
-             oninput="toggleStaffFields(this.value)" />
+      <input class="form-input" id="f-contract_date" type="date"
+             value="${toInputDate(data.contract_date||"")}"
+             onchange="toggleStaffFields(this.value)" />
     </div>
     <div class="form-group">
       <label class="form-label">Стоимость аренды, ₽</label>
       <input class="form-input" id="f-revenue_rent" type="number" min="0" inputmode="numeric"
-             placeholder="0" value="${data.revenue_rent > 0 ? data.revenue_rent : ""}" />
+             placeholder="0" value="${data.revenue_rent > 0 ? data.revenue_rent : ""}"
+             oninput="updateLivePreview()" />
     </div>
     <div class="form-group">
       <label class="form-label">Стоимость меню, ₽</label>
       <input class="form-input" id="f-revenue_menu" type="number" min="0" inputmode="numeric"
-             placeholder="0" value="${data.revenue_menu > 0 ? data.revenue_menu : ""}" />
+             placeholder="0" value="${data.revenue_menu > 0 ? data.revenue_menu : ""}"
+             oninput="updateLivePreview()" />
+    </div>
+    <div id="livePreviewRow" style="display:flex;justify-content:space-between;align-items:center;
+         padding:8px 12px;background:rgba(60,46,34,.05);border-radius:10px;margin-bottom:2px;
+         font-size:13px;color:var(--hint)">
+      <span>Итого выручка</span>
+      <span id="liveIncomeVal" style="font-weight:700;color:var(--text)">
+        ${((data.revenue_rent||0)+(data.revenue_menu||0)) > 0
+          ? fmtMoney((data.revenue_rent||0)+(data.revenue_menu||0)) : "—"}
+      </span>
     </div>
     <div class="section-sep">Оплаты</div>
     <div class="form-group">
@@ -1855,31 +1878,33 @@ function buildForm(data, showDateField) {
         <input class="form-input" id="f-paid_advance" type="number" min="0" inputmode="numeric"
                placeholder="0" value="${data.paid_advance > 0 ? data.paid_advance : ""}"
                style="flex:1;min-width:0" />
-        <input class="form-input" id="f-paid_advance_date" type="text" placeholder="ДД.ММ.ГГГГ"
-               value="${escHtml(data.paid_advance_date||"")}" style="width:120px;flex-shrink:0" />
+        <input class="form-input" id="f-paid_advance_date" type="date"
+               value="${toInputDate(data.paid_advance_date||"")}" style="width:150px;flex-shrink:0" />
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Аренда (оплата), ₽</label>
+      <label class="form-label">Оплата аренды, ₽</label>
       <div style="display:flex;gap:8px">
         <input class="form-input" id="f-paid_rent" type="number" min="0" inputmode="numeric"
                placeholder="0" value="${data.paid_rent > 0 ? data.paid_rent : ""}"
                style="flex:1;min-width:0" />
-        <input class="form-input" id="f-paid_rent_date" type="text" placeholder="ДД.ММ.ГГГГ"
-               value="${escHtml(data.paid_rent_date||"")}" style="width:120px;flex-shrink:0" />
+        <input class="form-input" id="f-paid_rent_date" type="date"
+               value="${toInputDate(data.paid_rent_date||"")}" style="width:150px;flex-shrink:0" />
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Итоговая оплата, ₽</label>
+      <label class="form-label">Финальная оплата, ₽</label>
       <div style="display:flex;gap:8px">
         <input class="form-input" id="f-paid_final" type="number" min="0" inputmode="numeric"
                placeholder="0" value="${data.paid_final > 0 ? data.paid_final : ""}"
                style="flex:1;min-width:0" />
-        <input class="form-input" id="f-paid_final_date" type="text" placeholder="ДД.ММ.ГГГГ"
-               value="${escHtml(data.paid_final_date||"")}" style="width:120px;flex-shrink:0" />
+        <input class="form-input" id="f-paid_final_date" type="date"
+               value="${toInputDate(data.paid_final_date||"")}" style="width:150px;flex-shrink:0" />
       </div>
     </div>
-    <div class="section-sep">Персонал</div>
+    <div class="section-sep">Персонал
+      ${!data.contract_date ? '<span style="font-size:10px;font-weight:400;opacity:.6;margin-left:6px">доступно после даты договора</span>' : ""}
+    </div>
     <div id="staffFieldsWrap" style="opacity:${data.contract_date?'1':'0.4'}">
       <div class="form-group">
         <label class="form-label">Официанты</label>
@@ -1975,25 +2000,28 @@ function getFormData() {
     ? (customInput?.value?.trim() || _formSource)
     : (selEl?.value || _formSource || "");
   const isAgency    = document.getElementById("f-is_agency")?.value === "1";
+  const staffEnabled = !document.getElementById("f-staff_waiters")?.disabled;
+  const rawDate      = document.getElementById("f-date")?.value || "";
+  const dateVal      = rawDate.includes("-") ? fromInputDate(rawDate) : rawDate;
   return {
-    date:              document.getElementById("f-date")?.value.trim()              || "",
+    date:              dateVal,
     name:              document.getElementById("f-name")?.value.trim()              || "",
     guests:            document.getElementById("f-guests")?.value.trim()            || "",
     phone:             document.getElementById("f-phone")?.value.trim()             || "",
     source:            finalSource,
     client_type:       isAgency ? "Агентство" : "",
     comment:           document.getElementById("f-comment")?.value.trim()           || "",
-    contract_date:     document.getElementById("f-contract_date")?.value.trim()     || "",
+    contract_date:     fromInputDate(document.getElementById("f-contract_date")?.value || ""),
     revenue_rent:      parseFloat(document.getElementById("f-revenue_rent")?.value)  || 0,
     revenue_menu:      parseFloat(document.getElementById("f-revenue_menu")?.value)  || 0,
     paid_advance:      parseFloat(document.getElementById("f-paid_advance")?.value)  || 0,
-    paid_advance_date: document.getElementById("f-paid_advance_date")?.value.trim()  || "",
+    paid_advance_date: fromInputDate(document.getElementById("f-paid_advance_date")?.value || ""),
     paid_rent:         parseFloat(document.getElementById("f-paid_rent")?.value)     || 0,
-    paid_rent_date:    document.getElementById("f-paid_rent_date")?.value.trim()     || "",
+    paid_rent_date:    fromInputDate(document.getElementById("f-paid_rent_date")?.value || ""),
     paid_final:        parseFloat(document.getElementById("f-paid_final")?.value)    || 0,
-    paid_final_date:   document.getElementById("f-paid_final_date")?.value.trim()   || "",
-    staff_waiters:     parseInt(document.getElementById("f-staff_waiters")?.value)   || 0,
-    staff_cooks:       parseInt(document.getElementById("f-staff_cooks")?.value)     || 0,
+    paid_final_date:   fromInputDate(document.getElementById("f-paid_final_date")?.value || ""),
+    staff_waiters:     staffEnabled ? (parseInt(document.getElementById("f-staff_waiters")?.value) || 0) : 0,
+    staff_cooks:       staffEnabled ? (parseInt(document.getElementById("f-staff_cooks")?.value)   || 0) : 0,
   };
 }
 
@@ -2010,6 +2038,19 @@ function toggleStaffFields(val) {
   const on = val.trim().length > 0;
   wrap.style.opacity = on ? "1" : "0.4";
   wrap.querySelectorAll("input, button").forEach(el => { el.disabled = !on; });
+  // Обновляем хинт в заголовке секции
+  const sep = wrap.previousElementSibling;
+  if (sep && sep.classList.contains("section-sep")) {
+    const hint = sep.querySelector("span");
+    if (hint) hint.style.display = on ? "none" : "";
+  }
+}
+
+function updateLivePreview() {
+  const rent = parseFloat(document.getElementById("f-revenue_rent")?.value) || 0;
+  const menu = parseFloat(document.getElementById("f-revenue_menu")?.value) || 0;
+  const el = document.getElementById("liveIncomeVal");
+  if (el) el.textContent = (rent + menu) > 0 ? fmtMoney(rent + menu) : "—";
 }
 
 // ─── Submit ───────────────────────────────────────────────────────────────────
@@ -2072,6 +2113,31 @@ async function submitEdit(dateStr) {
     if (currentView === "list") loadList();
   } catch (e) { haptic.error(); showToast("Ошибка: " + e.message); }
   finally { setSheetLoading(false); }
+}
+
+// Копировать бронь — данные клиента переносятся, дата пустая
+function openCopySheet(src) {
+  const copy = {
+    date: "", name: src.name||"", phone: src.phone||"",
+    guests: src.guests||"", source: src.source||"",
+    client_type: src.client_type||"", comment: "",
+    contract_date:"", revenue_rent:"", revenue_menu:"",
+    paid_advance:"", paid_advance_date:"",
+    paid_rent:"", paid_rent_date:"",
+    paid_final:"", paid_final_date:"",
+    staff_waiters:"", staff_cooks:"",
+  };
+  document.getElementById("sheetTitle").textContent = "Новая бронь";
+  document.getElementById("sheetDate").textContent = "Скопировано";
+  document.getElementById("sheetContent").innerHTML = buildForm(copy, true);
+  const act = document.getElementById("sheetActions");
+  act.innerHTML = "";
+  const btn = document.createElement("button");
+  btn.className = "btn btn-primary"; btn.textContent = "Создать бронь";
+  btn.onclick = () => submitAdd();
+  act.appendChild(btn);
+  openSheet(null, null);
+  initFormWidgets(copy);
 }
 
 // Открыть карточку бронирования из списка
@@ -2148,6 +2214,20 @@ function addBtn(container, cls, text, onClick) {
 document.getElementById("closeBtn").addEventListener("click", () => { haptic.light(); closeSheet(); });
 document.getElementById("overlay").addEventListener("click", closeSheet);
 
+// ─── Date conversion helpers ──────────────────────────────────────────────────
+function toInputDate(dmy) {
+  if (!dmy || dmy.length < 8) return "";
+  const p = dmy.split(".");
+  if (p.length !== 3) return "";
+  return `${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;
+}
+function fromInputDate(ymd) {
+  if (!ymd || ymd.length < 8) return "";
+  const p = ymd.split("-");
+  if (p.length !== 3) return "";
+  return `${p[2].padStart(2,"0")}.${p[1].padStart(2,"0")}.${p[0]}`;
+}
+
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function fmtDate(s) {
   try {
@@ -2173,7 +2253,7 @@ function fmtMoney(v) {
 
 function fmtMoneyK(v) {
   const n = parseFloat(v) || 0;
-  if (!n) return "0 ₽";
+  if (!n) return "—";
   if (Math.abs(n) >= 1000) return new Intl.NumberFormat("ru-RU", {maximumFractionDigits:0}).format(Math.round(n/1000)) + " тыс ₽";
   return new Intl.NumberFormat("ru-RU", {maximumFractionDigits:0}).format(n) + " ₽";
 }

@@ -22,6 +22,7 @@ api.py — FastAPI бэкенд для Telegram Mini App «Муза».
   uvicorn api:app --host 0.0.0.0 --port 8001
 """
 
+import asyncio
 import calendar as _cal
 import hashlib
 import hmac
@@ -375,16 +376,18 @@ async def notify_payment_mismatch(
         editor_ids = [user.get("id", 0)]
 
     name = result.get("name", "—")
+    def _fmt(n: float) -> str:
+        return f"{int(n):,}".replace(",", " ") + " ₽"
+
     msg = (
         f"⚠️ <b>Расхождение в оплатах</b>\n"
         f"Мероприятие: <b>{date_str}</b> · {name}\n"
-        f"Выручка: <b>{total_revenue:,.0f} ₽</b>\n"
-        f"Оплачено: <b>{total_paid:,.0f} ₽</b>\n"
-        f"Разница: <b>{diff:+,.0f} ₽</b>\n\n"
+        f"Выручка: <b>{_fmt(total_revenue)}</b>\n"
+        f"Оплачено: <b>{_fmt(total_paid)}</b>\n"
+        f"Разница: <b>{'+' if diff >= 0 else ''}{_fmt(diff)}</b>\n\n"
         f"Пожалуйста, проверьте суммы в Mini App."
     )
 
-    import asyncio
     await asyncio.gather(*[_tg_send(tid, msg) for tid in editor_ids], return_exceptions=True)
     log.info("💬 Уведомление об оплатах отправлено: %s → %s", date_str, editor_ids)
     return {"ok": True, "notified": len(editor_ids)}
