@@ -1,5 +1,3 @@
-version: "3.9"
-
 # ─── Сеть ─────────────────────────────────────────────────────────────────────
 networks:
   muza_net:
@@ -22,7 +20,7 @@ services:
     volumes:
       - ./database.db:/app/database.db
       - ./credentials.json:/app/credentials.json
-      - ./bot_state.json:/app/bot_state.json
+      # bot_state.json удалён — состояние теперь в SQLite
 
   # ── FastAPI для Mini App ─────────────────────────────────────────────────────
   muza_api:
