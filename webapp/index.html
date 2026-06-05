@@ -326,6 +326,24 @@
     .month-bar-wrap.active .month-label { color: var(--btn); font-weight: 600; }
     .month-label-line1 { font-size: 9px; color: var(--hint); text-align: center; line-height: 1.2; font-weight: 500; }
     .month-label-line2 { font-size: 8px; color: var(--hint); opacity: .6; text-align: center; line-height: 1; }
+    .month-fin-val { font-size: 8px; color: var(--c-free); text-align: center; line-height: 1.3; font-weight: 600; min-height: 11px; }
+    .month-bar-wrap.active .month-fin-val { color: var(--c-free); }
+
+    /* Fin summary cards in stats */
+    .fin-summary-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 6px;
+    }
+    .fin-sum-card {
+      background: rgba(0,0,0,.04); border-radius: 14px; padding: 12px 10px;
+      border: 1px solid rgba(60,46,34,.08); text-align: center;
+    }
+    .fin-sum-label { font-size: 10px; font-weight: 600; color: var(--hint); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; }
+    .fin-sum-value { font-size: 15px; font-weight: 800; line-height: 1; }
+    .fin-sum-income   { color: #2E7A56; }
+    .fin-sum-expenses { color: #8B3A52; }
+    .fin-sum-profit.pos { color: #2E7A56; }
+    .fin-sum-profit.neg { color: #8B3A52; }
+    .fin-sum-profit.zero { color: var(--hint); }
 
     /* Source rows */
     .source-row {
@@ -1422,14 +1440,18 @@ async function loadStats() {
     _allSources    = s.by_source;
 
     // Month chart bars
-    const keys = s.by_month.keys || [];
+    const keys     = s.by_month.keys     || [];
+    const incomes  = s.by_month.incomes  || [];
+    const profits  = s.by_month.profits  || [];
     const maxM = Math.max(1, ...s.by_month.counts);
     const monthBars = s.by_month.labels.map((lbl, i) => {
       const cnt    = s.by_month.counts[i];
       const key    = keys[i] || "";
+      const income = incomes[i] || 0;
       const active = !statsAllMode && _statsMonthKey() === key;
       const h      = Math.max(4, Math.round(cnt / maxM * 70));
       const parts  = lbl.split(" ");
+      const incK   = income > 0 ? "+" + Math.round(income / 1000) + "к" : "";
       return `
         <div class="month-bar-wrap${active ? " active" : ""}"
              onclick="statsGoToMonth(${JSON.stringify(key)})">
@@ -1437,6 +1459,7 @@ async function loadStats() {
           <div class="month-bar-inner">
             <div class="month-bar${cnt > 0 ? " has-data" : ""}" style="height:${h}px"></div>
           </div>
+          <div class="month-fin-val">${incK}</div>
           <div class="month-label-line1">${escHtml(parts[0]||lbl)}</div>
           <div class="month-label-line2">${escHtml(parts[1]||"")}</div>
         </div>`;
@@ -1477,6 +1500,22 @@ async function loadStats() {
           <div class="stat-number">${s.next_month}</div>
         </div>` : ""}
       </div>
+
+      ${(s.fin_income > 0 || s.fin_expenses > 0) ? `
+      <div class="fin-summary-row">
+        <div class="fin-sum-card">
+          <div class="fin-sum-label">Доходы</div>
+          <div class="fin-sum-value fin-sum-income">${fmtMoneyK(s.fin_income)}</div>
+        </div>
+        <div class="fin-sum-card">
+          <div class="fin-sum-label">Расходы</div>
+          <div class="fin-sum-value fin-sum-expenses">${fmtMoneyK(s.fin_expenses)}</div>
+        </div>
+        <div class="fin-sum-card">
+          <div class="fin-sum-label">Прибыль</div>
+          <div class="fin-sum-value fin-sum-profit ${s.fin_profit >= 0 ? 'pos' : 'neg'}">${s.fin_profit >= 0 ? '+' : ''}${fmtMoneyK(s.fin_profit)}</div>
+        </div>
+      </div>` : ""}
 
       <div class="section-header">
         <div class="stats-section-title">По месяцам</div>
@@ -2064,6 +2103,13 @@ function fmtMoney(v) {
   const n = parseFloat(v) || 0;
   if (!n) return "—";
   return new Intl.NumberFormat("ru-RU").format(n) + " ₽";
+}
+
+function fmtMoneyK(v) {
+  const n = parseFloat(v) || 0;
+  if (!n) return "0 ₽";
+  if (Math.abs(n) >= 1000) return new Intl.NumberFormat("ru-RU", {maximumFractionDigits:0}).format(Math.round(n/1000)) + " тыс ₽";
+  return new Intl.NumberFormat("ru-RU", {maximumFractionDigits:0}).format(n) + " ₽";
 }
 
 function fmtPhone(p) {
