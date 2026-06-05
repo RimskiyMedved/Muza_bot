@@ -488,12 +488,13 @@
     select.form-input {
       -webkit-appearance: auto; appearance: auto;
       padding-right: 10px; cursor: pointer;
+      font-size: 16px; font-weight: 600; letter-spacing: .1px;
     }
     .form-textarea {
       background: rgba(0,0,0,.06); border: 1.5px solid rgba(60,46,34,.25);
       border-radius: 13px; padding: 12px 14px;
       font-size: 15px; color: var(--text); width: 100%;
-      outline: none; resize: none; min-height: 72px;
+      outline: none; resize: none; min-height: 48px;
       transition: border-color .15s, background .15s; font-family: inherit;
     }
     .form-textarea:focus { border-color: #8B3A52; background: rgba(139,58,82,.06); }
@@ -1810,7 +1811,7 @@ function buildForm(data, showDateField) {
       <input class="form-input" id="f-source-custom" type="text"
              placeholder="Введите источник…" style="margin-top:8px;display:none" />
     </div>
-    <div class="form-group">
+    <div class="form-group" style="margin-top:4px">
       <label class="form-label agency-toggle-label" for="f-is_agency"
              style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
         <span class="agency-check-box" id="agencyCheckBox"
@@ -1821,19 +1822,21 @@ function buildForm(data, showDateField) {
           ${data.client_type==="Агентство"?"✓":""}
         </span>
         <span style="font-size:14px;font-weight:500">Агентство</span>
+        <span style="font-size:11px;color:var(--hint);margin-left:2px">→ 10% от меню в расходах</span>
       </label>
       <input type="hidden" id="f-is_agency" value="${data.client_type==="Агентство"?"1":"0"}" />
     </div>
-    <div class="form-group">
+    <div class="form-group" style="margin-top:6px">
       <label class="form-label">Комментарий</label>
-      <textarea class="form-textarea" id="f-comment"
+      <textarea class="form-textarea" id="f-comment" rows="2"
                 placeholder="Пожелания, заметки…">${escHtml(data.comment||"")}</textarea>
     </div>
     <div class="section-sep">Финансы</div>
     <div class="form-group">
       <label class="form-label">Дата договора</label>
       <input class="form-input" id="f-contract_date" type="text"
-             placeholder="ДД.ММ.ГГГГ" value="${escHtml(data.contract_date||"")}" />
+             placeholder="ДД.ММ.ГГГГ" value="${escHtml(data.contract_date||"")}"
+             oninput="toggleStaffFields(this.value)" />
     </div>
     <div class="form-group">
       <label class="form-label">Стоимость аренды, ₽</label>
@@ -1844,24 +1847,6 @@ function buildForm(data, showDateField) {
       <label class="form-label">Стоимость меню, ₽</label>
       <input class="form-input" id="f-revenue_menu" type="number" min="0" inputmode="numeric"
              placeholder="0" value="${data.revenue_menu > 0 ? data.revenue_menu : ""}" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Официанты</label>
-      <div class="stepper">
-        <button class="step-btn" type="button" onclick="stepField('f-staff_waiters',-1)">−</button>
-        <input class="step-input" id="f-staff_waiters" type="number" min="0"
-               inputmode="numeric" placeholder="0" value="${data.staff_waiters > 0 ? data.staff_waiters : ""}" />
-        <button class="step-btn" type="button" onclick="stepField('f-staff_waiters',1)">+</button>
-      </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Повара</label>
-      <div class="stepper">
-        <button class="step-btn" type="button" onclick="stepField('f-staff_cooks',-1)">−</button>
-        <input class="step-input" id="f-staff_cooks" type="number" min="0"
-               inputmode="numeric" placeholder="0" value="${data.staff_cooks > 0 ? data.staff_cooks : ""}" />
-        <button class="step-btn" type="button" onclick="stepField('f-staff_cooks',1)">+</button>
-      </div>
     </div>
     <div class="section-sep">Оплаты</div>
     <div class="form-group">
@@ -1892,6 +1877,29 @@ function buildForm(data, showDateField) {
                style="flex:1;min-width:0" />
         <input class="form-input" id="f-paid_final_date" type="text" placeholder="ДД.ММ.ГГГГ"
                value="${escHtml(data.paid_final_date||"")}" style="width:120px;flex-shrink:0" />
+      </div>
+    </div>
+    <div class="section-sep">Персонал</div>
+    <div id="staffFieldsWrap" style="opacity:${data.contract_date?'1':'0.4'}">
+      <div class="form-group">
+        <label class="form-label">Официанты</label>
+        <div class="stepper">
+          <button class="step-btn" type="button" onclick="stepField('f-staff_waiters',-1)" ${data.contract_date?"":"disabled"}>−</button>
+          <input class="step-input" id="f-staff_waiters" type="number" min="0"
+                 inputmode="numeric" placeholder="0" ${data.contract_date?"":"disabled"}
+                 value="${data.staff_waiters > 0 ? data.staff_waiters : ""}" />
+          <button class="step-btn" type="button" onclick="stepField('f-staff_waiters',1)" ${data.contract_date?"":"disabled"}>+</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Повара</label>
+        <div class="stepper">
+          <button class="step-btn" type="button" onclick="stepField('f-staff_cooks',-1)" ${data.contract_date?"":"disabled"}>−</button>
+          <input class="step-input" id="f-staff_cooks" type="number" min="0"
+                 inputmode="numeric" placeholder="0" ${data.contract_date?"":"disabled"}
+                 value="${data.staff_cooks > 0 ? data.staff_cooks : ""}" />
+          <button class="step-btn" type="button" onclick="stepField('f-staff_cooks',1)" ${data.contract_date?"":"disabled"}>+</button>
+        </div>
       </div>
     </div>
   </div>`;
@@ -1996,6 +2004,14 @@ function stepField(id, delta) {
   el.value = Math.max(0, (parseInt(el.value) || 0) + delta) || "";
 }
 
+function toggleStaffFields(val) {
+  const wrap = document.getElementById("staffFieldsWrap");
+  if (!wrap) return;
+  const on = val.trim().length > 0;
+  wrap.style.opacity = on ? "1" : "0.4";
+  wrap.querySelectorAll("input, button").forEach(el => { el.disabled = !on; });
+}
+
 // ─── Submit ───────────────────────────────────────────────────────────────────
 function _validatePayments(data) {
   const missing = [];
@@ -2027,11 +2043,28 @@ async function submitEdit(dateStr) {
   if (!data.name) { haptic.error(); showToast("Укажите имя клиента"); return; }
   const payErr = _validatePayments(data);
   if (payErr.length) { haptic.error(); showToast("Укажите: " + payErr.join(", ")); return; }
+  // Проверяем расхождение ПОСЛЕ сохранения — флаг для уведомления
+  let _payMismatch = false;
+  try {
+    const [dd, mm, yyyy] = dateStr.split(".").map(Number);
+    const daysAgo = (Date.now() - new Date(yyyy, mm - 1, dd).getTime()) / 86400000;
+    if (daysAgo >= 3) {
+      const totalRevenue = (data.revenue_rent || 0) + (data.revenue_menu || 0);
+      const totalPaid    = (data.paid_advance || 0) + (data.paid_rent || 0) + (data.paid_final || 0);
+      if (totalRevenue > 0 && Math.abs(totalRevenue - totalPaid) > 10) _payMismatch = true;
+    }
+  } catch {}
+
   try {
     setSheetLoading(true);
     await apiFetch("PUT", `/api/booking/${encodeURIComponent(dateStr)}`, data);
     haptic.success();
-    showToast("Бронь обновлена");
+    if (_payMismatch) {
+      showToast("Сохранено · Уведомили менеджеров о расхождении");
+      apiFetch("POST", `/api/booking/${encodeURIComponent(dateStr)}/notify-mismatch`).catch(() => {});
+    } else {
+      showToast("Бронь обновлена");
+    }
     // Возвращаем в просмотр — данные уже сохранены, фин.вкладка покажет актуальные цифры
     await openViewSheet({ date: dateStr, ...data });
     // Обновляем календарь и список фоново

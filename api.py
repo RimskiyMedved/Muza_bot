@@ -7,6 +7,7 @@ api.py — FastAPI бэкенд для Telegram Mini App «Муза».
   GET  /api/booking/{date}      → детали брони (дата: ДД.ММ.ГГГГ)
   POST /api/booking             → создать бронь
   PUT  /api/booking/{date}      → изменить бронь
+  POST /api/booking/{date}/notify-mismatch → уведомить менеджеров о расхождении оплат
   DELETE /api/booking/{date}    → отменить бронь
   GET  /api/sources             → уникальные источники из реальных броней
   GET  /api/stats               → статистика бронирований
@@ -32,6 +33,7 @@ from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import parse_qsl
 
+import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -337,6 +339,57 @@ async def update_booking(date_str: str, body: BookingIn, user: dict = Depends(_r
     return {"ok": True, "date": date_str}
 
 
+# ─── Payment mismatch notification ───────────────────────────────────────────
+
+async def _tg_send(chat_id: int, text: str) -> None:
+    """Отправляет сообщение через Telegram Bot API (fire-and-forget)."""
+    if not TELEGRAM_BOT_TOKEN or not chat_id:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            await client.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
+    except Exception as exc:
+        log.warning("tg_send failed for %s: %s", chat_id, exc)
+
+
+@app.post("/api/booking/{date_str}/notify-mismatch")
+async def notify_payment_mismatch(
+    date_str: str,
+    user: dict = Depends(_require_admin),
+):
+    d = _parse_date(date_str)
+    result = database.check_date(d)
+    if not result["found"]:
+        raise HTTPException(404, "Booking not found")
+
+    total_revenue = float(result.get("revenue_rent") or 0) + float(result.get("revenue_menu") or 0)
+    total_paid    = (float(result.get("paid_advance") or 0)
+                   + float(result.get("paid_rent")    or 0)
+                   + float(result.get("paid_final")   or 0))
+    diff = round(total_revenue - total_paid, 2)
+
+    editor_ids = database.get_editor_ids(date_str)
+    if not editor_ids:
+        # Запасной вариант — текущий пользователь
+        editor_ids = [user.get("id", 0)]
+
+    name = result.get("name", "—")
+    msg = (
+        f"⚠️ <b>Расхождение в оплатах</b>\n"
+        f"Мероприятие: <b>{date_str}</b> · {name}\n"
+        f"Выручка: <b>{total_revenue:,.0f} ₽</b>\n"
+        f"Оплачено: <b>{total_paid:,.0f} ₽</b>\n"
+        f"Разница: <b>{diff:+,.0f} ₽</b>\n\n"
+        f"Пожалуйста, проверьте суммы в Mini App."
+    )
+
+    import asyncio
+    await asyncio.gather(*[_tg_send(tid, msg) for tid in editor_ids], return_exceptions=True)
+    log.info("💬 Уведомление об оплатах отправлено: %s → %s", date_str, editor_ids)
+    return {"ok": True, "notified": len(editor_ids)}
+
+
 # ─── Delete booking ───────────────────────────────────────────────────────────
 
 @app.delete("/api/booking/{date_str}")
@@ -492,16 +545,21 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
     total_guests = sum(_guests(b) for b in filtered)
 
     # По месяцам — в рамках выбранного источника (если задан)
-    by_month: dict = defaultdict(int)
+    by_month: dict         = defaultdict(int)
+    fin_by_month: dict     = defaultdict(lambda: {"income": 0.0, "expenses": 0.0, "profit": 0.0})
     for b in source_only:
         try:
             d = b["date_obj"]
             key = f"{d.month:02d}.{d.year}"
             by_month[key] += 1
+            fin_by_month[key]["income"]   += float(b.get("total_income")   or 0)
+            fin_by_month[key]["expenses"] += float(b.get("total_expenses") or 0)
+            fin_by_month[key]["profit"]   += float(b.get("profit")         or 0)
         except Exception:
             pass
 
     month_labels, month_counts, month_keys = [], [], []
+    month_incomes, month_expenses, month_profits = [], [], []
     for delta in range(-6, 7):
         m = today.month + delta
         y = today.year + (m - 1) // 12
@@ -513,11 +571,20 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
             month_labels.append(MONTH_NAMES[m - 1][:3] + f" {y}")
             month_counts.append(cnt)
             month_keys.append(key)
+            fin = fin_by_month.get(key, {})
+            month_incomes.append(round(fin.get("income",   0), 2))
+            month_expenses.append(round(fin.get("expenses", 0), 2))
+            month_profits.append(round(fin.get("profit",   0), 2))
 
     by_source_full = {
         src: {"count": cnt, "guests": source_guests.get(src, 0)}
         for src, cnt in source_counts.most_common(30)
     }
+
+    # Финансовые итоги по выбранному периоду
+    fin_income   = round(sum(float(b.get("total_income")   or 0) for b in filtered), 2)
+    fin_expenses = round(sum(float(b.get("total_expenses") or 0) for b in filtered), 2)
+    fin_profit   = round(fin_income - fin_expenses, 2)
 
     return {
         "total":        len(filtered),
@@ -526,7 +593,17 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
         "this_month":   len(this_month_bk),
         "next_month":   len(next_month_bk),
         "by_source":    by_source_full,
-        "by_month":     {"labels": month_labels, "counts": month_counts, "keys": month_keys},
+        "by_month":     {
+            "labels":   month_labels,
+            "counts":   month_counts,
+            "keys":     month_keys,
+            "incomes":  month_incomes,
+            "expenses": month_expenses,
+            "profits":  month_profits,
+        },
+        "fin_income":   fin_income,
+        "fin_expenses": fin_expenses,
+        "fin_profit":   fin_profit,
         "this_month_name": MONTH_NAMES[today.month - 1],
         "next_month_name": MONTH_NAMES[next_m - 1],
         "active_source": source or "",

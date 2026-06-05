@@ -80,10 +80,10 @@ def compute_financials(booking: dict, rates: dict | None = None) -> dict:
     staff_cooks   = int(booking.get("staff_cooks")     or 0)
     is_agency     = (booking.get("client_type") or "").strip() == "Агентство"
 
-    total_income   = revenue_rent + revenue_menu
     cost_waiters   = staff_waiters * cost_waiter
     cost_cooks     = staff_cooks   * cost_cook
     agency_fee     = round(revenue_menu * agency_pct, 2) if is_agency else 0.0
+    total_income   = revenue_rent + revenue_menu
     total_expenses = cost_manager + cost_chef + cost_waiters + cost_cooks + agency_fee
     return {
         "total_income":   total_income,
@@ -692,6 +692,17 @@ def log_access(telegram_id: int, username: str, action: str) -> None:
             "INSERT INTO access_log (telegram_id, username, action, timestamp) VALUES (?,?,?,?)",
             (telegram_id, username, action, now)
         )
+
+
+def get_editor_ids(date_str: str) -> list[int]:
+    """telegram_id всех, кто создавал или редактировал бронь на эту дату."""
+    with _conn() as con:
+        rows = con.execute(
+            """SELECT DISTINCT telegram_id FROM access_log
+               WHERE (action = ? OR action = ?) AND telegram_id IS NOT NULL AND telegram_id != 0""",
+            (f"create:{date_str}", f"edit:{date_str}"),
+        ).fetchall()
+    return [r["telegram_id"] for r in rows]
 
 
 def get_access_log(limit: int = 100) -> list[dict]:
