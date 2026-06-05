@@ -73,6 +73,8 @@ HEADERS_BOOKINGS = [
     "Прачка, ₽",
     "Закупка, ₽", "Закупка, коммент",
     "Доп. расходы, ₽", "Доп. расходы, коммент",
+    # 26-28: флаги персонала (v5)
+    "Менеджер участвовал", "Шеф участвовал", "Помощник участвовал",
 ]
 
 # Индексы финансовых колонок в строке Sheets
@@ -93,6 +95,9 @@ _FIN = {
     "cost_purchase_comment": 23,
     "cost_extra":            24,
     "cost_extra_comment":    25,
+    "has_manager":           26,
+    "has_chef":              27,
+    "has_assistant":         28,
 }
 
 HEADERS_FREE  = ["Дата", "День недели"]
@@ -319,6 +324,9 @@ def get_all_bookings() -> list[dict]:
                 "cost_purchase_comment": v(_FIN["cost_purchase_comment"]),
                 "cost_extra":            vf(_FIN["cost_extra"]),
                 "cost_extra_comment":    v(_FIN["cost_extra_comment"]),
+                "has_manager":   int(v(_FIN["has_manager"])   or "1") if v(_FIN["has_manager"])   != "" else 1,
+                "has_chef":      int(v(_FIN["has_chef"])      or "1") if v(_FIN["has_chef"])      != "" else 1,
+                "has_assistant": int(v(_FIN["has_assistant"]) or "1") if v(_FIN["has_assistant"]) != "" else 1,
                 "future":                d >= today,
             })
         except ValueError:
@@ -352,6 +360,9 @@ def add_booking(
     cost_purchase_comment: str = "",
     cost_extra: float = 0,
     cost_extra_comment: str = "",
+    has_manager: int = 1,
+    has_chef: int = 1,
+    has_assistant: int = 1,
 ) -> None:
     """
     Добавляет или перезаписывает бронь.
@@ -371,6 +382,7 @@ def add_booking(
         paid_advance_date, paid_rent_date, paid_final_date,
         cost_laundry, cost_purchase, cost_purchase_comment,
         cost_extra, cost_extra_comment,
+        has_manager, has_chef, has_assistant,
     ]
     rows = _data_rows(ws)
     found = False
@@ -380,7 +392,8 @@ def add_booking(
             if len(row) > 10 and not any([revenue_rent, revenue_menu, paid_advance,
                                           paid_rent, paid_final, staff_waiters, staff_cooks,
                                           paid_advance_date, paid_rent_date, paid_final_date,
-                                          cost_laundry, cost_purchase, cost_extra]):
+                                          cost_laundry, cost_purchase, cost_extra,
+                                          has_manager != 1, has_chef != 1, has_assistant != 1]):
                 new_row[10:] = row[10:]
             rows[i] = new_row
             found = True
@@ -406,6 +419,7 @@ def add_booking(
                 cost_laundry=cost_laundry, cost_purchase=cost_purchase,
                 cost_purchase_comment=cost_purchase_comment,
                 cost_extra=cost_extra, cost_extra_comment=cost_extra_comment,
+                has_manager=has_manager, has_chef=has_chef, has_assistant=has_assistant,
             )
             _db.remove_free_date(target)
         except Exception as _e:

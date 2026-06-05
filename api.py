@@ -278,6 +278,9 @@ class BookingIn(BaseModel):
     cost_purchase_comment:  str   = ""
     cost_extra:             float = 0
     cost_extra_comment:     str   = ""
+    has_manager:            int   = 1
+    has_chef:               int   = 1
+    has_assistant:          int   = 1
 
 
 class SettingIn(BaseModel):
@@ -313,6 +316,9 @@ async def create_booking(body: BookingIn, user: dict = Depends(_require_admin)):
                   cost_purchase_comment=body.cost_purchase_comment,
                   cost_extra=body.cost_extra,
                   cost_extra_comment=body.cost_extra_comment,
+                  has_manager=body.has_manager,
+                  has_chef=body.has_chef,
+                  has_assistant=body.has_assistant,
                   changed_by=username)
 
     database.log_access(user.get("id", 0), username, f"create:{body.date}")
@@ -348,6 +354,9 @@ async def update_booking(date_str: str, body: BookingIn, user: dict = Depends(_r
                   cost_purchase_comment=body.cost_purchase_comment,
                   cost_extra=body.cost_extra,
                   cost_extra_comment=body.cost_extra_comment,
+                  has_manager=body.has_manager,
+                  has_chef=body.has_chef,
+                  has_assistant=body.has_assistant,
                   changed_by=username)
 
     database.log_access(user.get("id", 0), username, f"edit:{date_str}")
@@ -470,6 +479,9 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 cost_purchase_comment=kwargs.get("cost_purchase_comment", ""),
                 cost_extra=kwargs.get("cost_extra", 0),
                 cost_extra_comment=kwargs.get("cost_extra_comment", ""),
+                has_manager=kwargs.get("has_manager", 1),
+                has_chef=kwargs.get("has_chef", 1),
+                has_assistant=kwargs.get("has_assistant", 1),
             )
         elif action == "edit":
             edit_booking(
@@ -497,6 +509,9 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 cost_purchase_comment=kwargs.get("cost_purchase_comment", ""),
                 cost_extra=kwargs.get("cost_extra", 0),
                 cost_extra_comment=kwargs.get("cost_extra_comment", ""),
+                has_manager=kwargs.get("has_manager", 1),
+                has_chef=kwargs.get("has_chef", 1),
+                has_assistant=kwargs.get("has_assistant", 1),
             )
         elif action == "remove":
             remove_booking(target=d)

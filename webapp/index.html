@@ -1914,6 +1914,27 @@ function buildForm(data, showDateField) {
       ${!data.contract_date ? '<span style="font-size:10px;font-weight:400;opacity:.6;margin-left:6px">доступно после даты договора</span>' : ""}
     </div>
     <div id="staffFieldsWrap" style="opacity:${data.contract_date?'1':'0.4'}">
+      <div class="form-group" style="flex-direction:row;align-items:center;gap:10px;padding:6px 0">
+        <input type="checkbox" id="f-has_manager" style="width:20px;height:20px;flex-shrink:0;accent-color:var(--gold)"
+               ${data.contract_date?"":"disabled"}
+               ${(data.has_manager===0||data.has_manager==="0")?"":"checked"} />
+        <label for="f-has_manager" style="flex:1;margin:0;font-weight:600">Менеджер</label>
+        <span style="font-size:12px;color:var(--hint)">${data.rate_manager>0?fmtMoney(data.rate_manager):""}</span>
+      </div>
+      <div class="form-group" style="flex-direction:row;align-items:center;gap:10px;padding:6px 0">
+        <input type="checkbox" id="f-has_chef" style="width:20px;height:20px;flex-shrink:0;accent-color:var(--gold)"
+               ${data.contract_date?"":"disabled"}
+               ${(data.has_chef===0||data.has_chef==="0")?"":"checked"} />
+        <label for="f-has_chef" style="flex:1;margin:0;font-weight:600">Шеф-повар</label>
+        <span style="font-size:12px;color:var(--hint)">${data.rate_chef>0?fmtMoney(data.rate_chef):""}</span>
+      </div>
+      <div class="form-group" style="flex-direction:row;align-items:center;gap:10px;padding:6px 0">
+        <input type="checkbox" id="f-has_assistant" style="width:20px;height:20px;flex-shrink:0;accent-color:var(--gold)"
+               ${data.contract_date?"":"disabled"}
+               ${(data.has_assistant===0||data.has_assistant==="0")?"":"checked"} />
+        <label for="f-has_assistant" style="flex:1;margin:0;font-weight:600">Помощник</label>
+        <span style="font-size:12px;color:var(--hint)">${data.rate_assistant>0?fmtMoney(data.rate_assistant):""}</span>
+      </div>
       <div class="form-group">
         <label class="form-label">Официанты</label>
         <div class="stepper">
@@ -1942,31 +1963,29 @@ function buildForm(data, showDateField) {
       <input class="form-input" id="f-cost_laundry" type="number" min="0" inputmode="numeric"
              placeholder="0" value="${data.cost_laundry > 0 ? data.cost_laundry : ""}" />
     </div>
-    <div class="form-group">
-      <label class="form-label">Помощник, ₽ <span style="font-size:11px;opacity:.5">(из настроек)</span></label>
-      <input class="form-input" id="f-cost_assistant_display" type="text" disabled
-             value="${data.cost_assistant > 0 ? fmtMoney(data.cost_assistant) : 'авто'}"
-             style="opacity:.6" />
+    <div class="form-group" style="flex-direction:row;gap:8px;align-items:flex-end">
+      <div style="flex:0 0 120px">
+        <label class="form-label">Закупка, ₽</label>
+        <input class="form-input" id="f-cost_purchase" type="number" min="0" inputmode="numeric"
+               placeholder="0" value="${data.cost_purchase > 0 ? data.cost_purchase : ""}" />
+      </div>
+      <div style="flex:1">
+        <label class="form-label">Коммент</label>
+        <input class="form-input" id="f-cost_purchase_comment" type="text"
+               placeholder="Необязательно" value="${escHtml(data.cost_purchase_comment||"")}" />
+      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Закупка, ₽</label>
-      <input class="form-input" id="f-cost_purchase" type="number" min="0" inputmode="numeric"
-             placeholder="0" value="${data.cost_purchase > 0 ? data.cost_purchase : ""}" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Закупка — коммент</label>
-      <input class="form-input" id="f-cost_purchase_comment" type="text"
-             placeholder="Необязательно" value="${escHtml(data.cost_purchase_comment||"")}" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Доп. расходы, ₽</label>
-      <input class="form-input" id="f-cost_extra" type="number" min="0" inputmode="numeric"
-             placeholder="0" value="${data.cost_extra > 0 ? data.cost_extra : ""}" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Доп. расходы — коммент</label>
-      <input class="form-input" id="f-cost_extra_comment" type="text"
-             placeholder="Необязательно" value="${escHtml(data.cost_extra_comment||"")}" />
+    <div class="form-group" style="flex-direction:row;gap:8px;align-items:flex-end">
+      <div style="flex:0 0 120px">
+        <label class="form-label">Доп. расходы, ₽</label>
+        <input class="form-input" id="f-cost_extra" type="number" min="0" inputmode="numeric"
+               placeholder="0" value="${data.cost_extra > 0 ? data.cost_extra : ""}" />
+      </div>
+      <div style="flex:1">
+        <label class="form-label">Коммент</label>
+        <input class="form-input" id="f-cost_extra_comment" type="text"
+               placeholder="Необязательно" value="${escHtml(data.cost_extra_comment||"")}" />
+      </div>
     </div>
   </div>`;
 }
@@ -2061,6 +2080,9 @@ function getFormData() {
     paid_rent_date:    fromInputDate(document.getElementById("f-paid_rent_date")?.value || ""),
     paid_final:        parseFloat(document.getElementById("f-paid_final")?.value)    || 0,
     paid_final_date:   fromInputDate(document.getElementById("f-paid_final_date")?.value || ""),
+    has_manager:            staffEnabled ? (document.getElementById("f-has_manager")?.checked   ? 1 : 0) : 1,
+    has_chef:               staffEnabled ? (document.getElementById("f-has_chef")?.checked      ? 1 : 0) : 1,
+    has_assistant:          staffEnabled ? (document.getElementById("f-has_assistant")?.checked  ? 1 : 0) : 1,
     staff_waiters:          staffEnabled ? (parseInt(document.getElementById("f-staff_waiters")?.value) || 0) : 0,
     staff_cooks:            staffEnabled ? (parseInt(document.getElementById("f-staff_cooks")?.value)   || 0) : 0,
     cost_laundry:           parseFloat(document.getElementById("f-cost_laundry")?.value)          || 0,

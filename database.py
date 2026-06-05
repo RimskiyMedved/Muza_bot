@@ -88,18 +88,27 @@ def compute_financials(booking: dict, rates: dict | None = None) -> dict:
     cost_purchase  = float(booking.get("cost_purchase") or 0)
     cost_extra     = float(booking.get("cost_extra")    or 0)
 
+    # Флаги: 1 = участвовал (default), 0 = не участвовал
+    has_manager_f   = int(booking.get("has_manager",   1) if booking.get("has_manager")   is not None else 1)
+    has_chef_f      = int(booking.get("has_chef",      1) if booking.get("has_chef")      is not None else 1)
+    has_assistant_f = int(booking.get("has_assistant", 1) if booking.get("has_assistant") is not None else 1)
+
     cost_waiters   = staff_waiters * cost_waiter
     cost_cooks     = staff_cooks   * cost_cook
     agency_fee     = round(revenue_menu * agency_pct, 2) if is_agency else 0.0
     total_income   = revenue_rent + revenue_menu
     # Фиксированные ставки считаем только если финансы реально заполнены
-    _fixed = (cost_manager + cost_chef + cost_assistant) if has_fin_data else 0.0
+    _fixed = (
+        (cost_manager   if has_manager_f   else 0.0) +
+        (cost_chef      if has_chef_f      else 0.0) +
+        (cost_assistant if has_assistant_f else 0.0)
+    ) if has_fin_data else 0.0
     total_expenses = _fixed + cost_waiters + cost_cooks + agency_fee + cost_laundry + cost_purchase + cost_extra
     return {
         "total_income":    total_income,
-        "cost_manager":    cost_manager,
-        "cost_chef":       cost_chef,
-        "cost_assistant":  cost_assistant,
+        "cost_manager":    cost_manager   if has_manager_f   else 0.0,
+        "cost_chef":       cost_chef      if has_chef_f      else 0.0,
+        "cost_assistant":  cost_assistant if has_assistant_f else 0.0,
         "cost_waiters":    cost_waiters,
         "cost_cooks":      cost_cooks,
         "agency_fee":      agency_fee,
@@ -109,6 +118,10 @@ def compute_financials(booking: dict, rates: dict | None = None) -> dict:
         "cost_extra":      cost_extra,
         "total_expenses":  total_expenses,
         "profit":          total_income - total_expenses,
+        # ставки для отображения в форме
+        "rate_manager":    cost_manager,
+        "rate_chef":       cost_chef,
+        "rate_assistant":  cost_assistant,
     }
 
 
@@ -259,6 +272,10 @@ def init_db() -> None:
     _safe_alter("ALTER TABLE bookings ADD COLUMN cost_purchase_comment TEXT DEFAULT ''")
     _safe_alter("ALTER TABLE bookings ADD COLUMN cost_extra REAL DEFAULT 0")
     _safe_alter("ALTER TABLE bookings ADD COLUMN cost_extra_comment TEXT DEFAULT ''")
+    # Флаги персонала (v5) — 1=включён, 0=не участвовал
+    _safe_alter("ALTER TABLE bookings ADD COLUMN has_manager INTEGER DEFAULT 1")
+    _safe_alter("ALTER TABLE bookings ADD COLUMN has_chef INTEGER DEFAULT 1")
+    _safe_alter("ALTER TABLE bookings ADD COLUMN has_assistant INTEGER DEFAULT 1")
 
     # ── Заполняем настройки по умолчанию ─────────────────────────────────────
     with _conn() as con:
@@ -447,6 +464,9 @@ def check_date(target: date) -> dict:
             "cost_purchase_comment":  _s("cost_purchase_comment"),
             "cost_extra":             _f("cost_extra"),
             "cost_extra_comment":     _s("cost_extra_comment"),
+            "has_manager":   _i("has_manager")   if "has_manager"   in keys else 1,
+            "has_chef":      _i("has_chef")      if "has_chef"      in keys else 1,
+            "has_assistant": _i("has_assistant") if "has_assistant" in keys else 1,
         }
         b.update(compute_financials(b))
         return b
@@ -486,6 +506,9 @@ def get_all_bookings() -> list[dict]:
                 "cost_purchase_comment": _s("cost_purchase_comment"),
                 "cost_extra":            _f("cost_extra"),
                 "cost_extra_comment":    _s("cost_extra_comment"),
+                "has_manager":   _i("has_manager")   if "has_manager"   in keys else 1,
+                "has_chef":      _i("has_chef")       if "has_chef"      in keys else 1,
+                "has_assistant": _i("has_assistant")  if "has_assistant" in keys else 1,
             }
             b.update(compute_financials(b))
             result.append(b)
@@ -520,6 +543,9 @@ def upsert_booking(
     cost_purchase_comment: str = "",
     cost_extra: float = 0,
     cost_extra_comment: str = "",
+    has_manager: int = 1,
+    has_chef: int = 1,
+    has_assistant: int = 1,
 ) -> None:
     """Добавляет или обновляет бронь в SQLite."""
     target_str = target.strftime(DATE_FMT)
@@ -534,8 +560,9 @@ def upsert_booking(
              paid_advance, paid_rent, paid_final, staff_waiters, staff_cooks,
              paid_advance_date, paid_rent_date, paid_final_date,
              cost_laundry, cost_purchase, cost_purchase_comment,
-             cost_extra, cost_extra_comment)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             cost_extra, cost_extra_comment,
+             has_manager, has_chef, has_assistant)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(date) DO UPDATE SET
                 date_iso=excluded.date_iso,
                 guests=excluded.guests, name=excluded.name, phone=excluded.phone,
@@ -555,14 +582,18 @@ def upsert_booking(
                 cost_purchase=excluded.cost_purchase,
                 cost_purchase_comment=excluded.cost_purchase_comment,
                 cost_extra=excluded.cost_extra,
-                cost_extra_comment=excluded.cost_extra_comment
+                cost_extra_comment=excluded.cost_extra_comment,
+                has_manager=excluded.has_manager,
+                has_chef=excluded.has_chef,
+                has_assistant=excluded.has_assistant
         """, (target_str, date_iso, guests, name, phone, source, client_type,
               comment, weekday, changed_by, now, now,
               contract_date, revenue_rent, revenue_menu,
               paid_advance, paid_rent, paid_final, staff_waiters, staff_cooks,
               paid_advance_date, paid_rent_date, paid_final_date,
               cost_laundry, cost_purchase, cost_purchase_comment,
-              cost_extra, cost_extra_comment))
+              cost_extra, cost_extra_comment,
+              has_manager, has_chef, has_assistant))
 
 
 def delete_booking(target: date) -> bool:
@@ -584,6 +615,7 @@ def update_booking_fields(target: date, changed_by: str = "", **fields) -> bool:
         "paid_advance_date", "paid_rent_date", "paid_final_date",
         "cost_laundry", "cost_purchase", "cost_purchase_comment",
         "cost_extra", "cost_extra_comment",
+        "has_manager", "has_chef", "has_assistant",
     }
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
