@@ -1659,9 +1659,13 @@ function _buildFinanceTabHtml(b) {
   const profit          = parseFloat(b.profit)          || 0;
   const cost_manager    = parseFloat(b.cost_manager)    || 0;
   const cost_chef       = parseFloat(b.cost_chef)       || 0;
+  const cost_assistant  = parseFloat(b.cost_assistant)  || 0;
   const cost_waiters    = parseFloat(b.cost_waiters)    || 0;
   const cost_cooks      = parseFloat(b.cost_cooks)      || 0;
   const agency_fee      = parseFloat(b.agency_fee)      || 0;
+  const cost_laundry    = parseFloat(b.cost_laundry)    || 0;
+  const cost_purchase   = parseFloat(b.cost_purchase)   || 0;
+  const cost_extra      = parseFloat(b.cost_extra)      || 0;
   const staff_w         = parseInt(b.staff_waiters)     || 0;
   const staff_c         = parseInt(b.staff_cooks)       || 0;
 
@@ -1697,11 +1701,15 @@ function _buildFinanceTabHtml(b) {
     <div class="fin-block">
       <div class="fin-block-title">Расходы</div>
       <div class="fin-card">
-        ${cost_manager > 0 ? `<div class="fin-row"><span class="fin-lbl">Менеджер</span><span class="fin-val">${fmtMoney(cost_manager)}</span></div>` : ""}
-        ${cost_chef    > 0 ? `<div class="fin-row"><span class="fin-lbl">Шеф-повар</span><span class="fin-val">${fmtMoney(cost_chef)}</span></div>`    : ""}
-        ${cost_waiters > 0 ? `<div class="fin-row"><span class="fin-lbl">Официанты ×${staff_w}</span><span class="fin-val">${fmtMoney(cost_waiters)}</span></div>` : ""}
-        ${cost_cooks   > 0 ? `<div class="fin-row"><span class="fin-lbl">Повара ×${staff_c}</span><span class="fin-val">${fmtMoney(cost_cooks)}</span></div>`    : ""}
-        ${agency_fee   > 0 ? `<div class="fin-row"><span class="fin-lbl">Агентский %</span><span class="fin-val">${fmtMoney(agency_fee)}</span></div>` : ""}
+        ${cost_manager   > 0 ? `<div class="fin-row"><span class="fin-lbl">Менеджер</span><span class="fin-val">${fmtMoney(cost_manager)}</span></div>`   : ""}
+        ${cost_chef      > 0 ? `<div class="fin-row"><span class="fin-lbl">Шеф-повар</span><span class="fin-val">${fmtMoney(cost_chef)}</span></div>`     : ""}
+        ${cost_assistant > 0 ? `<div class="fin-row"><span class="fin-lbl">Помощник</span><span class="fin-val">${fmtMoney(cost_assistant)}</span></div>` : ""}
+        ${cost_waiters   > 0 ? `<div class="fin-row"><span class="fin-lbl">Официанты ×${staff_w}</span><span class="fin-val">${fmtMoney(cost_waiters)}</span></div>` : ""}
+        ${cost_cooks     > 0 ? `<div class="fin-row"><span class="fin-lbl">Повара ×${staff_c}</span><span class="fin-val">${fmtMoney(cost_cooks)}</span></div>`     : ""}
+        ${agency_fee     > 0 ? `<div class="fin-row"><span class="fin-lbl">Агентский %</span><span class="fin-val">${fmtMoney(agency_fee)}</span></div>`  : ""}
+        ${cost_laundry   > 0 ? `<div class="fin-row"><span class="fin-lbl">Прачка</span><span class="fin-val">${fmtMoney(cost_laundry)}</span></div>`     : ""}
+        ${cost_purchase  > 0 ? `<div class="fin-row"><span class="fin-lbl">Закупка${b.cost_purchase_comment ? ' · ' + escHtml(b.cost_purchase_comment) : ''}</span><span class="fin-val">${fmtMoney(cost_purchase)}</span></div>` : ""}
+        ${cost_extra     > 0 ? `<div class="fin-row"><span class="fin-lbl">Доп. расходы${b.cost_extra_comment ? ' · ' + escHtml(b.cost_extra_comment) : ''}</span><span class="fin-val">${fmtMoney(cost_extra)}</span></div>` : ""}
         <div class="fin-total">
           <span class="fin-total-lbl">Итого расходы</span>
           <span class="fin-total-val">${fmtMoney(total_expenses)}</span>
@@ -1927,6 +1935,39 @@ function buildForm(data, showDateField) {
         </div>
       </div>
     </div>
+
+    <div class="section-sep">Доп. расходы</div>
+    <div class="form-group">
+      <label class="form-label">Прачка, ₽</label>
+      <input class="form-input" id="f-cost_laundry" type="number" min="0" inputmode="numeric"
+             placeholder="0" value="${data.cost_laundry > 0 ? data.cost_laundry : ""}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Помощник, ₽ <span style="font-size:11px;opacity:.5">(из настроек)</span></label>
+      <input class="form-input" id="f-cost_assistant_display" type="text" disabled
+             value="${data.cost_assistant > 0 ? fmtMoney(data.cost_assistant) : 'авто'}"
+             style="opacity:.6" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Закупка, ₽</label>
+      <input class="form-input" id="f-cost_purchase" type="number" min="0" inputmode="numeric"
+             placeholder="0" value="${data.cost_purchase > 0 ? data.cost_purchase : ""}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Закупка — коммент</label>
+      <input class="form-input" id="f-cost_purchase_comment" type="text"
+             placeholder="Необязательно" value="${escHtml(data.cost_purchase_comment||"")}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Доп. расходы, ₽</label>
+      <input class="form-input" id="f-cost_extra" type="number" min="0" inputmode="numeric"
+             placeholder="0" value="${data.cost_extra > 0 ? data.cost_extra : ""}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Доп. расходы — коммент</label>
+      <input class="form-input" id="f-cost_extra_comment" type="text"
+             placeholder="Необязательно" value="${escHtml(data.cost_extra_comment||"")}" />
+    </div>
   </div>`;
 }
 
@@ -2020,8 +2061,13 @@ function getFormData() {
     paid_rent_date:    fromInputDate(document.getElementById("f-paid_rent_date")?.value || ""),
     paid_final:        parseFloat(document.getElementById("f-paid_final")?.value)    || 0,
     paid_final_date:   fromInputDate(document.getElementById("f-paid_final_date")?.value || ""),
-    staff_waiters:     staffEnabled ? (parseInt(document.getElementById("f-staff_waiters")?.value) || 0) : 0,
-    staff_cooks:       staffEnabled ? (parseInt(document.getElementById("f-staff_cooks")?.value)   || 0) : 0,
+    staff_waiters:          staffEnabled ? (parseInt(document.getElementById("f-staff_waiters")?.value) || 0) : 0,
+    staff_cooks:            staffEnabled ? (parseInt(document.getElementById("f-staff_cooks")?.value)   || 0) : 0,
+    cost_laundry:           parseFloat(document.getElementById("f-cost_laundry")?.value)          || 0,
+    cost_purchase:          parseFloat(document.getElementById("f-cost_purchase")?.value)         || 0,
+    cost_purchase_comment:  document.getElementById("f-cost_purchase_comment")?.value.trim()      || "",
+    cost_extra:             parseFloat(document.getElementById("f-cost_extra")?.value)            || 0,
+    cost_extra_comment:     document.getElementById("f-cost_extra_comment")?.value.trim()         || "",
   };
 }
 
@@ -2126,6 +2172,8 @@ function openCopySheet(src) {
     paid_rent:"", paid_rent_date:"",
     paid_final:"", paid_final_date:"",
     staff_waiters:"", staff_cooks:"",
+    cost_laundry:0, cost_purchase:0, cost_purchase_comment:"",
+    cost_extra:0, cost_extra_comment:"",
   };
   document.getElementById("sheetTitle").textContent = "Новая бронь";
   document.getElementById("sheetDate").textContent = "Скопировано";

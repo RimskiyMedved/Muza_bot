@@ -270,9 +270,14 @@ class BookingIn(BaseModel):
     paid_final:        float = 0
     staff_waiters:     int   = 0
     staff_cooks:       int   = 0
-    paid_advance_date: str   = ""
-    paid_rent_date:    str   = ""
-    paid_final_date:   str   = ""
+    paid_advance_date:      str   = ""
+    paid_rent_date:         str   = ""
+    paid_final_date:        str   = ""
+    cost_laundry:           float = 0
+    cost_purchase:          float = 0
+    cost_purchase_comment:  str   = ""
+    cost_extra:             float = 0
+    cost_extra_comment:     str   = ""
 
 
 class SettingIn(BaseModel):
@@ -303,6 +308,11 @@ async def create_booking(body: BookingIn, user: dict = Depends(_require_admin)):
                   paid_advance_date=body.paid_advance_date,
                   paid_rent_date=body.paid_rent_date,
                   paid_final_date=body.paid_final_date,
+                  cost_laundry=body.cost_laundry,
+                  cost_purchase=body.cost_purchase,
+                  cost_purchase_comment=body.cost_purchase_comment,
+                  cost_extra=body.cost_extra,
+                  cost_extra_comment=body.cost_extra_comment,
                   changed_by=username)
 
     database.log_access(user.get("id", 0), username, f"create:{body.date}")
@@ -333,6 +343,11 @@ async def update_booking(date_str: str, body: BookingIn, user: dict = Depends(_r
                   paid_advance_date=body.paid_advance_date,
                   paid_rent_date=body.paid_rent_date,
                   paid_final_date=body.paid_final_date,
+                  cost_laundry=body.cost_laundry,
+                  cost_purchase=body.cost_purchase,
+                  cost_purchase_comment=body.cost_purchase_comment,
+                  cost_extra=body.cost_extra,
+                  cost_extra_comment=body.cost_extra_comment,
                   changed_by=username)
 
     database.log_access(user.get("id", 0), username, f"edit:{date_str}")
@@ -450,6 +465,11 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 paid_advance_date=kwargs.get("paid_advance_date", ""),
                 paid_rent_date=kwargs.get("paid_rent_date", ""),
                 paid_final_date=kwargs.get("paid_final_date", ""),
+                cost_laundry=kwargs.get("cost_laundry", 0),
+                cost_purchase=kwargs.get("cost_purchase", 0),
+                cost_purchase_comment=kwargs.get("cost_purchase_comment", ""),
+                cost_extra=kwargs.get("cost_extra", 0),
+                cost_extra_comment=kwargs.get("cost_extra_comment", ""),
             )
         elif action == "edit":
             edit_booking(
@@ -472,6 +492,11 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 paid_advance_date=kwargs.get("paid_advance_date", ""),
                 paid_rent_date=kwargs.get("paid_rent_date", ""),
                 paid_final_date=kwargs.get("paid_final_date", ""),
+                cost_laundry=kwargs.get("cost_laundry", 0),
+                cost_purchase=kwargs.get("cost_purchase", 0),
+                cost_purchase_comment=kwargs.get("cost_purchase_comment", ""),
+                cost_extra=kwargs.get("cost_extra", 0),
+                cost_extra_comment=kwargs.get("cost_extra_comment", ""),
             )
         elif action == "remove":
             remove_booking(target=d)

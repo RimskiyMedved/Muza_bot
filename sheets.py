@@ -69,21 +69,30 @@ HEADERS_BOOKINGS = [
     "Внесли аванс", "Внесли аренду", "Итоговая оплата",
     "Кол-во официантов", "Кол-во поваров",
     "Дата оплаты аванса", "Дата оплаты аренды", "Дата итоговой оплаты",
+    # 21-25: доп. расходы (v4)
+    "Прачка, ₽",
+    "Закупка, ₽", "Закупка, коммент",
+    "Доп. расходы, ₽", "Доп. расходы, коммент",
 ]
 
 # Индексы финансовых колонок в строке Sheets
 _FIN = {
-    "contract_date":      10,
-    "revenue_rent":       11,
-    "revenue_menu":       12,
-    "paid_advance":       13,
-    "paid_rent":          14,
-    "paid_final":         15,
-    "staff_waiters":      16,
-    "staff_cooks":        17,
-    "paid_advance_date":  18,
-    "paid_rent_date":     19,
-    "paid_final_date":    20,
+    "contract_date":         10,
+    "revenue_rent":          11,
+    "revenue_menu":          12,
+    "paid_advance":          13,
+    "paid_rent":             14,
+    "paid_final":            15,
+    "staff_waiters":         16,
+    "staff_cooks":           17,
+    "paid_advance_date":     18,
+    "paid_rent_date":        19,
+    "paid_final_date":       20,
+    "cost_laundry":          21,
+    "cost_purchase":         22,
+    "cost_purchase_comment": 23,
+    "cost_extra":            24,
+    "cost_extra_comment":    25,
 }
 
 HEADERS_FREE  = ["Дата", "День недели"]
@@ -302,10 +311,15 @@ def get_all_bookings() -> list[dict]:
                 "paid_final":    vf(_FIN["paid_final"]),
                 "staff_waiters":      vi(_FIN["staff_waiters"]),
                 "staff_cooks":        vi(_FIN["staff_cooks"]),
-                "paid_advance_date":  v(_FIN["paid_advance_date"]),
-                "paid_rent_date":     v(_FIN["paid_rent_date"]),
-                "paid_final_date":    v(_FIN["paid_final_date"]),
-                "future":             d >= today,
+                "paid_advance_date":     v(_FIN["paid_advance_date"]),
+                "paid_rent_date":        v(_FIN["paid_rent_date"]),
+                "paid_final_date":       v(_FIN["paid_final_date"]),
+                "cost_laundry":          vf(_FIN["cost_laundry"]),
+                "cost_purchase":         vf(_FIN["cost_purchase"]),
+                "cost_purchase_comment": v(_FIN["cost_purchase_comment"]),
+                "cost_extra":            vf(_FIN["cost_extra"]),
+                "cost_extra_comment":    v(_FIN["cost_extra_comment"]),
+                "future":                d >= today,
             })
         except ValueError:
             pass
@@ -333,6 +347,11 @@ def add_booking(
     paid_advance_date: str = "",
     paid_rent_date: str = "",
     paid_final_date: str = "",
+    cost_laundry: float = 0,
+    cost_purchase: float = 0,
+    cost_purchase_comment: str = "",
+    cost_extra: float = 0,
+    cost_extra_comment: str = "",
 ) -> None:
     """
     Добавляет или перезаписывает бронь.
@@ -350,6 +369,8 @@ def add_booking(
         paid_advance, paid_rent, paid_final,
         staff_waiters, staff_cooks,
         paid_advance_date, paid_rent_date, paid_final_date,
+        cost_laundry, cost_purchase, cost_purchase_comment,
+        cost_extra, cost_extra_comment,
     ]
     rows = _data_rows(ws)
     found = False
@@ -358,7 +379,8 @@ def add_booking(
             # Сохраняем финансы если новая строка их не содержит
             if len(row) > 10 and not any([revenue_rent, revenue_menu, paid_advance,
                                           paid_rent, paid_final, staff_waiters, staff_cooks,
-                                          paid_advance_date, paid_rent_date, paid_final_date]):
+                                          paid_advance_date, paid_rent_date, paid_final_date,
+                                          cost_laundry, cost_purchase, cost_extra]):
                 new_row[10:] = row[10:]
             rows[i] = new_row
             found = True
@@ -381,6 +403,9 @@ def add_booking(
                 revenue_rent=revenue_rent, revenue_menu=revenue_menu,
                 paid_advance=paid_advance, paid_rent=paid_rent, paid_final=paid_final,
                 staff_waiters=staff_waiters, staff_cooks=staff_cooks,
+                cost_laundry=cost_laundry, cost_purchase=cost_purchase,
+                cost_purchase_comment=cost_purchase_comment,
+                cost_extra=cost_extra, cost_extra_comment=cost_extra_comment,
             )
             _db.remove_free_date(target)
         except Exception as _e:
