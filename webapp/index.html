@@ -485,6 +485,10 @@
       -webkit-appearance: none;
     }
     .form-input:focus { border-color: #8B3A52; background: rgba(139,58,82,.06); }
+    select.form-input {
+      -webkit-appearance: auto; appearance: auto;
+      padding-right: 10px; cursor: pointer;
+    }
     .form-textarea {
       background: rgba(0,0,0,.06); border: 1.5px solid rgba(60,46,34,.25);
       border-radius: 13px; padding: 12px 14px;
@@ -1501,7 +1505,7 @@ async function loadStats() {
         </div>` : ""}
       </div>
 
-      ${(s.fin_income > 0 || s.fin_expenses > 0) ? `
+      ${s.total > 0 ? `
       <div class="fin-summary-row">
         <div class="fin-sum-card">
           <div class="fin-sum-label">Доходы</div>
@@ -1800,17 +1804,25 @@ function buildForm(data, showDateField) {
     <div class="section-sep">Дополнительно</div>
     <div class="form-group">
       <label class="form-label">Источник рекламы</label>
-      <div class="chip-selector" id="srcChips"></div>
-      <div class="chip-custom-wrap" id="chipCustomWrap">
-        <input class="chip-custom-input" id="f-source-custom"
-               type="text" placeholder="Введите источник…" />
-      </div>
+      <select class="form-input" id="f-source">
+        <option value="">— не указан —</option>
+      </select>
+      <input class="form-input" id="f-source-custom" type="text"
+             placeholder="Введите источник…" style="margin-top:8px;display:none" />
     </div>
     <div class="form-group">
-      <label class="form-label">Тип клиента</label>
-      <input class="form-input" id="f-client_type" type="text"
-             placeholder="Прямой клиент / Агентство"
-             value="${escHtml(data.client_type||"")}" />
+      <label class="form-label agency-toggle-label" for="f-is_agency"
+             style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+        <span class="agency-check-box" id="agencyCheckBox"
+              style="width:20px;height:20px;min-width:20px;border-radius:6px;
+                     border:2px solid rgba(60,46,34,.35);display:flex;align-items:center;
+                     justify-content:center;font-size:14px;transition:all .15s;
+                     ${data.client_type==="Агентство"?"background:var(--gold);border-color:var(--gold);":"background:rgba(0,0,0,.06);"}">
+          ${data.client_type==="Агентство"?"✓":""}
+        </span>
+        <span style="font-size:14px;font-weight:500">Агентство</span>
+      </label>
+      <input type="hidden" id="f-is_agency" value="${data.client_type==="Агентство"?"1":"0"}" />
     </div>
     <div class="form-group">
       <label class="form-label">Комментарий</label>
@@ -1900,59 +1912,68 @@ function stepGuests(delta) {
 }
 
 function renderChipSelector() {
-  const wrap = document.getElementById("srcChips");
-  if (!wrap) return;
+  const sel = document.getElementById("f-source");
+  if (!sel) return;
 
   const isCustom = _formSource && !sourcesData.includes(_formSource);
-  const srcs = sourcesData.length ? [...sourcesData, "__other__"] : ["__other__"];
+  const opts = [
+    `<option value="">— не указан —</option>`,
+    ...sourcesData.map(s =>
+      `<option value="${escHtml(s)}"${_formSource === s ? " selected" : ""}>${escHtml(s)}</option>`
+    ),
+    `<option value="__other__"${isCustom ? " selected" : ""}>Другое…</option>`,
+  ].join("");
+  sel.innerHTML = opts;
 
-  wrap.innerHTML = srcs.map(s => {
-    const lbl    = s === "__other__" ? "Другое…" : s;
-    const active = (s === _formSource) || (s === "__other__" && isCustom);
-    return `<div class="chip-option${active ? " selected" : ""}" data-src="${escHtml(s)}">${escHtml(lbl)}</div>`;
-  }).join("");
-
-  wrap.querySelectorAll(".chip-option").forEach(el => {
-    el.addEventListener("click", () => {
-      haptic.select();
-      const src = el.dataset.src;
-      wrap.querySelectorAll(".chip-option").forEach(c => c.classList.remove("selected"));
-      el.classList.add("selected");
-      const customWrap  = document.getElementById("chipCustomWrap");
-      const customInput = document.getElementById("f-source-custom");
-      if (src === "__other__") {
-        if (customWrap)  customWrap.style.display  = "block";
-        if (customInput) { customInput.focus(); _formSource = customInput.value || ""; }
-        if (customInput) customInput.oninput = e => { _formSource = e.target.value; };
-      } else {
-        _formSource = src;
-        if (customWrap)  customWrap.style.display  = "none";
-        if (customInput) customInput.value = "";
-      }
-    });
-  });
-
-  const customWrap  = document.getElementById("chipCustomWrap");
   const customInput = document.getElementById("f-source-custom");
-  if (isCustom && customWrap && customInput) {
-    customWrap.style.display = "block";
+  if (isCustom && customInput) {
+    customInput.style.display = "block";
     customInput.value = _formSource;
-    customInput.oninput = e => { _formSource = e.target.value; };
+  }
+  if (customInput) customInput.oninput = e => { _formSource = e.target.value; };
+
+  sel.onchange = () => {
+    haptic.select();
+    const val = sel.value;
+    const ci  = document.getElementById("f-source-custom");
+    if (val === "__other__") {
+      _formSource = ci?.value?.trim() || "";
+      if (ci) { ci.style.display = "block"; ci.focus(); }
+    } else {
+      _formSource = val;
+      if (ci) { ci.style.display = "none"; ci.value = ""; }
+    }
+  };
+
+  // Agency toggle
+  const lbl = document.getElementById("agencyCheckBox");
+  const hid = document.getElementById("f-is_agency");
+  if (lbl && hid) {
+    lbl.parentElement.addEventListener("click", () => {
+      haptic.select();
+      const checked = hid.value === "1";
+      hid.value = checked ? "0" : "1";
+      lbl.style.background    = !checked ? "var(--gold)"        : "rgba(0,0,0,.06)";
+      lbl.style.borderColor   = !checked ? "var(--gold)"        : "rgba(60,46,34,.35)";
+      lbl.textContent         = !checked ? "✓"                  : "";
+    });
   }
 }
 
 function getFormData() {
-  const customWrap  = document.getElementById("chipCustomWrap");
+  const selEl       = document.getElementById("f-source");
   const customInput = document.getElementById("f-source-custom");
-  const isCustom    = customWrap && customWrap.style.display !== "none";
-  const finalSource = isCustom ? (customInput?.value?.trim() || _formSource) : _formSource;
+  const finalSource = selEl?.value === "__other__"
+    ? (customInput?.value?.trim() || _formSource)
+    : (selEl?.value || _formSource || "");
+  const isAgency    = document.getElementById("f-is_agency")?.value === "1";
   return {
     date:              document.getElementById("f-date")?.value.trim()              || "",
     name:              document.getElementById("f-name")?.value.trim()              || "",
     guests:            document.getElementById("f-guests")?.value.trim()            || "",
     phone:             document.getElementById("f-phone")?.value.trim()             || "",
     source:            finalSource,
-    client_type:       document.getElementById("f-client_type")?.value.trim()       || "",
+    client_type:       isAgency ? "Агентство" : "",
     comment:           document.getElementById("f-comment")?.value.trim()           || "",
     contract_date:     document.getElementById("f-contract_date")?.value.trim()     || "",
     revenue_rent:      parseFloat(document.getElementById("f-revenue_rent")?.value)  || 0,
@@ -1976,11 +1997,21 @@ function stepField(id, delta) {
 }
 
 // ─── Submit ───────────────────────────────────────────────────────────────────
+function _validatePayments(data) {
+  const missing = [];
+  if (data.paid_advance > 0 && !data.paid_advance_date) missing.push("дата аванса");
+  if (data.paid_rent    > 0 && !data.paid_rent_date)    missing.push("дата аренды");
+  if (data.paid_final   > 0 && !data.paid_final_date)   missing.push("дата итоговой");
+  return missing;
+}
+
 async function submitAdd() {
   const data = getFormData();
   if (!data.date) { haptic.error(); showToast("Укажите дату"); return; }
   if (!/^\d{2}\.\d{2}\.\d{4}$/.test(data.date)) { haptic.error(); showToast("Формат: ДД.ММ.ГГГГ"); return; }
   if (!data.name) { haptic.error(); showToast("Укажите имя клиента"); return; }
+  const payErr = _validatePayments(data);
+  if (payErr.length) { haptic.error(); showToast("Укажите: " + payErr.join(", ")); return; }
   try {
     setSheetLoading(true);
     await apiFetch("POST", "/api/booking", data);
@@ -1994,6 +2025,8 @@ async function submitAdd() {
 async function submitEdit(dateStr) {
   const data = { ...getFormData(), date: dateStr };
   if (!data.name) { haptic.error(); showToast("Укажите имя клиента"); return; }
+  const payErr = _validatePayments(data);
+  if (payErr.length) { haptic.error(); showToast("Укажите: " + payErr.join(", ")); return; }
   try {
     setSheetLoading(true);
     await apiFetch("PUT", `/api/booking/${encodeURIComponent(dateStr)}`, data);
