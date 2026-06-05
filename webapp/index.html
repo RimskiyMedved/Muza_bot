@@ -1894,13 +1894,18 @@ function buildForm(data, showDateField) {
           ? fmtMoney((data.revenue_rent||0)+(data.revenue_menu||0)) : "—"}
       </span>
     </div>
-    <div class="section-sep">Оплаты</div>
+    <div class="section-sep" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Оплаты</span>
+      <span id="payment-total-sep" style="font-size:12px;font-weight:600;color:var(--gold)">
+        ${(()=>{const t=(data.paid_advance||0)+(data.paid_rent||0)+(data.paid_final||0);return t>0?fmtMoney(t):"";})()}
+      </span>
+    </div>
     <div class="form-group">
       <label class="form-label">Аванс, ₽</label>
       <div style="display:flex;gap:8px">
         <input class="form-input" id="f-paid_advance" type="number" min="0" inputmode="numeric"
                placeholder="0" value="${data.paid_advance > 0 ? data.paid_advance : ""}"
-               style="flex:1;min-width:0" />
+               style="flex:1;min-width:0" oninput="updatePaymentTotal()" />
         <input class="form-input fp-date" id="f-paid_advance_date" type="text"
                placeholder="дд.мм.гггг" readonly
                value="${data.paid_advance_date||""}" style="width:140px;flex-shrink:0" />
@@ -1911,7 +1916,7 @@ function buildForm(data, showDateField) {
       <div style="display:flex;gap:8px">
         <input class="form-input" id="f-paid_rent" type="number" min="0" inputmode="numeric"
                placeholder="0" value="${data.paid_rent > 0 ? data.paid_rent : ""}"
-               style="flex:1;min-width:0" />
+               style="flex:1;min-width:0" oninput="updatePaymentTotal()" />
         <input class="form-input fp-date" id="f-paid_rent_date" type="text"
                placeholder="дд.мм.гггг" readonly
                value="${data.paid_rent_date||""}" style="width:140px;flex-shrink:0" />
@@ -1922,7 +1927,7 @@ function buildForm(data, showDateField) {
       <div style="display:flex;gap:8px">
         <input class="form-input" id="f-paid_final" type="number" min="0" inputmode="numeric"
                placeholder="0" value="${data.paid_final > 0 ? data.paid_final : ""}"
-               style="flex:1;min-width:0" />
+               style="flex:1;min-width:0" oninput="updatePaymentTotal()" />
         <input class="form-input fp-date" id="f-paid_final_date" type="text"
                placeholder="дд.мм.гггг" readonly
                value="${data.paid_final_date||""}" style="width:140px;flex-shrink:0" />
@@ -1960,13 +1965,16 @@ function buildForm(data, showDateField) {
             <span id="f-staff_waiters-cost" style="font-size:11px;color:var(--hint);margin-left:4px;font-weight:400">${data.staff_waiters>0&&data.rate_waiter>0?fmtMoney(data.staff_waiters*data.rate_waiter):""}</span>
           </div>
           <div class="stepper">
-            <button class="step-btn" type="button" ${data.contract_date?"":"disabled"}
+            <button class="step-btn" type="button" style="width:36px;height:44px"
+                    ${data.contract_date?"":"disabled"}
                     onclick="stepField('f-staff_waiters',-1);updateStaffCost('f-staff_waiters',${data.rate_waiter||7000})">−</button>
             <input class="step-input" id="f-staff_waiters" type="number" min="0"
-                   inputmode="numeric" placeholder="0" ${data.contract_date?"":"disabled"}
+                   inputmode="numeric" placeholder="0" style="width:32px;flex:none"
+                   ${data.contract_date?"":"disabled"}
                    value="${data.staff_waiters > 0 ? data.staff_waiters : ""}"
                    oninput="updateStaffCost('f-staff_waiters',${data.rate_waiter||7000})" />
-            <button class="step-btn" type="button" ${data.contract_date?"":"disabled"}
+            <button class="step-btn" type="button" style="width:36px;height:44px"
+                    ${data.contract_date?"":"disabled"}
                     onclick="stepField('f-staff_waiters',1);updateStaffCost('f-staff_waiters',${data.rate_waiter||7000})">+</button>
           </div>
         </div>
@@ -1976,13 +1984,16 @@ function buildForm(data, showDateField) {
             <span id="f-staff_cooks-cost" style="font-size:11px;color:var(--hint);margin-left:4px;font-weight:400">${data.staff_cooks>0&&data.rate_cook>0?fmtMoney(data.staff_cooks*data.rate_cook):""}</span>
           </div>
           <div class="stepper">
-            <button class="step-btn" type="button" ${data.contract_date?"":"disabled"}
+            <button class="step-btn" type="button" style="width:36px;height:44px"
+                    ${data.contract_date?"":"disabled"}
                     onclick="stepField('f-staff_cooks',-1);updateStaffCost('f-staff_cooks',${data.rate_cook||7000})">−</button>
             <input class="step-input" id="f-staff_cooks" type="number" min="0"
-                   inputmode="numeric" placeholder="0" ${data.contract_date?"":"disabled"}
+                   inputmode="numeric" placeholder="0" style="width:32px;flex:none"
+                   ${data.contract_date?"":"disabled"}
                    value="${data.staff_cooks > 0 ? data.staff_cooks : ""}"
                    oninput="updateStaffCost('f-staff_cooks',${data.rate_cook||7000})" />
-            <button class="step-btn" type="button" ${data.contract_date?"":"disabled"}
+            <button class="step-btn" type="button" style="width:36px;height:44px"
+                    ${data.contract_date?"":"disabled"}
                     onclick="stepField('f-staff_cooks',1);updateStaffCost('f-staff_cooks',${data.rate_cook||7000})">+</button>
           </div>
         </div>
@@ -2166,6 +2177,14 @@ function updateStaffCost(fieldId, rate) {
   const count = parseInt(document.getElementById(fieldId)?.value) || 0;
   const span  = document.getElementById(fieldId + "-cost");
   if (span) span.textContent = count > 0 ? fmtMoney(count * rate) : "";
+}
+
+function updatePaymentTotal() {
+  const a = parseFloat(document.getElementById("f-paid_advance")?.value) || 0;
+  const r = parseFloat(document.getElementById("f-paid_rent")?.value)    || 0;
+  const f = parseFloat(document.getElementById("f-paid_final")?.value)   || 0;
+  const el = document.getElementById("payment-total-sep");
+  if (el) el.textContent = (a + r + f) > 0 ? fmtMoney(a + r + f) : "";
 }
 
 function updateLivePreview() {
