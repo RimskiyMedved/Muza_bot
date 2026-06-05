@@ -79,12 +79,15 @@ def compute_financials(booking: dict, rates: dict | None = None) -> dict:
     staff_waiters = int(booking.get("staff_waiters")   or 0)
     staff_cooks   = int(booking.get("staff_cooks")     or 0)
     is_agency     = (booking.get("client_type") or "").strip() == "Агентство"
+    has_fin_data  = bool(booking.get("contract_date") or revenue_rent or revenue_menu)
 
     cost_waiters   = staff_waiters * cost_waiter
     cost_cooks     = staff_cooks   * cost_cook
     agency_fee     = round(revenue_menu * agency_pct, 2) if is_agency else 0.0
     total_income   = revenue_rent + revenue_menu
-    total_expenses = cost_manager + cost_chef + cost_waiters + cost_cooks + agency_fee
+    # cost_manager и cost_chef считаем только если финансы реально заполнены
+    _fixed = (cost_manager + cost_chef) if has_fin_data else 0.0
+    total_expenses = _fixed + cost_waiters + cost_cooks + agency_fee
     return {
         "total_income":   total_income,
         "cost_manager":   cost_manager,
