@@ -619,8 +619,18 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
             month_expenses.append(round(fin.get("expenses", 0), 2))
             month_profits.append(round(fin.get("profit",   0), 2))
 
+    # Выручка по источникам
+    source_revenue: dict = defaultdict(float)
+    for b in month_only:
+        src = b.get("source") or "Не указан"
+        source_revenue[src] += float(b.get("total_income") or 0)
+
     by_source_full = {
-        src: {"count": cnt, "guests": source_guests.get(src, 0)}
+        src: {
+            "count":   cnt,
+            "guests":  source_guests.get(src, 0),
+            "revenue": round(source_revenue.get(src, 0), 2),
+        }
         for src, cnt in source_counts.most_common(30)
     }
 
@@ -628,6 +638,47 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
     fin_income   = round(sum(float(b.get("total_income")   or 0) for b in filtered), 2)
     fin_expenses = round(sum(float(b.get("total_expenses") or 0) for b in filtered), 2)
     fin_profit   = round(fin_income - fin_expenses, 2)
+
+    # Средний чек
+    fin_bookings = [b for b in filtered if float(b.get("total_income") or 0) > 0]
+    avg_check = round(fin_income / len(fin_bookings)) if fin_bookings else 0
+
+    # Средние гости
+    guests_list = [_guests(b) for b in filtered if _guests(b) > 0]
+    avg_guests = round(sum(guests_list) / len(guests_list)) if guests_list else 0
+
+    # Долг и сбор оплат (только прошедшие банкеты)
+    past_bk = [b for b in filtered if not b.get("future")]
+    past_income = sum(float(b.get("total_income") or 0) for b in past_bk)
+    total_paid  = sum(
+        float(b.get("paid_advance") or 0) +
+        float(b.get("paid_rent")    or 0) +
+        float(b.get("paid_final")   or 0)
+        for b in past_bk
+    )
+    total_debt      = round(max(0.0, past_income - total_paid), 2)
+    collection_rate = round(total_paid / past_income * 100) if past_income > 0 else 100
+
+    # Прирост к прошлому месяцу (для текущего месяца)
+    if today.month == 1:
+        prev_m2, prev_y2 = 12, today.year - 1
+    else:
+        prev_m2, prev_y2 = today.month - 1, today.year
+    prev_month_key = f"{prev_m2:02d}.{prev_y2}"
+    prev_month_cnt = len([b for b in source_only if _month_key(b["date"]) == prev_month_key])
+    mom_change = len(this_month_bk) - prev_month_cnt
+
+    # Загруженность (только при фильтре по месяцу)
+    occupancy_pct = 0
+    if month:
+        import calendar as _cal
+        try:
+            mm2, yy2 = int(month[:2]), int(month[3:])
+            days_in_month = _cal.monthrange(yy2, mm2)[1]
+            booked_days   = len(set(b["date"] for b in filtered))
+            occupancy_pct = round(booked_days / days_in_month * 100)
+        except Exception:
+            pass
 
     return {
         "total":        len(filtered),
@@ -644,13 +695,19 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
             "expenses": month_expenses,
             "profits":  month_profits,
         },
-        "fin_income":   fin_income,
-        "fin_expenses": fin_expenses,
-        "fin_profit":   fin_profit,
+        "fin_income":      fin_income,
+        "fin_expenses":    fin_expenses,
+        "fin_profit":      fin_profit,
+        "avg_check":       avg_check,
+        "avg_guests":      avg_guests,
+        "total_debt":      total_debt,
+        "collection_rate": collection_rate,
+        "mom_change":      mom_change,
+        "occupancy_pct":   occupancy_pct,
         "this_month_name": MONTH_NAMES[today.month - 1],
         "next_month_name": MONTH_NAMES[next_m - 1],
-        "active_source": source or "",
-        "active_month":  month or "",
+        "active_source":   source or "",
+        "active_month":    month or "",
     }
 
 

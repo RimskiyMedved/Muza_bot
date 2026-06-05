@@ -357,6 +357,34 @@
     .fin-sum-profit.neg { color: #8B3A52; }
     .fin-sum-profit.zero { color: var(--hint); }
 
+    /* Extra metric cards */
+    .metrics-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+    .metrics-row.three { grid-template-columns: 1fr 1fr 1fr; }
+    .metric-card {
+      background: rgba(0,0,0,.04); border-radius: 14px; padding: 12px 10px;
+      border: 1px solid rgba(60,46,34,.08);
+    }
+    .metric-label { font-size: 10px; font-weight: 600; color: var(--hint); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+    .metric-value { font-size: 17px; font-weight: 800; color: var(--text); line-height: 1.1; }
+    .metric-sub   { font-size: 10px; color: var(--hint); margin-top: 2px; }
+    .mom-badge {
+      display: inline-flex; align-items: center; gap: 2px;
+      font-size: 11px; font-weight: 700; padding: 1px 6px;
+      border-radius: 100px; margin-left: 6px; vertical-align: middle;
+    }
+    .mom-badge.up   { background: rgba(107,175,140,.18); color: #2E7A56; }
+    .mom-badge.down { background: rgba(196,120,142,.2);  color: #8B3A52; }
+    .mom-badge.flat { background: rgba(60,46,34,.08);    color: var(--hint); }
+    .occupancy-bar-wrap {
+      background: rgba(0,0,0,.04); border-radius: 14px; padding: 12px 14px;
+      border: 1px solid rgba(60,46,34,.08); margin-bottom: 6px;
+    }
+    .occupancy-track {
+      height: 6px; background: rgba(60,46,34,.1); border-radius: 100px;
+      margin-top: 8px; overflow: hidden;
+    }
+    .occupancy-fill { height: 100%; border-radius: 100px; background: var(--gold); transition: width .5s; }
+
     /* Группировка источников */
     .src-row {
       display: flex; align-items: center; gap: 8px;
@@ -1296,38 +1324,47 @@ function renderMiniStats() {
 let _expandedGroups = new Set();
 
 function _groupSources(bySource) {
-  // bySource = { "Таня ВК": {count,guests}, "Таня": {count,guests}, ... }
   const groups = {};
   Object.entries(bySource).forEach(([src, data]) => {
-    const cnt    = typeof data === "number" ? data : (data.count || 0);
-    const guests = typeof data === "number" ? 0    : (data.guests || 0);
-    const key    = src.split(/\s+/)[0]; // первое слово
-    if (!groups[key]) groups[key] = { count: 0, guests: 0, children: {} };
-    groups[key].count  += cnt;
-    groups[key].guests += guests;
-    groups[key].children[src] = { count: cnt, guests };
+    const cnt     = typeof data === "number" ? data : (data.count   || 0);
+    const guests  = typeof data === "number" ? 0    : (data.guests  || 0);
+    const revenue = typeof data === "number" ? 0    : (data.revenue || 0);
+    const key = src.split(/\s+/)[0];
+    if (!groups[key]) groups[key] = { count: 0, guests: 0, revenue: 0, children: {} };
+    groups[key].count   += cnt;
+    groups[key].guests  += guests;
+    groups[key].revenue += revenue;
+    groups[key].children[src] = { count: cnt, guests, revenue };
   });
   return groups;
 }
 
 function _renderSources(bySource, maxCount) {
   const groups = _groupSources(bySource);
+  // Сортируем по выручке если есть, иначе по количеству
+  const hasRevenue = Object.values(groups).some(g => g.revenue > 0);
   let html = "";
   Object.entries(groups)
-    .sort((a,b) => b[1].count - a[1].count)
+    .sort((a, b) => hasRevenue ? b[1].revenue - a[1].revenue : b[1].count - a[1].count)
     .forEach(([key, g]) => {
-      const childEntries = Object.entries(g.children).sort((a,b) => b[1].count - a[1].count);
-      const hasChildren  = childEntries.length > 1;
-      const isExpanded   = _expandedGroups.has(key);
-      const isActive     = _activeSource === key || childEntries.some(([s]) => _activeSource === s);
-      const barW         = Math.round(g.count / maxCount * 100);
-      const guestsHtml   = g.guests > 0 ? `<div class="src-sub">${g.guests} гостей</div>` : "";
+      const childEntries = Object.entries(g.children)
+        .sort((a, b) => hasRevenue ? b[1].revenue - a[1].revenue : b[1].count - a[1].count);
+      const hasChildren = childEntries.length > 1;
+      const isExpanded  = _expandedGroups.has(key);
+      const isActive    = _activeSource === key || childEntries.some(([s]) => _activeSource === s);
+      const maxVal      = hasRevenue ? Math.max(1, ...Object.values(groups).map(g2 => g2.revenue)) : maxCount;
+      const barW        = Math.round((hasRevenue ? g.revenue : g.count) / maxVal * 100);
+      const subLine     = [
+        g.guests > 0 ? `${g.guests} гостей` : "",
+        g.revenue > 0 ? fmtMoneyK(g.revenue) : "",
+      ].filter(Boolean).join(" · ");
+      const subHtml = subLine ? `<div class="src-sub">${subLine}</div>` : "";
 
       if (hasChildren) {
         html += `<div class="src-row${isActive ? " active" : ""}" data-toggle-group="${escHtml(key)}">
           <div class="src-label">
             <div class="src-name">${escHtml(key)}</div>
-            ${guestsHtml}
+            ${subHtml}
           </div>
           <div class="src-bar-wrap"><div class="src-bar" style="width:${barW}%"></div></div>
           <div class="src-count">${g.count}</div>
@@ -1335,10 +1372,13 @@ function _renderSources(bySource, maxCount) {
         </div>`;
         if (isExpanded) {
           childEntries.forEach(([src, d]) => {
-            const cActive  = _activeSource === src;
-            const cGuests  = d.guests > 0 ? ` · ${d.guests} г.` : "";
+            const cActive = _activeSource === src;
+            const cSub = [
+              d.guests > 0 ? `${d.guests} г.` : "",
+              d.revenue > 0 ? fmtMoneyK(d.revenue) : "",
+            ].filter(Boolean).join(" · ");
             html += `<div class="src-child${cActive ? " active" : ""}" data-toggle-source="${escHtml(src)}">
-              <div class="src-child-name">${escHtml(src)}${cGuests ? `<span style="font-size:10px;opacity:.6">${cGuests}</span>` : ""}</div>
+              <div class="src-child-name">${escHtml(src)}${cSub ? `<span style="font-size:10px;opacity:.6"> · ${cSub}</span>` : ""}</div>
               <div class="src-child-count">${d.count}</div>
               <div class="src-child-x">${cActive ? "✕" : ""}</div>
             </div>`;
@@ -1350,7 +1390,7 @@ function _renderSources(bySource, maxCount) {
         html += `<div class="src-row${srcAct ? " active" : ""}" data-toggle-source="${escHtml(src)}">
           <div class="src-label">
             <div class="src-name">${escHtml(src)}</div>
-            ${guestsHtml}
+            ${subHtml}
           </div>
           <div class="src-bar-wrap"><div class="src-bar" style="width:${barW}%"></div></div>
           <div class="src-count">${g.count}</div>
@@ -1486,12 +1526,58 @@ async function loadStats() {
     const futureBadge = statsAllMode
       ? `<span class="stat-pill">${s.future} впереди</span>` : "";
 
+    // MoM badge
+    const momVal  = s.mom_change || 0;
+    const momCls  = momVal > 0 ? "up" : momVal < 0 ? "down" : "flat";
+    const momSign = momVal > 0 ? "▲" : momVal < 0 ? "▼" : "—";
+    const momBadge = statsAllMode
+      ? `<span class="mom-badge ${momCls}">${momSign} ${Math.abs(momVal)} к пр.мес.</span>` : "";
+
+    // Средний чек
+    const avgCheckHtml = s.avg_check > 0
+      ? `<div class="metric-card">
+          <div class="metric-label">Средний чек</div>
+          <div class="metric-value">${fmtMoneyK(s.avg_check)}</div>
+          <div class="metric-sub">на один банкет</div>
+        </div>` : "";
+
+    // Средние гости
+    const avgGuestsHtml = s.avg_guests > 0
+      ? `<div class="metric-card">
+          <div class="metric-label">Гостей в среднем</div>
+          <div class="metric-value">${s.avg_guests}</div>
+          <div class="metric-sub">на банкет</div>
+        </div>` : "";
+
+    // Долг
+    const debtHtml = s.total_debt > 0
+      ? `<div class="metric-card">
+          <div class="metric-label">Долг</div>
+          <div class="metric-value" style="color:#8B3A52">${fmtMoneyK(s.total_debt)}</div>
+          <div class="metric-sub">сбор ${s.collection_rate}%</div>
+        </div>` : "";
+
+    // Загрузка (только при фильтре по месяцу)
+    const occupancyHtml = (s.occupancy_pct > 0)
+      ? `<div class="occupancy-bar-wrap">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:10px;font-weight:700;color:var(--hint);text-transform:uppercase;letter-spacing:.5px">Загруженность</span>
+            <span style="font-size:15px;font-weight:800;color:var(--text)">${s.occupancy_pct}%</span>
+          </div>
+          <div class="occupancy-track">
+            <div class="occupancy-fill" style="width:${s.occupancy_pct}%"></div>
+          </div>
+        </div>` : "";
+
+    const hasMetrics = avgCheckHtml || avgGuestsHtml || debtHtml;
+    const metricsCount = [avgCheckHtml, avgGuestsHtml, debtHtml].filter(Boolean).length;
+
     el.innerHTML = `
       <div class="stats-bento">
         <div class="stat-card stat-wide">
           <div>
             <div class="stat-label">${monthLabel ? escHtml(monthLabel) : "Все время"}${srcLabel}</div>
-            <div class="stat-number">${s.total}</div>
+            <div class="stat-number">${s.total}${momBadge}</div>
           </div>
           <div class="stat-wide-badges">
             ${futureBadge}
@@ -1520,12 +1606,18 @@ async function loadStats() {
         </div>
         <div class="fin-sum-card">
           <div class="fin-sum-label">Прибыль</div>
-          <div id="fin-profit-stat" class="fin-sum-value fin-sum-profit"
+          <div class="fin-sum-value"
                style="color:${(s.fin_profit||0)>0?'#2E7A56':(s.fin_profit||0)<0?'#8B3A52':'var(--hint)'}">
             ${(s.fin_profit||0)>0?'+':''}${fmtMoneyK(s.fin_profit)}
           </div>
         </div>
       </div>
+
+      ${hasMetrics ? `<div class="metrics-row${metricsCount===3?' three':''}">
+        ${avgCheckHtml}${avgGuestsHtml}${debtHtml}
+      </div>` : ""}
+
+      ${occupancyHtml}
 
       <div class="section-header">
         <div class="stats-section-title">По месяцам</div>
