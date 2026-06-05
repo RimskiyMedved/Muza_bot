@@ -43,6 +43,8 @@ services:
       - ./api.py:/app/api.py   # hot-reload: изменения без rebuild
       - ./sheets.py:/app/sheets.py
       - ./database.py:/app/database.py
+      - ./utils.py:/app/utils.py
+      - ./config.py:/app/config.py
 
   # ── Caddy — HTTPS reverse proxy ──────────────────────────────────────────────
   caddy:
