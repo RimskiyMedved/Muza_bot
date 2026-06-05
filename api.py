@@ -243,6 +243,9 @@ async def get_booking(date_str: str, user: dict = Depends(_require_admin)):
     if not result["found"]:
         raise HTTPException(404, "Booking not found")
     result["date"] = date_str
+    # Добавляем вычисленные финансы (прибыль, расходы по статьям)
+    fin = database.compute_financials(result)
+    result.update(fin)
     return result
 
 
