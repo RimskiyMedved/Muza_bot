@@ -677,7 +677,7 @@
     /* Строка 2: имя */
     .list-card-name {
       grid-column: 1; grid-row: 2;
-      font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.2;
+      font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.2;
     }
 
     /* Строка 3: телефон */
@@ -687,8 +687,8 @@
       display: flex; align-items: center; justify-content: space-between;
     }
     .list-card-phone a {
-      font-size: 14px; font-weight: 700;
-      color: #1A1410; text-decoration: none; letter-spacing: .2px;
+      font-size: 12px; font-weight: 600;
+      color: rgba(42,30,20,.65); text-decoration: none; letter-spacing: .2px;
     }
     .list-card-phone .no-phone {
       font-size: 12px; color: var(--hint); font-style: italic;
@@ -899,8 +899,8 @@
 
 <div id="listView">
   <div class="list-filters" id="listFilters">
-    <button class="list-filter-btn active" data-filter="all" onclick="setListFilter('all',this)">Все</button>
-    <button class="list-filter-btn" data-filter="future" onclick="setListFilter('future',this)">Предстоящие</button>
+    <button class="list-filter-btn" data-filter="all" onclick="setListFilter('all',this)">Все</button>
+    <button class="list-filter-btn active" data-filter="future" onclick="setListFilter('future',this)">Предстоящие</button>
     <button class="list-filter-btn" data-filter="past" onclick="setListFilter('past',this)">Прошедшие</button>
   </div>
   <input class="list-search" id="listSearch" type="search" placeholder="Поиск по имени или телефону…">
@@ -1959,10 +1959,21 @@ async function submitEdit(dateStr) {
     setSheetLoading(true);
     await apiFetch("PUT", `/api/booking/${encodeURIComponent(dateStr)}`, data);
     haptic.success();
-    closeSheet(); showToast("Бронь обновлена");
-    await loadMonth();
+    showToast("Бронь обновлена");
+    // Возвращаем в просмотр — данные уже сохранены, фин.вкладка покажет актуальные цифры
+    await openViewSheet({ date: dateStr, ...data });
+    // Обновляем календарь и список фоново
+    loadMonth();
+    if (currentView === "list") loadList();
   } catch (e) { haptic.error(); showToast("Ошибка: " + e.message); }
   finally { setSheetLoading(false); }
+}
+
+// Открыть карточку бронирования из списка
+function openFromList(dateStr) {
+  haptic.light();
+  const b = _listData.find(x => x.date === dateStr);
+  if (b) openViewSheet(b);
 }
 
 function confirmDelete(day) {
@@ -2282,7 +2293,7 @@ loadSources();
 
 // ─── List view ────────────────────────────────────────────────────────────────
 let _listData = [];
-let _listFilter = "all";
+let _listFilter = "future";
 let _listQuery = "";
 let _listMonth = "";
 let _monthPills = [];
@@ -2310,10 +2321,13 @@ function setListFilter(f, btn) {
 }
 
 function renderList() {
-  let data = _listData;
+  const future = _listData.filter(b =>  b.future);           // возрастающий порядок
+  const past   = _listData.filter(b => !b.future).reverse(); // убывающий (новые сверху)
 
-  if (_listFilter === "future") data = data.filter(b => b.future);
-  if (_listFilter === "past")   data = data.filter(b => !b.future);
+  let data;
+  if      (_listFilter === "future") data = future;
+  else if (_listFilter === "past")   data = past;
+  else                               data = [...future, ...past];
 
   if (_listMonth) data = data.filter(b => b.date.slice(3, 10) === _listMonth);
 
@@ -2348,7 +2362,8 @@ function renderList() {
           return `<span class="profit-badge ${p >= 0 ? "pos" : "neg"}">${sign}${k}к</span>`;
         })()
       : "";
-    return `<div class="list-card ${future}">
+    return `<div class="list-card ${future}" style="cursor:pointer"
+               onclick="openFromList('${escHtml(b.date)}')">
       <div class="list-card-head">
         <span class="list-card-date">${escHtml(b.date)}</span>
         <span class="list-card-weekday">${escHtml(b.weekday)}</span>
@@ -2357,7 +2372,7 @@ function renderList() {
       <div class="list-card-name">${escHtml(b.name || "—")}</div>
       <div class="list-card-phone">
         ${normPhone
-          ? `<a href="tel:${escHtml(rawPhone)}">${escHtml(normPhone)}</a>`
+          ? `<a href="tel:${escHtml(rawPhone)}" onclick="event.stopPropagation()">${escHtml(normPhone)}</a>`
           : `<span class="no-phone">Нет телефона</span>`}
         <span style="display:flex;align-items:center;gap:5px">${src}${profitBadge}</span>
       </div>
