@@ -7,6 +7,18 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+  <style>
+    .flatpickr-calendar { font-family: inherit; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,.18); border: none; }
+    .flatpickr-day.selected, .flatpickr-day.selected:hover { background: var(--gold,#C4A96B); border-color: var(--gold,#C4A96B); }
+    .flatpickr-day:hover { background: rgba(196,169,107,.15); }
+    .flatpickr-months .flatpickr-month { background: var(--gold,#C4A96B); border-radius: 16px 16px 0 0; }
+    .flatpickr-current-month .flatpickr-monthDropdown-months,
+    .flatpickr-current-month input.cur-year { color: #fff; font-weight: 700; }
+    .flatpickr-weekday { color: rgba(60,46,34,.5); font-weight: 600; }
+    .flatpickr-prev-month, .flatpickr-next-month { fill: #fff; }
+    .numInputWrapper span { border-color: transparent; }
+  </style>
   <style>
     :root {
       /* ── Премиум: горький шоколад + золото ── */
@@ -1794,8 +1806,9 @@ function buildForm(data, showDateField) {
   const dateF = showDateField
     ? `<div class="form-group">
         <label class="form-label">Дата</label>
-        <input class="form-input" id="f-date" type="date"
-               value="${toInputDate(data.date||"")}" />
+        <input class="form-input fp-date" id="f-date" type="text"
+               placeholder="дд.мм.гггг" readonly
+               value="${data.date||""}" />
       </div>`
     : `<input type="hidden" id="f-date" value="${escHtml(data.date||"")}" />`;
 
@@ -1821,6 +1834,12 @@ function buildForm(data, showDateField) {
       <input class="form-input" id="f-phone" type="tel"
              placeholder="+7 900 000 00 00"
              value="${escHtml(fmtPhone(data.phone||""))}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Дата договора</label>
+      <input class="form-input fp-date" id="f-contract_date" type="text"
+             placeholder="дд.мм.гггг" readonly
+             value="${data.contract_date||""}" />
     </div>
     <div class="section-sep">Дополнительно</div>
     <div class="form-group">
@@ -1852,23 +1871,19 @@ function buildForm(data, showDateField) {
                 placeholder="Пожелания, заметки…">${escHtml(data.comment||"")}</textarea>
     </div>
     <div class="section-sep">Финансы</div>
-    <div class="form-group">
-      <label class="form-label">Дата договора</label>
-      <input class="form-input" id="f-contract_date" type="date"
-             value="${toInputDate(data.contract_date||"")}"
-             onchange="toggleStaffFields(this.value)" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Стоимость аренды, ₽</label>
-      <input class="form-input" id="f-revenue_rent" type="number" min="0" inputmode="numeric"
-             placeholder="0" value="${data.revenue_rent > 0 ? data.revenue_rent : ""}"
-             oninput="updateLivePreview()" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Стоимость меню, ₽</label>
-      <input class="form-input" id="f-revenue_menu" type="number" min="0" inputmode="numeric"
-             placeholder="0" value="${data.revenue_menu > 0 ? data.revenue_menu : ""}"
-             oninput="updateLivePreview()" />
+    <div class="form-group" style="flex-direction:row;gap:8px">
+      <div style="flex:1;min-width:0">
+        <label class="form-label">Аренда, ₽</label>
+        <input class="form-input" id="f-revenue_rent" type="number" min="0" inputmode="numeric"
+               placeholder="0" value="${data.revenue_rent > 0 ? data.revenue_rent : ""}"
+               oninput="updateLivePreview()" />
+      </div>
+      <div style="flex:1;min-width:0">
+        <label class="form-label">Меню, ₽</label>
+        <input class="form-input" id="f-revenue_menu" type="number" min="0" inputmode="numeric"
+               placeholder="0" value="${data.revenue_menu > 0 ? data.revenue_menu : ""}"
+               oninput="updateLivePreview()" />
+      </div>
     </div>
     <div id="livePreviewRow" style="display:flex;justify-content:space-between;align-items:center;
          padding:8px 12px;background:rgba(60,46,34,.05);border-radius:10px;margin-bottom:2px;
@@ -1886,8 +1901,9 @@ function buildForm(data, showDateField) {
         <input class="form-input" id="f-paid_advance" type="number" min="0" inputmode="numeric"
                placeholder="0" value="${data.paid_advance > 0 ? data.paid_advance : ""}"
                style="flex:1;min-width:0" />
-        <input class="form-input" id="f-paid_advance_date" type="date"
-               value="${toInputDate(data.paid_advance_date||"")}" style="width:150px;flex-shrink:0" />
+        <input class="form-input fp-date" id="f-paid_advance_date" type="text"
+               placeholder="дд.мм.гггг" readonly
+               value="${data.paid_advance_date||""}" style="width:140px;flex-shrink:0" />
       </div>
     </div>
     <div class="form-group">
@@ -1896,8 +1912,9 @@ function buildForm(data, showDateField) {
         <input class="form-input" id="f-paid_rent" type="number" min="0" inputmode="numeric"
                placeholder="0" value="${data.paid_rent > 0 ? data.paid_rent : ""}"
                style="flex:1;min-width:0" />
-        <input class="form-input" id="f-paid_rent_date" type="date"
-               value="${toInputDate(data.paid_rent_date||"")}" style="width:150px;flex-shrink:0" />
+        <input class="form-input fp-date" id="f-paid_rent_date" type="text"
+               placeholder="дд.мм.гггг" readonly
+               value="${data.paid_rent_date||""}" style="width:140px;flex-shrink:0" />
       </div>
     </div>
     <div class="form-group">
@@ -1906,8 +1923,9 @@ function buildForm(data, showDateField) {
         <input class="form-input" id="f-paid_final" type="number" min="0" inputmode="numeric"
                placeholder="0" value="${data.paid_final > 0 ? data.paid_final : ""}"
                style="flex:1;min-width:0" />
-        <input class="form-input" id="f-paid_final_date" type="date"
-               value="${toInputDate(data.paid_final_date||"")}" style="width:150px;flex-shrink:0" />
+        <input class="form-input fp-date" id="f-paid_final_date" type="text"
+               placeholder="дд.мм.гггг" readonly
+               value="${data.paid_final_date||""}" style="width:140px;flex-shrink:0" />
       </div>
     </div>
     <div class="section-sep">Персонал
@@ -1935,24 +1953,38 @@ function buildForm(data, showDateField) {
         <label for="f-has_assistant" style="flex:1;margin:0;font-weight:600">Помощник</label>
         <span style="font-size:12px;color:var(--hint)">${data.rate_assistant>0?fmtMoney(data.rate_assistant):""}</span>
       </div>
-      <div class="form-group">
-        <label class="form-label">Официанты</label>
-        <div class="stepper">
-          <button class="step-btn" type="button" onclick="stepField('f-staff_waiters',-1)" ${data.contract_date?"":"disabled"}>−</button>
-          <input class="step-input" id="f-staff_waiters" type="number" min="0"
-                 inputmode="numeric" placeholder="0" ${data.contract_date?"":"disabled"}
-                 value="${data.staff_waiters > 0 ? data.staff_waiters : ""}" />
-          <button class="step-btn" type="button" onclick="stepField('f-staff_waiters',1)" ${data.contract_date?"":"disabled"}>+</button>
+      <div style="display:flex;gap:12px;padding:4px 0">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">
+            Официанты
+            <span id="f-staff_waiters-cost" style="font-size:11px;color:var(--hint);margin-left:4px;font-weight:400">${data.staff_waiters>0&&data.rate_waiter>0?fmtMoney(data.staff_waiters*data.rate_waiter):""}</span>
+          </div>
+          <div class="stepper">
+            <button class="step-btn" type="button" ${data.contract_date?"":"disabled"}
+                    onclick="stepField('f-staff_waiters',-1);updateStaffCost('f-staff_waiters',${data.rate_waiter||7000})">−</button>
+            <input class="step-input" id="f-staff_waiters" type="number" min="0"
+                   inputmode="numeric" placeholder="0" ${data.contract_date?"":"disabled"}
+                   value="${data.staff_waiters > 0 ? data.staff_waiters : ""}"
+                   oninput="updateStaffCost('f-staff_waiters',${data.rate_waiter||7000})" />
+            <button class="step-btn" type="button" ${data.contract_date?"":"disabled"}
+                    onclick="stepField('f-staff_waiters',1);updateStaffCost('f-staff_waiters',${data.rate_waiter||7000})">+</button>
+          </div>
         </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Повара</label>
-        <div class="stepper">
-          <button class="step-btn" type="button" onclick="stepField('f-staff_cooks',-1)" ${data.contract_date?"":"disabled"}>−</button>
-          <input class="step-input" id="f-staff_cooks" type="number" min="0"
-                 inputmode="numeric" placeholder="0" ${data.contract_date?"":"disabled"}
-                 value="${data.staff_cooks > 0 ? data.staff_cooks : ""}" />
-          <button class="step-btn" type="button" onclick="stepField('f-staff_cooks',1)" ${data.contract_date?"":"disabled"}>+</button>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">
+            Повара
+            <span id="f-staff_cooks-cost" style="font-size:11px;color:var(--hint);margin-left:4px;font-weight:400">${data.staff_cooks>0&&data.rate_cook>0?fmtMoney(data.staff_cooks*data.rate_cook):""}</span>
+          </div>
+          <div class="stepper">
+            <button class="step-btn" type="button" ${data.contract_date?"":"disabled"}
+                    onclick="stepField('f-staff_cooks',-1);updateStaffCost('f-staff_cooks',${data.rate_cook||7000})">−</button>
+            <input class="step-input" id="f-staff_cooks" type="number" min="0"
+                   inputmode="numeric" placeholder="0" ${data.contract_date?"":"disabled"}
+                   value="${data.staff_cooks > 0 ? data.staff_cooks : ""}"
+                   oninput="updateStaffCost('f-staff_cooks',${data.rate_cook||7000})" />
+            <button class="step-btn" type="button" ${data.contract_date?"":"disabled"}
+                    onclick="stepField('f-staff_cooks',1);updateStaffCost('f-staff_cooks',${data.rate_cook||7000})">+</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1994,6 +2026,7 @@ function buildForm(data, showDateField) {
 function initFormWidgets(data) {
   _formSource = data.source || "";
   renderChipSelector();
+  setTimeout(initDatePickers, 0);
 }
 
 function stepGuests(delta) {
@@ -2061,25 +2094,23 @@ function getFormData() {
     : (selEl?.value || _formSource || "");
   const isAgency    = document.getElementById("f-is_agency")?.value === "1";
   const staffEnabled = !document.getElementById("f-staff_waiters")?.disabled;
-  const rawDate      = document.getElementById("f-date")?.value || "";
-  const dateVal      = rawDate.includes("-") ? fromInputDate(rawDate) : rawDate;
   return {
-    date:              dateVal,
+    date:              document.getElementById("f-date")?.value || "",
     name:              document.getElementById("f-name")?.value.trim()              || "",
     guests:            document.getElementById("f-guests")?.value.trim()            || "",
     phone:             document.getElementById("f-phone")?.value.trim()             || "",
     source:            finalSource,
     client_type:       isAgency ? "Агентство" : "",
     comment:           document.getElementById("f-comment")?.value.trim()           || "",
-    contract_date:     fromInputDate(document.getElementById("f-contract_date")?.value || ""),
+    contract_date:     document.getElementById("f-contract_date")?.value            || "",
     revenue_rent:      parseFloat(document.getElementById("f-revenue_rent")?.value)  || 0,
     revenue_menu:      parseFloat(document.getElementById("f-revenue_menu")?.value)  || 0,
     paid_advance:      parseFloat(document.getElementById("f-paid_advance")?.value)  || 0,
-    paid_advance_date: fromInputDate(document.getElementById("f-paid_advance_date")?.value || ""),
+    paid_advance_date: document.getElementById("f-paid_advance_date")?.value         || "",
     paid_rent:         parseFloat(document.getElementById("f-paid_rent")?.value)     || 0,
-    paid_rent_date:    fromInputDate(document.getElementById("f-paid_rent_date")?.value || ""),
+    paid_rent_date:    document.getElementById("f-paid_rent_date")?.value            || "",
     paid_final:        parseFloat(document.getElementById("f-paid_final")?.value)    || 0,
-    paid_final_date:   fromInputDate(document.getElementById("f-paid_final_date")?.value || ""),
+    paid_final_date:   document.getElementById("f-paid_final_date")?.value           || "",
     has_manager:            staffEnabled ? (document.getElementById("f-has_manager")?.checked   ? 1 : 0) : 1,
     has_chef:               staffEnabled ? (document.getElementById("f-has_chef")?.checked      ? 1 : 0) : 1,
     has_assistant:          staffEnabled ? (document.getElementById("f-has_assistant")?.checked  ? 1 : 0) : 1,
@@ -2112,6 +2143,29 @@ function toggleStaffFields(val) {
     const hint = sep.querySelector("span");
     if (hint) hint.style.display = on ? "none" : "";
   }
+}
+
+function initDatePickers() {
+  if (typeof flatpickr === "undefined") return;
+  document.querySelectorAll(".fp-date").forEach(el => {
+    if (el._flatpickr) el._flatpickr.destroy();
+    const isContract = el.id === "f-contract_date";
+    flatpickr(el, {
+      locale: "ru",
+      dateFormat: "d.m.Y",
+      allowInput: false,
+      disableMobile: true,
+      onChange(selectedDates, dateStr) {
+        if (isContract) toggleStaffFields(dateStr);
+      }
+    });
+  });
+}
+
+function updateStaffCost(fieldId, rate) {
+  const count = parseInt(document.getElementById(fieldId)?.value) || 0;
+  const span  = document.getElementById(fieldId + "-cost");
+  if (span) span.textContent = count > 0 ? fmtMoney(count * rate) : "";
 }
 
 function updateLivePreview() {
@@ -2721,5 +2775,7 @@ document.addEventListener("click", e => {
   }
 });
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/ru.js"></script>
 </body>
 </html>

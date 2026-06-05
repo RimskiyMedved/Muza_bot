@@ -122,6 +122,8 @@ def compute_financials(booking: dict, rates: dict | None = None) -> dict:
         "rate_manager":    cost_manager,
         "rate_chef":       cost_chef,
         "rate_assistant":  cost_assistant,
+        "rate_waiter":     cost_waiter,
+        "rate_cook":       cost_cook,
     }
 
 
