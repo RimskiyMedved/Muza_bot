@@ -10,6 +10,8 @@ api.py — FastAPI бэкенд для Telegram Mini App «Муза».
   DELETE /api/booking/{date}    → отменить бронь
   GET  /api/sources             → уникальные источники из реальных броней
   GET  /api/stats               → статистика бронирований
+  GET  /api/settings            → настройки ставок (только для админа)
+  PUT  /api/settings/{key}      → обновить одну настройку
   POST /api/sync                → принудительная синхронизация из Google Sheets
 
 Аутентификация: заголовок X-Init-Data с initData от Telegram WebApp SDK.
@@ -213,7 +215,6 @@ async def get_calendar(month: str = None, user: dict = Depends(_require_admin)):
             entry["source"]      = b.get("source", "")
             entry["client_type"] = b.get("client_type", "")
             entry["comment"]     = b.get("comment", "")
-            entry["tg_nick"]     = b.get("tg_nick", "")
         elif d_str in free_set:
             entry["status"] = "free"
         else:
@@ -248,14 +249,28 @@ async def get_booking(date_str: str, user: dict = Depends(_require_admin)):
 # ─── Schemas ──────────────────────────────────────────────────────────────────
 
 class BookingIn(BaseModel):
-    date:        str
-    guests:      str = ""
-    name:        str = ""
-    phone:       str = ""
-    source:      str = ""
-    client_type: str = ""
-    comment:     str = ""
-    tg_nick:     str = ""
+    date:              str
+    guests:            str   = ""
+    name:              str   = ""
+    phone:             str   = ""
+    source:            str   = ""
+    client_type:       str   = ""
+    comment:           str   = ""
+    contract_date:     str   = ""
+    revenue_rent:      float = 0
+    revenue_menu:      float = 0
+    paid_advance:      float = 0
+    paid_rent:         float = 0
+    paid_final:        float = 0
+    staff_waiters:     int   = 0
+    staff_cooks:       int   = 0
+    paid_advance_date: str   = ""
+    paid_rent_date:    str   = ""
+    paid_final_date:   str   = ""
+
+
+class SettingIn(BaseModel):
+    value: float
 
 
 # ─── Create booking ───────────────────────────────────────────────────────────
@@ -274,7 +289,15 @@ async def create_booking(body: BookingIn, user: dict = Depends(_require_admin)):
     _sheets_write("add", d=d, guests=body.guests, name=body.name,
                   phone=body.phone, source=body.source,
                   client_type=body.client_type, comment=body.comment,
-                  tg_nick=body.tg_nick, changed_by=username)
+                  contract_date=body.contract_date,
+                  revenue_rent=body.revenue_rent, revenue_menu=body.revenue_menu,
+                  paid_advance=body.paid_advance, paid_rent=body.paid_rent,
+                  paid_final=body.paid_final,
+                  staff_waiters=body.staff_waiters, staff_cooks=body.staff_cooks,
+                  paid_advance_date=body.paid_advance_date,
+                  paid_rent_date=body.paid_rent_date,
+                  paid_final_date=body.paid_final_date,
+                  changed_by=username)
 
     database.log_access(user.get("id", 0), username, f"create:{body.date}")
     log.info("✅ Бронь создана: %s  (%s, by %s)", body.date, body.name, username)
@@ -296,7 +319,15 @@ async def update_booking(date_str: str, body: BookingIn, user: dict = Depends(_r
     _sheets_write("edit", d=d, guests=body.guests, name=body.name,
                   phone=body.phone, source=body.source,
                   client_type=body.client_type, comment=body.comment,
-                  tg_nick=body.tg_nick, changed_by=username)
+                  contract_date=body.contract_date,
+                  revenue_rent=body.revenue_rent, revenue_menu=body.revenue_menu,
+                  paid_advance=body.paid_advance, paid_rent=body.paid_rent,
+                  paid_final=body.paid_final,
+                  staff_waiters=body.staff_waiters, staff_cooks=body.staff_cooks,
+                  paid_advance_date=body.paid_advance_date,
+                  paid_rent_date=body.paid_rent_date,
+                  paid_final_date=body.paid_final_date,
+                  changed_by=username)
 
     database.log_access(user.get("id", 0), username, f"edit:{date_str}")
     log.info("✏️  Бронь изменена: %s  (by %s)", date_str, username)
@@ -349,7 +380,17 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 client_type=kwargs.get("client_type", ""),
                 comment=kwargs.get("comment", ""),
                 changed_by=changed_by,
-                tg_nick=kwargs.get("tg_nick", ""),
+                contract_date=kwargs.get("contract_date", ""),
+                revenue_rent=kwargs.get("revenue_rent", 0),
+                revenue_menu=kwargs.get("revenue_menu", 0),
+                paid_advance=kwargs.get("paid_advance", 0),
+                paid_rent=kwargs.get("paid_rent", 0),
+                paid_final=kwargs.get("paid_final", 0),
+                staff_waiters=kwargs.get("staff_waiters", 0),
+                staff_cooks=kwargs.get("staff_cooks", 0),
+                paid_advance_date=kwargs.get("paid_advance_date", ""),
+                paid_rent_date=kwargs.get("paid_rent_date", ""),
+                paid_final_date=kwargs.get("paid_final_date", ""),
             )
         elif action == "edit":
             edit_booking(
@@ -361,7 +402,17 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 source=kwargs.get("source", ""),
                 client_type=kwargs.get("client_type", ""),
                 comment=kwargs.get("comment", ""),
-                tg_nick=kwargs.get("tg_nick", ""),
+                contract_date=kwargs.get("contract_date", ""),
+                revenue_rent=kwargs.get("revenue_rent", 0),
+                revenue_menu=kwargs.get("revenue_menu", 0),
+                paid_advance=kwargs.get("paid_advance", 0),
+                paid_rent=kwargs.get("paid_rent", 0),
+                paid_final=kwargs.get("paid_final", 0),
+                staff_waiters=kwargs.get("staff_waiters", 0),
+                staff_cooks=kwargs.get("staff_cooks", 0),
+                paid_advance_date=kwargs.get("paid_advance_date", ""),
+                paid_rent_date=kwargs.get("paid_rent_date", ""),
+                paid_final_date=kwargs.get("paid_final_date", ""),
             )
         elif action == "remove":
             remove_booking(target=d)
@@ -480,6 +531,32 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
     }
 
 
+# ─── Settings (admin) ────────────────────────────────────────────────────────
+
+@app.get("/api/settings")
+async def get_settings(user: dict = Depends(_require_admin)):
+    """Возвращает все настройки ставок."""
+    settings = database.get_settings()
+    return {
+        k: {"value": v, "label": database.SETTINGS_LABELS.get(k, k)}
+        for k, v in settings.items()
+    }
+
+
+@app.put("/api/settings/{key}")
+async def update_setting(key: str, body: SettingIn, user: dict = Depends(_require_admin)):
+    """Обновляет одну настройку."""
+    if body.value < 0:
+        raise HTTPException(400, "Value must be non-negative")
+    ok = database.update_setting(key, body.value)
+    if not ok:
+        raise HTTPException(404, f"Unknown setting key: {key}")
+    username = _username(user)
+    database.log_access(user.get("id", 0), username, f"settings:{key}={body.value}")
+    log.info("⚙️  Настройка изменена: %s = %s  (by %s)", key, body.value, username)
+    return {"ok": True, "key": key, "value": body.value}
+
+
 # ─── Список всех бронирований ────────────────────────────────────────────────
 
 @app.get("/api/bookings")
@@ -488,16 +565,20 @@ async def get_bookings(user: dict = Depends(_require_admin)):
     bookings = database.get_all_bookings()
     return [
         {
-            "date":        b["date"],
-            "weekday":     b["weekday"],
-            "name":        b["name"],
-            "phone":       b["phone"],
-            "guests":      b["guests"],
-            "source":      b["source"],
-            "client_type": b["client_type"],
-            "comment":     b["comment"],
-            "tg_nick":     b.get("tg_nick", ""),
-            "future":      b["future"],
+            "date":         b["date"],
+            "weekday":      b["weekday"],
+            "name":         b["name"],
+            "phone":        b["phone"],
+            "guests":       b["guests"],
+            "source":       b["source"],
+            "client_type":  b["client_type"],
+            "comment":      b["comment"],
+            "future":       b["future"],
+            # финансовое резюме для карточки
+            "profit":       b.get("profit", 0),
+            "total_income": b.get("total_income", 0),
+            "total_expenses": b.get("total_expenses", 0),
+            "has_financials": bool(b.get("revenue_rent") or b.get("revenue_menu")),
         }
         for b in bookings
     ]

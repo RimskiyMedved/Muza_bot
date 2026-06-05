@@ -136,7 +136,7 @@ class TestCheckDate:
             sheets.HEADERS_BOOKINGS,
             [target_str, "20", "Иван", "+79001234567",
              "ВКонтакте", "Прямой", "Без комментариев", "Пятница",
-             "admin", "01.06.2026 12:00", "@ivan"],
+             "admin", "01.06.2026 12:00"],
         ]
         ws = _make_ws(rows)
         with patch.object(sheets, "_sheet_bookings", return_value=ws):
@@ -144,7 +144,6 @@ class TestCheckDate:
         assert result["found"] is True
         assert result["name"] == "Иван"
         assert result["guests"] == "20"
-        assert result["tg_nick"] == "@ivan"
 
     def test_not_found(self):
         ws = _make_ws([sheets.HEADERS_BOOKINGS])
@@ -169,19 +168,18 @@ class TestAddBooking:
                 date(2030, 9, 1), guests="30", name="Анна",
                 phone="+79991112233", source="Инстаграм",
                 client_type="Агентство", comment="",
-                changed_by="admin", tg_nick="@anna",
+                changed_by="admin",
             )
         ws_b.update.assert_called_once()
         uploaded = ws_b.update.call_args[0][1]
         # первая строка — заголовок, вторая — данные
         assert uploaded[1][2] == "Анна"
-        assert uploaded[1][10] == "@anna"
 
     def test_overwrites_existing_date(self):
         target = date(2030, 9, 1)
         target_str = target.strftime(DATE_FMT)
         existing_row = [target_str, "10", "Старый", "+70000000000",
-                        "", "", "", "Понедельник", "", "", ""]
+                        "", "", "", "Понедельник", "", ""]
         ws_b = _make_ws([sheets.HEADERS_BOOKINGS, existing_row])
         ws_f = _make_ws([sheets.HEADERS_FREE])
         with patch.object(sheets, "_sheet_bookings", return_value=ws_b), \
@@ -224,7 +222,7 @@ class TestRemoveBooking:
         target_str = target.strftime(DATE_FMT)
         ws_b = _make_ws([
             sheets.HEADERS_BOOKINGS,
-            [target_str, "5", "Кто-то", "", "", "", "", "Пятница", "", "", ""],
+            [target_str, "5", "Кто-то", "", "", "", "", "Пятница", "", ""],
         ])
         ws_f = _make_ws([sheets.HEADERS_FREE])
         with patch.object(sheets, "_sheet_bookings", return_value=ws_b), \
@@ -246,7 +244,7 @@ class TestRemoveBooking:
         target_str = target.strftime(DATE_FMT)
         ws_b = _make_ws([
             sheets.HEADERS_BOOKINGS,
-            [target_str, "5", "Тест", "", "", "", "", "Пятница", "", "", ""],
+            [target_str, "5", "Тест", "", "", "", "", "Пятница", "", ""],
         ])
         ws_f = _make_ws([sheets.HEADERS_FREE])
         with patch.object(sheets, "_sheet_bookings", return_value=ws_b), \
@@ -266,7 +264,7 @@ class TestEditBooking:
         target_str = target.strftime(DATE_FMT)
         ws = _make_ws([
             sheets.HEADERS_BOOKINGS,
-            [target_str, "10", "Старое имя", "+7999", "", "", "", "Среда", "", "", ""],
+            [target_str, "10", "Старое имя", "+7999", "", "", "", "Среда", "", ""],
         ])
         with patch.object(sheets, "_sheet_bookings", return_value=ws):
             result = sheets.edit_booking(target, changed_by="admin", name="Новое имя")

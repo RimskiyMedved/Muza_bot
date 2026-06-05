@@ -23,80 +23,6 @@ log = logging.getLogger("DB")
 DB_PATH  = os.path.join(os.path.dirname(__file__), "database.db")
 DATE_FMT = "%d.%m.%Y"
 
-# ─── Настройки (редактируемые через админку) ─────────────────────────────────
-
-SETTINGS_DEFAULTS: dict[str, float] = {
-    "cost_manager": 15_000.0,
-    "cost_chef":    18_000.0,
-    "cost_waiter":  7_000.0,
-    "cost_cook":    7_000.0,
-    "agency_pct":   10.0,     # % от меню (для агентства)
-}
-
-SETTINGS_LABELS: dict[str, str] = {
-    "cost_manager": "Менеджер (за банкет), ₽",
-    "cost_chef":    "Шеф-повар (за банкет), ₽",
-    "cost_waiter":  "Официант (за банкет), ₽",
-    "cost_cook":    "Повар (за банкет), ₽",
-    "agency_pct":   "Агентский процент, %",
-}
-
-_rates_cache: dict | None = None
-_rates_cache_ts: float = 0.0
-_RATES_CACHE_TTL = 60.0   # секунд
-
-
-def _get_rates() -> dict:
-    """Возвращает настройки ставок из кеша (обновляется раз в 60 с)."""
-    import time
-    global _rates_cache, _rates_cache_ts
-    if _rates_cache is None or (time.time() - _rates_cache_ts) > _RATES_CACHE_TTL:
-        try:
-            _rates_cache = get_settings()
-        except Exception:
-            _rates_cache = dict(SETTINGS_DEFAULTS)
-        _rates_cache_ts = time.time()
-    return _rates_cache
-
-
-def _invalidate_rates_cache() -> None:
-    global _rates_cache
-    _rates_cache = None
-
-
-def compute_financials(booking: dict, rates: dict | None = None) -> dict:
-    """Вычисляет финансовые показатели банкета. rates=None → читает из БД (кеш 60 с)."""
-    if rates is None:
-        rates = _get_rates()
-    cost_manager = float(rates.get("cost_manager", SETTINGS_DEFAULTS["cost_manager"]))
-    cost_chef    = float(rates.get("cost_chef",    SETTINGS_DEFAULTS["cost_chef"]))
-    cost_waiter  = float(rates.get("cost_waiter",  SETTINGS_DEFAULTS["cost_waiter"]))
-    cost_cook    = float(rates.get("cost_cook",    SETTINGS_DEFAULTS["cost_cook"]))
-    agency_pct   = float(rates.get("agency_pct",   SETTINGS_DEFAULTS["agency_pct"])) / 100.0
-
-    revenue_rent  = float(booking.get("revenue_rent")  or 0)
-    revenue_menu  = float(booking.get("revenue_menu")  or 0)
-    staff_waiters = int(booking.get("staff_waiters")   or 0)
-    staff_cooks   = int(booking.get("staff_cooks")     or 0)
-    is_agency     = (booking.get("client_type") or "").strip() == "Агентство"
-
-    total_income   = revenue_rent + revenue_menu
-    cost_waiters   = staff_waiters * cost_waiter
-    cost_cooks     = staff_cooks   * cost_cook
-    agency_fee     = round(revenue_menu * agency_pct, 2) if is_agency else 0.0
-    total_expenses = cost_manager + cost_chef + cost_waiters + cost_cooks + agency_fee
-    return {
-        "total_income":   total_income,
-        "cost_manager":   cost_manager,
-        "cost_chef":      cost_chef,
-        "cost_waiters":   cost_waiters,
-        "cost_cooks":     cost_cooks,
-        "agency_fee":     agency_fee,
-        "agency_pct":     agency_pct * 100,
-        "total_expenses": total_expenses,
-        "profit":         total_income - total_expenses,
-    }
-
 
 def _to_iso(date_str: str) -> str:
     """'15.06.2026' → '2026-06-15' для SQL ORDER BY / WHERE."""
@@ -131,29 +57,19 @@ def init_db() -> None:
     with _conn() as con:
         con.executescript("""
             CREATE TABLE IF NOT EXISTS bookings (
-                date          TEXT PRIMARY KEY,
-                date_iso      TEXT DEFAULT '',
-                guests        TEXT DEFAULT '',
-                name          TEXT DEFAULT '',
-                phone         TEXT DEFAULT '',
-                source        TEXT DEFAULT '',
-                client_type   TEXT DEFAULT '',
-                comment       TEXT DEFAULT '',
-                weekday       TEXT DEFAULT '',
-                changed_by    TEXT DEFAULT '',
-                changed_at    TEXT DEFAULT '',
-                synced_at     TEXT DEFAULT '',
-                contract_date TEXT DEFAULT '',
-                revenue_rent  REAL DEFAULT 0,
-                revenue_menu  REAL DEFAULT 0,
-                paid_advance  REAL DEFAULT 0,
-                paid_rent     REAL DEFAULT 0,
-                paid_final    REAL DEFAULT 0,
-                staff_waiters      INTEGER DEFAULT 0,
-                staff_cooks        INTEGER DEFAULT 0,
-                paid_advance_date  TEXT DEFAULT '',
-                paid_rent_date     TEXT DEFAULT '',
-                paid_final_date    TEXT DEFAULT ''
+                date         TEXT PRIMARY KEY,   -- дд.мм.гггг
+                date_iso     TEXT DEFAULT '',    -- YYYY-MM-DD для SQL-сортировки
+                guests       TEXT DEFAULT '',
+                name         TEXT DEFAULT '',
+                phone        TEXT DEFAULT '',
+                source       TEXT DEFAULT '',
+                client_type  TEXT DEFAULT '',
+                comment      TEXT DEFAULT '',
+                weekday      TEXT DEFAULT '',
+                tg_nick      TEXT DEFAULT '',
+                changed_by   TEXT DEFAULT '',
+                changed_at   TEXT DEFAULT '',
+                synced_at    TEXT DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS free_dates (
@@ -193,11 +109,6 @@ def init_db() -> None:
                 seen_at      TEXT DEFAULT ''
             );
 
-            CREATE TABLE IF NOT EXISTS settings (
-                key   TEXT PRIMARY KEY,
-                value TEXT DEFAULT ''
-            );
-
             CREATE TABLE IF NOT EXISTS avito_chat_state (
                 chat_id          TEXT PRIMARY KEY,
                 greeted          INTEGER DEFAULT 0,
@@ -218,30 +129,10 @@ def init_db() -> None:
         """)
 
     # ── Миграции: добавляем колонки в уже существующие БД ────────────────────
+    _safe_alter("ALTER TABLE bookings ADD COLUMN tg_nick TEXT DEFAULT ''")
     _safe_alter("ALTER TABLE bookings ADD COLUMN date_iso TEXT DEFAULT ''")
     _safe_alter("ALTER TABLE free_dates ADD COLUMN date_iso TEXT DEFAULT ''")
     _safe_alter("ALTER TABLE leads ADD COLUMN phone_norm TEXT DEFAULT ''")
-    # Финансовые поля (v2)
-    _safe_alter("ALTER TABLE bookings ADD COLUMN contract_date TEXT DEFAULT ''")
-    _safe_alter("ALTER TABLE bookings ADD COLUMN revenue_rent REAL DEFAULT 0")
-    _safe_alter("ALTER TABLE bookings ADD COLUMN revenue_menu REAL DEFAULT 0")
-    _safe_alter("ALTER TABLE bookings ADD COLUMN paid_advance REAL DEFAULT 0")
-    _safe_alter("ALTER TABLE bookings ADD COLUMN paid_rent REAL DEFAULT 0")
-    _safe_alter("ALTER TABLE bookings ADD COLUMN paid_final REAL DEFAULT 0")
-    _safe_alter("ALTER TABLE bookings ADD COLUMN staff_waiters INTEGER DEFAULT 0")
-    _safe_alter("ALTER TABLE bookings ADD COLUMN staff_cooks INTEGER DEFAULT 0")
-    # Даты оплат (v3)
-    _safe_alter("ALTER TABLE bookings ADD COLUMN paid_advance_date TEXT DEFAULT ''")
-    _safe_alter("ALTER TABLE bookings ADD COLUMN paid_rent_date TEXT DEFAULT ''")
-    _safe_alter("ALTER TABLE bookings ADD COLUMN paid_final_date TEXT DEFAULT ''")
-
-    # ── Заполняем настройки по умолчанию ─────────────────────────────────────
-    with _conn() as con:
-        for key, value in SETTINGS_DEFAULTS.items():
-            con.execute(
-                "INSERT OR IGNORE INTO settings (key, value) VALUES (?,?)",
-                (key, str(value)),
-            )
 
     # ── Заполняем date_iso для существующих строк (одноразовая миграция) ─────
     with _conn() as con:
@@ -281,37 +172,6 @@ def _safe_alter(sql: str) -> None:
         pass
 
 
-# ─── Настройки ────────────────────────────────────────────────────────────────
-
-def get_settings() -> dict:
-    """Возвращает все настройки из БД, дополняя значениями по умолчанию."""
-    with _conn() as con:
-        rows = con.execute("SELECT key, value FROM settings").fetchall()
-    result = dict(SETTINGS_DEFAULTS)
-    for row in rows:
-        if row["key"] in result:
-            try:
-                result[row["key"]] = float(row["value"])
-            except (ValueError, TypeError):
-                pass
-    return result
-
-
-def update_setting(key: str, value: float) -> bool:
-    """Обновляет одну настройку. Возвращает False если ключ неизвестен."""
-    if key not in SETTINGS_DEFAULTS:
-        return False
-    with _conn() as con:
-        con.execute(
-            "INSERT INTO settings (key, value) VALUES (?,?) "
-            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            (key, str(value)),
-        )
-    _invalidate_rates_cache()
-    log.info("⚙️  Настройка обновлена: %s = %s", key, value)
-    return True
-
-
 # ─── Синхронизация из Google Sheets ──────────────────────────────────────────
 
 def sync_from_sheets() -> None:
@@ -333,22 +193,11 @@ def sync_from_sheets() -> None:
             for b in bookings:
                 con.execute("""
                     INSERT INTO bookings
-                    (date, date_iso, guests, name, phone, source, client_type, comment,
-                     weekday, changed_by, changed_at, synced_at,
-                     contract_date,
-                     revenue_rent, revenue_menu, paid_advance, paid_rent, paid_final,
-                     staff_waiters, staff_cooks,
-                     paid_advance_date, paid_rent_date, paid_final_date)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    (date, date_iso, guests, name, phone, source, client_type, comment, weekday, changed_by, changed_at, synced_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (b["date"], _to_iso(b["date"]), b["guests"], b["name"], b["phone"],
                       b["source"], b["client_type"], b["comment"],
-                      b.get("weekday", ""), "", "", now,
-                      b.get("contract_date", ""),
-                      b.get("revenue_rent", 0), b.get("revenue_menu", 0),
-                      b.get("paid_advance", 0), b.get("paid_rent", 0), b.get("paid_final", 0),
-                      b.get("staff_waiters", 0), b.get("staff_cooks", 0),
-                      b.get("paid_advance_date", ""), b.get("paid_rent_date", ""),
-                      b.get("paid_final_date", "")))
+                      b["weekday"], "", "", now))
         log.info("✅ Синхронизировано бронирований: %d", len(bookings))
 
         # Свободные даты
@@ -400,26 +249,17 @@ def check_date(target: date) -> dict:
             "SELECT * FROM bookings WHERE date = ?", (target_str,)
         ).fetchone()
     if row:
-        keys = row.keys()
-        def _f(k): return float(row[k] or 0) if k in keys else 0.0
-        def _i(k): return int(row[k] or 0) if k in keys else 0
-        def _s(k, d=""): return row[k] if k in keys else d
-        b = {
-            "found": True,
-            "guests": row["guests"], "name": row["name"], "phone": row["phone"],
-            "source": row["source"], "client_type": row["client_type"],
-            "comment": row["comment"], "weekday": row["weekday"],
-            "contract_date": _s("contract_date"),
-            "revenue_rent": _f("revenue_rent"), "revenue_menu": _f("revenue_menu"),
-            "paid_advance": _f("paid_advance"), "paid_rent": _f("paid_rent"),
-            "paid_final": _f("paid_final"),
-            "staff_waiters": _i("staff_waiters"), "staff_cooks": _i("staff_cooks"),
-            "paid_advance_date": _s("paid_advance_date"),
-            "paid_rent_date":    _s("paid_rent_date"),
-            "paid_final_date":   _s("paid_final_date"),
+        return {
+            "found":       True,
+            "guests":      row["guests"],
+            "name":        row["name"],
+            "phone":       row["phone"],
+            "source":      row["source"],
+            "client_type": row["client_type"],
+            "comment":     row["comment"],
+            "weekday":     row["weekday"],
+            "tg_nick":     row["tg_nick"] if "tg_nick" in row.keys() else "",
         }
-        b.update(compute_financials(b))
-        return b
     return {"found": False}
 
 
@@ -434,26 +274,19 @@ def get_all_bookings() -> list[dict]:
     for row in rows:
         try:
             d = datetime.strptime(row["date"], DATE_FMT).date()
-            keys = row.keys()
-            def _f(k): return float(row[k] or 0) if k in keys else 0.0
-            def _i(k): return int(row[k] or 0) if k in keys else 0
-            def _s(k, dv=""): return row[k] if k in keys else dv
-            b = {
-                "date": row["date"], "date_obj": d, "future": d >= today,
-                "guests": row["guests"], "name": row["name"], "phone": row["phone"],
-                "source": row["source"], "client_type": row["client_type"],
-                "comment": row["comment"], "weekday": row["weekday"],
-                "contract_date": _s("contract_date"),
-                "revenue_rent": _f("revenue_rent"), "revenue_menu": _f("revenue_menu"),
-                "paid_advance": _f("paid_advance"), "paid_rent": _f("paid_rent"),
-                "paid_final": _f("paid_final"),
-                "staff_waiters": _i("staff_waiters"), "staff_cooks": _i("staff_cooks"),
-                "paid_advance_date": _s("paid_advance_date"),
-                "paid_rent_date":    _s("paid_rent_date"),
-                "paid_final_date":   _s("paid_final_date"),
-            }
-            b.update(compute_financials(b))
-            result.append(b)
+            result.append({
+                "date":        row["date"],
+                "date_obj":    d,
+                "guests":      row["guests"],
+                "name":        row["name"],
+                "phone":       row["phone"],
+                "source":      row["source"],
+                "client_type": row["client_type"],
+                "comment":     row["comment"],
+                "weekday":     row["weekday"],
+                "tg_nick":     row["tg_nick"] if "tg_nick" in row.keys() else "",
+                "future":      d >= today,
+            })
         except ValueError:
             pass
     return result
@@ -468,18 +301,8 @@ def upsert_booking(
     client_type: str = "",
     comment: str = "",
     weekday: str = "",
+    tg_nick: str = "",
     changed_by: str = "",
-    contract_date: str = "",
-    revenue_rent: float = 0,
-    revenue_menu: float = 0,
-    paid_advance: float = 0,
-    paid_rent: float = 0,
-    paid_final: float = 0,
-    staff_waiters: int = 0,
-    staff_cooks: int = 0,
-    paid_advance_date: str = "",
-    paid_rent_date: str = "",
-    paid_final_date: str = "",
 ) -> None:
     """Добавляет или обновляет бронь в SQLite."""
     target_str = target.strftime(DATE_FMT)
@@ -489,31 +312,18 @@ def upsert_booking(
         con.execute("""
             INSERT INTO bookings
             (date, date_iso, guests, name, phone, source, client_type, comment,
-             weekday, changed_by, changed_at, synced_at,
-             contract_date, revenue_rent, revenue_menu,
-             paid_advance, paid_rent, paid_final, staff_waiters, staff_cooks,
-             paid_advance_date, paid_rent_date, paid_final_date)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             weekday, tg_nick, changed_by, changed_at, synced_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(date) DO UPDATE SET
                 date_iso=excluded.date_iso,
                 guests=excluded.guests, name=excluded.name, phone=excluded.phone,
                 source=excluded.source, client_type=excluded.client_type,
                 comment=excluded.comment, weekday=excluded.weekday,
+                tg_nick=excluded.tg_nick,
                 changed_by=excluded.changed_by, changed_at=excluded.changed_at,
-                synced_at=excluded.synced_at,
-                contract_date=excluded.contract_date,
-                revenue_rent=excluded.revenue_rent, revenue_menu=excluded.revenue_menu,
-                paid_advance=excluded.paid_advance, paid_rent=excluded.paid_rent,
-                paid_final=excluded.paid_final,
-                staff_waiters=excluded.staff_waiters, staff_cooks=excluded.staff_cooks,
-                paid_advance_date=excluded.paid_advance_date,
-                paid_rent_date=excluded.paid_rent_date,
-                paid_final_date=excluded.paid_final_date
+                synced_at=excluded.synced_at
         """, (target_str, date_iso, guests, name, phone, source, client_type,
-              comment, weekday, changed_by, now, now,
-              contract_date, revenue_rent, revenue_menu,
-              paid_advance, paid_rent, paid_final, staff_waiters, staff_cooks,
-              paid_advance_date, paid_rent_date, paid_final_date))
+              comment, weekday, tg_nick, changed_by, now, now))
 
 
 def delete_booking(target: date) -> bool:
@@ -527,13 +337,7 @@ def delete_booking(target: date) -> bool:
 def update_booking_fields(target: date, changed_by: str = "", **fields) -> bool:
     """Обновляет отдельные поля брони."""
     target_str = target.strftime(DATE_FMT)
-    allowed = {
-        "guests", "name", "phone", "source", "client_type", "comment",
-        "contract_date",
-        "revenue_rent", "revenue_menu", "paid_advance", "paid_rent", "paid_final",
-        "staff_waiters", "staff_cooks",
-        "paid_advance_date", "paid_rent_date", "paid_final_date",
-    }
+    allowed = {"guests", "name", "phone", "source", "client_type", "comment", "tg_nick"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return False

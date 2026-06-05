@@ -59,10 +59,33 @@ WEEKDAYS = [
 ]
 
 HEADERS_BOOKINGS = [
+    # 0-9: основные поля
     "Дата", "Кол-во гостей", "Имя клиента", "Телефон",
     "Источник рекламы", "Прямой клиент / Агентство", "Комментарий", "День недели",
-    "Изменил", "Дата изм.", "Ник ТГ",
+    "Изменил", "Дата изм.",
+    # 10-20: финансовые поля (заполняются после банкета)
+    "Дата договора",
+    "Стоимость аренды", "Стоимость меню",
+    "Внесли аванс", "Внесли аренду", "Итоговая оплата",
+    "Кол-во официантов", "Кол-во поваров",
+    "Дата оплаты аванса", "Дата оплаты аренды", "Дата итоговой оплаты",
 ]
+
+# Индексы финансовых колонок в строке Sheets
+_FIN = {
+    "contract_date":      10,
+    "revenue_rent":       11,
+    "revenue_menu":       12,
+    "paid_advance":       13,
+    "paid_rent":          14,
+    "paid_final":         15,
+    "staff_waiters":      16,
+    "staff_cooks":        17,
+    "paid_advance_date":  18,
+    "paid_rent_date":     19,
+    "paid_final_date":    20,
+}
+
 HEADERS_FREE  = ["Дата", "День недели"]
 HEADERS_LEADS = ["Дата/Время", "Имя", "Телефон", "Ник ТГ", "Объявление"]
 
@@ -232,7 +255,6 @@ def check_date(target: date) -> dict:
             "client_type": v(5),
             "comment":     v(6),
             "weekday":     v(7),
-            "tg_nick":     v(10),
             "row":         i,
         }
     return {"found": False, "row": None}
@@ -246,18 +268,44 @@ def get_all_bookings() -> list[dict]:
     for row in _data_rows(ws):
         try:
             d = datetime.strptime(row[0].strip(), DATE_FMT).date()
+
+            def v(idx, default=""):
+                return row[idx].strip() if len(row) > idx else default
+
+            def vf(idx):
+                try:
+                    return float(v(idx, "0").replace(",", ".") or 0)
+                except (ValueError, AttributeError):
+                    return 0.0
+
+            def vi(idx):
+                try:
+                    return int(float(v(idx, "0").replace(",", ".") or 0))
+                except (ValueError, AttributeError):
+                    return 0
+
             result.append({
-                "date":        row[0].strip(),
-                "date_obj":    d,
-                "guests":      row[1].strip() if len(row) > 1 else "",
-                "name":        row[2].strip() if len(row) > 2 else "",
-                "phone":       row[3].strip() if len(row) > 3 else "",
-                "source":      row[4].strip() if len(row) > 4 else "",
-                "client_type": row[5].strip() if len(row) > 5 else "",
-                "comment":     row[6].strip() if len(row) > 6 else "",
-                "weekday":     row[7].strip() if len(row) > 7 else "",
-                "tg_nick":     row[10].strip() if len(row) > 10 else "",
-                "future":      d >= today,
+                "date":          v(0),
+                "date_obj":      d,
+                "guests":        v(1),
+                "name":          v(2),
+                "phone":         v(3),
+                "source":        v(4),
+                "client_type":   v(5),
+                "comment":       v(6),
+                "weekday":       v(7),
+                "contract_date": v(_FIN["contract_date"]),
+                "revenue_rent":  vf(_FIN["revenue_rent"]),
+                "revenue_menu":  vf(_FIN["revenue_menu"]),
+                "paid_advance":  vf(_FIN["paid_advance"]),
+                "paid_rent":     vf(_FIN["paid_rent"]),
+                "paid_final":    vf(_FIN["paid_final"]),
+                "staff_waiters":      vi(_FIN["staff_waiters"]),
+                "staff_cooks":        vi(_FIN["staff_cooks"]),
+                "paid_advance_date":  v(_FIN["paid_advance_date"]),
+                "paid_rent_date":     v(_FIN["paid_rent_date"]),
+                "paid_final_date":    v(_FIN["paid_final_date"]),
+                "future":             d >= today,
             })
         except ValueError:
             pass
@@ -274,7 +322,17 @@ def add_booking(
     client_type: str,
     comment: str,
     changed_by: str = "",
-    tg_nick: str = "",
+    contract_date: str = "",
+    revenue_rent: float = 0,
+    revenue_menu: float = 0,
+    paid_advance: float = 0,
+    paid_rent: float = 0,
+    paid_final: float = 0,
+    staff_waiters: int = 0,
+    staff_cooks: int = 0,
+    paid_advance_date: str = "",
+    paid_rent_date: str = "",
+    paid_final_date: str = "",
 ) -> None:
     """
     Добавляет или перезаписывает бронь.
@@ -286,12 +344,22 @@ def add_booking(
     new_row = [
         target_str, str(guests), name, phone,
         source, client_type, comment, _weekday(target),
-        changed_by, now_str, tg_nick,
+        changed_by, now_str,
+        contract_date,
+        revenue_rent, revenue_menu,
+        paid_advance, paid_rent, paid_final,
+        staff_waiters, staff_cooks,
+        paid_advance_date, paid_rent_date, paid_final_date,
     ]
     rows = _data_rows(ws)
     found = False
     for i, row in enumerate(rows):
         if row and row[0].strip() == target_str:
+            # Сохраняем финансы если новая строка их не содержит
+            if len(row) > 10 and not any([revenue_rent, revenue_menu, paid_advance,
+                                          paid_rent, paid_final, staff_waiters, staff_cooks,
+                                          paid_advance_date, paid_rent_date, paid_final_date]):
+                new_row[10:] = row[10:]
             rows[i] = new_row
             found = True
             break
@@ -306,7 +374,13 @@ def add_booking(
             _db.upsert_booking(
                 target, guests=guests, name=name, phone=phone,
                 source=source, client_type=client_type, comment=comment,
-                weekday=_weekday(target), changed_by=changed_by, tg_nick=tg_nick,
+                weekday=_weekday(target), changed_by=changed_by,
+                contract_date=contract_date,
+                paid_advance_date=paid_advance_date, paid_rent_date=paid_rent_date,
+                paid_final_date=paid_final_date,
+                revenue_rent=revenue_rent, revenue_menu=revenue_menu,
+                paid_advance=paid_advance, paid_rent=paid_rent, paid_final=paid_final,
+                staff_waiters=staff_waiters, staff_cooks=staff_cooks,
             )
             _db.remove_free_date(target)
         except Exception as _e:
@@ -350,13 +424,14 @@ def edit_booking(target: date, changed_by: str = "", **fields) -> bool:
     target_str = target.strftime(DATE_FMT)
     field_map = {
         "guests": 1, "name": 2, "phone": 3,
-        "source": 4, "client_type": 5, "comment": 6, "tg_nick": 10,
+        "source": 4, "client_type": 5, "comment": 6,
+        **{k: v for k, v in _FIN.items()},
     }
     rows = _data_rows(ws)
     for i, row in enumerate(rows):
         if not row or row[0].strip() != target_str:
             continue
-        while len(row) < 11:
+        while len(row) < max(field_map.values()) + 1:
             row.append("")
         for field, value in fields.items():
             if field in field_map:
