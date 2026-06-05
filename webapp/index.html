@@ -832,13 +832,18 @@
       color: var(--hint); font-size: 13px; line-height: 1.6;
     }
 
-    /* ── Profit badge in list ─────────────────────────────────────────── */
+    /* ── Profit / debt badges in list ────────────────────────────────── */
     .profit-badge {
       font-size: 10px; font-weight: 700; padding: 2px 7px;
       border-radius: 100px; white-space: nowrap; flex-shrink: 0;
     }
-    .profit-badge.pos { background: rgba(107,175,140,.18); color: #2E7A56; }
-    .profit-badge.neg { background: rgba(196,120,142,.2);  color: #8B3A52; }
+    .profit-badge.pos  { background: rgba(107,175,140,.18); color: #2E7A56; }
+    .profit-badge.neg  { background: rgba(196,120,142,.2);  color: #8B3A52; }
+    .debt-badge {
+      font-size: 10px; font-weight: 700; padding: 2px 7px;
+      border-radius: 100px; white-space: nowrap; flex-shrink: 0;
+      background: rgba(196,120,142,.25); color: #8B3A52;
+    }
 
     /* ── Admin settings ──────────────────────────────────────────────── */
     .settings-row {
@@ -922,6 +927,7 @@
     <button class="list-filter-btn" data-filter="all" onclick="setListFilter('all',this)">Все</button>
     <button class="list-filter-btn active" data-filter="future" onclick="setListFilter('future',this)">Предстоящие</button>
     <button class="list-filter-btn" data-filter="past" onclick="setListFilter('past',this)">Прошедшие</button>
+    <button class="list-filter-btn" data-filter="debt" onclick="setListFilter('debt',this)">💸 Долг</button>
   </div>
   <input class="list-search" id="listSearch" type="search" placeholder="Поиск по имени или телефону…">
   <div class="list-month-dropdown" id="listMonthDropdown">
@@ -1145,7 +1151,7 @@ function switchView(view) {
   document.getElementById("adminView").style.display     = view === "admin"    ? "block" : "none";
   document.getElementById("listView").style.display      = view === "list"     ? "block" : "none";
   document.getElementById("calHeader").style.display     = view === "calendar" ? "block" : "none";
-  document.getElementById("fabBtn").style.display        = view === "calendar" ? "flex"  : "none";
+  document.getElementById("fabBtn").style.display        = (view === "calendar" || view === "list") ? "flex" : "none";
   document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
   const tabEl = document.getElementById(`tab-${view}`);
   if (tabEl) tabEl.classList.add("active");
@@ -1628,21 +1634,22 @@ function switchDetailTab(tab) {
 }
 
 function _buildInfoTabHtml(b) {
+  const phone = fmtPhone(b.phone);
   const fields = [
-    ["Клиент",      b.name                 ],
-    ["Гости",       b.guests               ],
-    ["Телефон",     fmtPhone(b.phone)      ],
-    ["Источник",    b.source               ],
-    ["Тип",         b.client_type          ],
-    ["Договор",     b.contract_date        ],
-    ["Комментарий", b.comment              ],
+    ["Клиент",      b.name,         null  ],
+    ["Гости",       b.guests,       null  ],
+    ["Телефон",     phone,          phone ? `<a href="tel:${escHtml(b.phone)}" style="color:var(--gold);text-decoration:none;font-weight:600">${escHtml(phone)}</a>` : null],
+    ["Источник",    b.source,       null  ],
+    ["Тип",         b.client_type,  null  ],
+    ["Договор",     b.contract_date,null  ],
+    ["Комментарий", b.comment,      null  ],
   ].filter(([, v]) => v);
   return `<div class="booking-detail">
     <div class="detail-card">
-      ${fields.map(([l, v]) =>
+      ${fields.map(([l, v, html]) =>
         `<div class="detail-row">
           <div class="detail-label">${l}</div>
-          <div class="detail-value">${escHtml(String(v))}</div>
+          <div class="detail-value">${html || escHtml(String(v))}</div>
         </div>`).join("")}
     </div>
   </div>`;
@@ -1738,6 +1745,33 @@ function _buildFinanceTabHtml(b) {
   </div>`;
 }
 
+// ─── Quick add sheet ──────────────────────────────────────────────────────────
+function openQuickAddSheet() {
+  document.getElementById("sheetTitle").textContent = "Новая бронь";
+  document.getElementById("sheetDate").textContent  = "";
+  const data = { date:"", name:"", phone:"", guests:"", source:"", agency_pct: 10 };
+  document.getElementById("sheetContent").innerHTML = buildQuickForm(data);
+
+  const act = document.getElementById("sheetActions");
+  act.innerHTML = "";
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "btn btn-primary";
+  saveBtn.innerHTML = `${ICO.save} Сохранить`;
+  saveBtn.onclick = () => submitAdd();
+  act.appendChild(saveBtn);
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "btn btn-secondary";
+  cancelBtn.textContent = "Отмена";
+  cancelBtn.onclick = closeSheet;
+  act.appendChild(cancelBtn);
+
+  openSheet();
+  // инициализируем только дату и источник (без staffFields)
+  _formSource = "";
+  renderChipSelector();
+  setTimeout(initDatePickers, 0);
+}
+
 // ─── Add sheet ────────────────────────────────────────────────────────────────
 function openAddSheet(day) {
   document.getElementById("sheetTitle").textContent = "Новая бронь";
@@ -1784,6 +1818,79 @@ function openEditSheet(day) {
 
   openSheet();
   initFormWidgets(day);
+}
+
+// ─── Quick add form ───────────────────────────────────────────────────────────
+function buildQuickForm(data) {
+  return `<div class="form-body" id="quickFormBody">
+    <div class="form-group">
+      <label class="form-label">Дата</label>
+      <input class="form-input fp-date" id="f-date" type="text"
+             placeholder="дд.мм.гггг" readonly value="${escHtml(data.date||"")}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Имя клиента</label>
+      <input class="form-input" id="f-name" type="text"
+             placeholder="Иван Петров" value="${escHtml(data.name||"")}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Телефон</label>
+      <input class="form-input" id="f-phone" type="tel"
+             placeholder="+7 900 000 00 00"
+             value="${escHtml(fmtPhone(data.phone||""))}" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Количество гостей</label>
+      <div class="stepper">
+        <button class="step-btn" type="button" onclick="stepGuests(-10)">−</button>
+        <input class="step-input" id="f-guests" type="number" min="0" step="10"
+               inputmode="numeric" placeholder="0" value="${escHtml(data.guests||"")}" />
+        <button class="step-btn" type="button" onclick="stepGuests(10)">+</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Источник рекламы</label>
+      <select class="form-input" id="f-source">
+        <option value="">— не указан —</option>
+      </select>
+      <input class="form-input" id="f-source-custom" type="text"
+             placeholder="Введите источник…" style="margin-top:8px;display:none" />
+    </div>
+
+    <div id="quickExtraWrap" style="display:none">
+      <input type="hidden" id="f-contract_date" value="" />
+      <div class="section-sep">Детали</div>
+      <div class="form-group" style="margin-top:4px">
+        <label class="form-label agency-toggle-label" for="f-is_agency"
+               style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+          <span class="agency-check-box" id="agencyCheckBox"
+                style="width:20px;height:20px;min-width:20px;border-radius:6px;
+                       border:2px solid rgba(60,46,34,.35);display:flex;align-items:center;
+                       justify-content:center;font-size:14px;transition:all .15s;background:rgba(0,0,0,.06)">
+          </span>
+          <span style="font-size:14px;font-weight:500">Агентство</span>
+          <span style="font-size:11px;color:var(--hint);margin-left:2px">→ ${data.agency_pct||10}% от меню в расходах</span>
+        </label>
+        <input type="hidden" id="f-is_agency" value="0" />
+      </div>
+      <div class="form-group" style="margin-top:6px">
+        <label class="form-label">Комментарий</label>
+        <textarea class="form-textarea" id="f-comment" rows="2"
+                  placeholder="Пожелания, заметки…"></textarea>
+      </div>
+    </div>
+
+    <button type="button" id="quickExpandBtn"
+            style="background:none;border:none;color:var(--gold);font-size:13px;font-weight:600;
+                   cursor:pointer;padding:4px 0;text-align:left;font-family:inherit"
+            onclick="expandQuickForm()">+ Добавить детали</button>
+  </div>`;
+}
+
+function expandQuickForm() {
+  document.getElementById("quickExtraWrap").style.display = "block";
+  document.getElementById("quickExpandBtn").style.display = "none";
+  setTimeout(initDatePickers, 0);
 }
 
 // ─── Form build ───────────────────────────────────────────────────────────────
@@ -2322,7 +2429,8 @@ async function doDelete(day) {
 // ─── FAB ──────────────────────────────────────────────────────────────────────
 document.getElementById("fabBtn").addEventListener("click", () => {
   haptic.medium();
-  openAddSheet(null);
+  if (currentView === "list") openQuickAddSheet();
+  else openAddSheet(null);
 });
 
 // ─── Sheet helpers ────────────────────────────────────────────────────────────
@@ -2645,6 +2753,7 @@ function renderList() {
   let data;
   if      (_listFilter === "future") data = future;
   else if (_listFilter === "past")   data = past;
+  else if (_listFilter === "debt")   data = [...future, ...past].filter(b => b.debt > 0);
   else                               data = [...future, ...past];
 
   if (_listMonth) data = data.filter(b => b.date.slice(3, 10) === _listMonth);
@@ -2672,7 +2781,9 @@ function renderList() {
     const guests = b.guests ? `${escHtml(b.guests)} гост.` : "";
     const src = b.source
       ? `<span class="list-card-source">${escHtml(b.source)}</span>` : "";
-    const profitBadge = b.has_financials
+    const debtBadge = (b.debt > 0 && !b.future)
+      ? `<span class="debt-badge">Долг ${Math.round(b.debt/1000)}к</span>` : "";
+    const profitBadge = (!debtBadge && b.has_financials)
       ? (() => {
           const p = b.profit || 0;
           const k = Math.round(Math.abs(p) / 1000);
@@ -2693,7 +2804,7 @@ function renderList() {
         ${normPhone
           ? `<a href="tel:${escHtml(rawPhone)}" onclick="event.stopPropagation()">${escHtml(normPhone)}</a>`
           : `<span class="no-phone">Нет телефона</span>`}
-        <span style="display:flex;align-items:center;gap:5px">${src}${profitBadge}</span>
+        <span style="display:flex;align-items:center;gap:5px">${src}${debtBadge}${profitBadge}</span>
       </div>
     </div>`;
   }).join("");

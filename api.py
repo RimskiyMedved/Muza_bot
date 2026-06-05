@@ -686,8 +686,14 @@ async def update_setting(key: str, body: SettingIn, user: dict = Depends(_requir
 async def get_bookings(user: dict = Depends(_require_admin)):
     """Все бронирования, отсортированные по дате (для вкладки «Список»)."""
     bookings = database.get_all_bookings()
-    return [
-        {
+    result = []
+    for b in bookings:
+        total_income = float(b.get("revenue_rent") or 0) + float(b.get("revenue_menu") or 0)
+        total_paid   = (float(b.get("paid_advance") or 0) +
+                        float(b.get("paid_rent")    or 0) +
+                        float(b.get("paid_final")   or 0))
+        debt = round(total_income - total_paid, 2) if total_income > 0 else 0.0
+        result.append({
             "date":         b["date"],
             "weekday":      b["weekday"],
             "name":         b["name"],
@@ -698,13 +704,13 @@ async def get_bookings(user: dict = Depends(_require_admin)):
             "comment":      b["comment"],
             "future":       b["future"],
             # финансовое резюме для карточки
-            "profit":       b.get("profit", 0),
-            "total_income": b.get("total_income", 0),
+            "profit":         b.get("profit", 0),
+            "total_income":   total_income,
             "total_expenses": b.get("total_expenses", 0),
-            "has_financials": bool(b.get("revenue_rent") or b.get("revenue_menu")),
-        }
-        for b in bookings
-    ]
+            "has_financials": bool(total_income),
+            "debt":           debt if debt > 0 else 0.0,
+        })
+    return result
 
 
 # ─── Force sync ───────────────────────────────────────────────────────────────
