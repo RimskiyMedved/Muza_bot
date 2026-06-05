@@ -357,21 +357,6 @@
     .fin-sum-profit.neg { color: #8B3A52; }
     .fin-sum-profit.zero { color: var(--hint); }
 
-    /* Source rows */
-    .source-row {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 0; cursor: pointer;
-    }
-    .source-row + .source-row { border-top: 1px solid rgba(196,168,130,.08); }
-    .source-row-active { background: rgba(196,168,130,.08); border-radius: 12px; padding: 10px 8px; margin: 0 -8px; }
-    .source-name  { font-size: 14px; flex: 1; font-weight: 500; }
-    .source-guests { font-size: 11px; color: var(--hint); margin-top: 2px; }
-    .source-count { font-size: 15px; font-weight: 700; color: var(--gold); min-width: 26px; text-align: right; }
-    .source-bar-wrap { width: 56px; height: 3px; background: var(--bg2); border-radius: 100px; overflow: hidden; }
-    .source-bar {
-      height: 100%; background: var(--accent); border-radius: 100px;
-      opacity: .6; transition: width .4s;
-    }
     /* Группировка источников */
     .src-row {
       display: flex; align-items: center; gap: 8px;
@@ -1235,7 +1220,7 @@ function renderCalendar() {
     const wd = new Date(
       parseInt(day.date.slice(6)), parseInt(day.date.slice(3,5))-1, parseInt(day.date.slice(0,2))
     ).getDay();
-    if (wd === 0 || wd === 5 || wd === 6) cls.push("wknd-col");
+    if (wd === 0 || wd === 6) cls.push("wknd-col");
     cell.className = cls.join(" ");
 
     const num = document.createElement("div");
@@ -1605,7 +1590,7 @@ async function openViewSheet(day) {
   act.appendChild(editBtn);
 
   const copyBtn = document.createElement("button");
-  copyBtn.className = "btn btn-outline";
+  copyBtn.className = "btn btn-secondary";
   copyBtn.innerHTML = `${ICO.pencil} Скопировать`;
   copyBtn.onclick = () => { haptic.light(); openCopySheet(_lastFullBooking || day); };
   act.appendChild(copyBtn);
@@ -1841,7 +1826,7 @@ function buildForm(data, showDateField) {
              placeholder="дд.мм.гггг" readonly
              value="${data.contract_date||""}" />
     </div>
-    <div class="section-sep">Дополнительно</div>
+    <div class="section-sep">Детали</div>
     <div class="form-group">
       <label class="form-label">Источник рекламы</label>
       <select class="form-input" id="f-source">
@@ -1861,7 +1846,7 @@ function buildForm(data, showDateField) {
           ${data.client_type==="Агентство"?"✓":""}
         </span>
         <span style="font-size:14px;font-weight:500">Агентство</span>
-        <span style="font-size:11px;color:var(--hint);margin-left:2px">→ 10% от меню в расходах</span>
+        <span style="font-size:11px;color:var(--hint);margin-left:2px">→ ${data.agency_pct||10}% от меню в расходах</span>
       </label>
       <input type="hidden" id="f-is_agency" value="${data.client_type==="Агентство"?"1":"0"}" />
     </div>
@@ -1937,27 +1922,25 @@ function buildForm(data, showDateField) {
       ${!data.contract_date ? '<span style="font-size:10px;font-weight:400;opacity:.6;margin-left:6px">доступно после даты договора</span>' : ""}
     </div>
     <div id="staffFieldsWrap" style="opacity:${data.contract_date?'1':'0.4'}">
-      <div class="form-group" style="flex-direction:row;align-items:center;gap:10px;padding:6px 0">
-        <input type="checkbox" id="f-has_manager" style="width:20px;height:20px;flex-shrink:0;accent-color:var(--gold)"
-               ${data.contract_date?"":"disabled"}
-               ${(data.has_manager===0||data.has_manager==="0")?"":"checked"} />
-        <label for="f-has_manager" style="flex:1;margin:0;font-weight:600">Менеджер</label>
-        <span style="font-size:12px;color:var(--hint)">${data.rate_manager>0?fmtMoney(data.rate_manager):""}</span>
-      </div>
-      <div class="form-group" style="flex-direction:row;align-items:center;gap:10px;padding:6px 0">
-        <input type="checkbox" id="f-has_chef" style="width:20px;height:20px;flex-shrink:0;accent-color:var(--gold)"
-               ${data.contract_date?"":"disabled"}
-               ${(data.has_chef===0||data.has_chef==="0")?"":"checked"} />
-        <label for="f-has_chef" style="flex:1;margin:0;font-weight:600">Шеф-повар</label>
-        <span style="font-size:12px;color:var(--hint)">${data.rate_chef>0?fmtMoney(data.rate_chef):""}</span>
-      </div>
-      <div class="form-group" style="flex-direction:row;align-items:center;gap:10px;padding:6px 0">
-        <input type="checkbox" id="f-has_assistant" style="width:20px;height:20px;flex-shrink:0;accent-color:var(--gold)"
-               ${data.contract_date?"":"disabled"}
-               ${(data.has_assistant===0||data.has_assistant==="0")?"":"checked"} />
-        <label for="f-has_assistant" style="flex:1;margin:0;font-weight:600">Помощник</label>
-        <span style="font-size:12px;color:var(--hint)">${data.rate_assistant>0?fmtMoney(data.rate_assistant):""}</span>
-      </div>
+      ${[
+        ["f-has_manager",   "Менеджер",  data.has_manager,   data.rate_manager],
+        ["f-has_chef",      "Шеф-повар", data.has_chef,      data.rate_chef],
+        ["f-has_assistant", "Помощник",  data.has_assistant, data.rate_assistant],
+      ].map(([id, label, val, rate]) => {
+        const checked = !(val===0||val==="0");
+        return `<div class="form-group" style="flex-direction:row;align-items:center;gap:10px;padding:6px 0;cursor:pointer;user-select:none"
+                     onclick="togglePersonnel('${id}')">
+          <span id="${id}-box" style="width:20px;height:20px;min-width:20px;border-radius:6px;
+                border:2px solid rgba(60,46,34,.35);display:flex;align-items:center;
+                justify-content:center;font-size:14px;transition:all .15s;
+                ${checked?"background:var(--gold);border-color:var(--gold);":"background:rgba(0,0,0,.06)"}">
+            ${checked?"✓":""}
+          </span>
+          <input type="hidden" id="${id}" value="${checked?"1":"0"}" />
+          <span style="flex:1;font-weight:600">${label}</span>
+          <span style="font-size:12px;color:var(--hint)">${rate>0?fmtMoney(rate):""}</span>
+        </div>`;
+      }).join("")}
       <div style="display:flex;gap:12px;padding:4px 0">
         <div style="flex:1">
           <div style="font-weight:600;font-size:13px;margin-bottom:4px">
@@ -2013,7 +1996,7 @@ function buildForm(data, showDateField) {
                placeholder="0" value="${data.cost_purchase > 0 ? data.cost_purchase : ""}" />
       </div>
       <div style="flex:1">
-        <label class="form-label">Коммент</label>
+        <label class="form-label">Примечание</label>
         <input class="form-input" id="f-cost_purchase_comment" type="text"
                placeholder="Необязательно" value="${escHtml(data.cost_purchase_comment||"")}" />
       </div>
@@ -2025,7 +2008,7 @@ function buildForm(data, showDateField) {
                placeholder="0" value="${data.cost_extra > 0 ? data.cost_extra : ""}" />
       </div>
       <div style="flex:1">
-        <label class="form-label">Коммент</label>
+        <label class="form-label">Примечание</label>
         <input class="form-input" id="f-cost_extra_comment" type="text"
                placeholder="Необязательно" value="${escHtml(data.cost_extra_comment||"")}" />
       </div>
@@ -2046,6 +2029,20 @@ function stepGuests(delta) {
   if (!el) return;
   const v = parseInt(el.value) || 0;
   el.value = Math.max(0, v + delta) || "";
+}
+
+function togglePersonnel(id) {
+  haptic.select();
+  const wrap = document.getElementById("staffFieldsWrap");
+  if (wrap && parseFloat(wrap.style.opacity) < 1) return; // disabled state
+  const hid = document.getElementById(id);
+  const box = document.getElementById(id + "-box");
+  if (!hid || !box) return;
+  const newVal = hid.value === "1" ? "0" : "1";
+  hid.value            = newVal;
+  box.style.background  = newVal === "1" ? "var(--gold)"         : "rgba(0,0,0,.06)";
+  box.style.borderColor = newVal === "1" ? "var(--gold)"         : "rgba(60,46,34,.35)";
+  box.textContent       = newVal === "1" ? "✓"                   : "";
 }
 
 function renderChipSelector() {
@@ -2122,9 +2119,9 @@ function getFormData() {
     paid_rent_date:    document.getElementById("f-paid_rent_date")?.value            || "",
     paid_final:        parseFloat(document.getElementById("f-paid_final")?.value)    || 0,
     paid_final_date:   document.getElementById("f-paid_final_date")?.value           || "",
-    has_manager:            staffEnabled ? (document.getElementById("f-has_manager")?.checked   ? 1 : 0) : 1,
-    has_chef:               staffEnabled ? (document.getElementById("f-has_chef")?.checked      ? 1 : 0) : 1,
-    has_assistant:          staffEnabled ? (document.getElementById("f-has_assistant")?.checked  ? 1 : 0) : 1,
+    has_manager:            staffEnabled ? (document.getElementById("f-has_manager")?.value    === "1" ? 1 : 0) : 1,
+    has_chef:               staffEnabled ? (document.getElementById("f-has_chef")?.value       === "1" ? 1 : 0) : 1,
+    has_assistant:          staffEnabled ? (document.getElementById("f-has_assistant")?.value  === "1" ? 1 : 0) : 1,
     staff_waiters:          staffEnabled ? (parseInt(document.getElementById("f-staff_waiters")?.value) || 0) : 0,
     staff_cooks:            staffEnabled ? (parseInt(document.getElementById("f-staff_cooks")?.value)   || 0) : 0,
     cost_laundry:           parseFloat(document.getElementById("f-cost_laundry")?.value)          || 0,
@@ -2147,7 +2144,7 @@ function toggleStaffFields(val) {
   if (!wrap) return;
   const on = val.trim().length > 0;
   wrap.style.opacity = on ? "1" : "0.4";
-  wrap.querySelectorAll("input, button").forEach(el => { el.disabled = !on; });
+  wrap.querySelectorAll("input[type=number], button").forEach(el => { el.disabled = !on; });
   // Обновляем хинт в заголовке секции
   const sep = wrap.previousElementSibling;
   if (sep && sep.classList.contains("section-sep")) {
@@ -2356,20 +2353,6 @@ function addBtn(container, cls, text, onClick) {
 }
 document.getElementById("closeBtn").addEventListener("click", () => { haptic.light(); closeSheet(); });
 document.getElementById("overlay").addEventListener("click", closeSheet);
-
-// ─── Date conversion helpers ──────────────────────────────────────────────────
-function toInputDate(dmy) {
-  if (!dmy || dmy.length < 8) return "";
-  const p = dmy.split(".");
-  if (p.length !== 3) return "";
-  return `${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;
-}
-function fromInputDate(ymd) {
-  if (!ymd || ymd.length < 8) return "";
-  const p = ymd.split("-");
-  if (p.length !== 3) return "";
-  return `${p[2].padStart(2,"0")}.${p[1].padStart(2,"0")}.${p[0]}`;
-}
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function fmtDate(s) {
@@ -2693,6 +2676,7 @@ function renderList() {
       ? (() => {
           const p = b.profit || 0;
           const k = Math.round(Math.abs(p) / 1000);
+          if (k === 0) return "";
           const sign = p >= 0 ? "+" : "−";
           return `<span class="profit-badge ${p >= 0 ? "pos" : "neg"}">${sign}${k}к</span>`;
         })()
