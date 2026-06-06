@@ -299,15 +299,11 @@
     .filter-pill {
       display: flex; align-items: center; gap: 5px;
       background: rgba(0,0,0,.05); border: 1px solid rgba(196,168,130,.15);
-      border-radius: 100px; padding: 5px 12px; font-size: 12px; color: rgba(240,232,220,.7);
+      border-radius: 100px; padding: 5px 12px; font-size: 12px; color: rgba(42,30,20,.7);
       cursor: pointer; font-family: inherit; font-weight: 500;
     }
     .filter-pill:active { opacity: .7; }
     .filter-pill.active { background: var(--gold); color: var(--btn-text); border-color: var(--gold); }
-    .filter-pill-badge {
-      background: rgba(0,0,0,.07); border-radius: 8px;
-      padding: 1px 5px; font-size: 10px; font-weight: 700;
-    }
 
     /* Month chart — pill bars */
     .month-chart {
@@ -948,7 +944,7 @@
   </div>
 </div>
 
-<!-- ── Stats view ───────────────────────────────────────────────────────── -->
+<!-- ── List view ────────────────────────────────────────────────────────── -->
 
 <div id="listView">
   <div class="list-filters" id="listFilters">
@@ -2544,13 +2540,6 @@ function setSheetLoading(on) {
     on ? twa.MainButton.showProgress(false) : twa.MainButton.hideProgress();
   }
 }
-function addBtn(container, cls, text, onClick) {
-  const b = document.createElement("button");
-  b.className   = `btn ${cls}`;
-  b.textContent = text;
-  b.onclick     = onClick;
-  container.appendChild(b);
-}
 document.getElementById("closeBtn").addEventListener("click", () => { haptic.light(); closeSheet(); });
 document.getElementById("overlay").addEventListener("click", closeSheet);
 
@@ -2597,7 +2586,8 @@ function fmtPhone(p) {
 function escHtml(s) {
   return String(s)
     .replace(/&/g,"&amp;").replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;")
+    .replace(/'/g,"&#39;");
 }
 
 let _toastTimer = null;
@@ -2923,7 +2913,6 @@ function renderList() {
 }
 
 function populateMonthPills() {
-  const panel = document.getElementById("listMonthPanel");
   const months = new Set(_listData.map(b => b.date.slice(3, 10)));
   const sorted = [...months].sort((a, b) => {
     const [ma, ya] = a.split(".").map(Number);
@@ -2987,10 +2976,7 @@ function formatPhone(p) {
 }
 
 function pluralBron(n) {
-  const mod10 = n % 10, mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return "бронь";
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "брони";
-  return "броней";
+  return _plural(n, "бронь", "брони", "броней");
 }
 
 document.addEventListener("click", e => {
