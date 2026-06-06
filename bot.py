@@ -208,18 +208,6 @@ def _normalize_voice_date(s) -> str | None:
     return f"{int(d):02d}.{int(mo):02d}.{yr}"
 
 
-def _tel_url(phone: str) -> str | None:
-    """Чистый tel:-URL из телефона (Telegram отклоняет дефисы/скобки)."""
-    digits = re.sub(r"\D", "", phone or "")
-    if not digits:
-        return None
-    if len(digits) == 11 and digits[0] == "8":
-        digits = "7" + digits[1:]   # 8XXX… → 7XXX… (РФ)
-    elif len(digits) == 10:
-        digits = "7" + digits       # без кода страны → +7XXX… (РФ)
-    return "tel:+" + digits
-
-
 def _merge_edit_fields(parsed: dict) -> dict:
     """Для edit: переносит name/guests/phone/source с верхнего уровня в fields.
 
@@ -458,17 +446,18 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 card_bytes = None
 
             phone = booking.get("phone") or ""
-            _turl = _tel_url(phone)
-            kb_call = InlineKeyboardMarkup([[
-                InlineKeyboardButton("📞 Позвонить", url=_turl),
-            ]]) if _turl else None
+            # Telegram не принимает tel: в inline-кнопках — даём кликабельный
+            # номер ссылкой в тексте (HTML-режим), он тапается для звонка.
+            phone_link = fmt_phone_link(phone) if phone else ""
 
             if card_bytes:
                 import io as _io
+                caption = f"📅 {_e(dt_str)} — {_e(booking.get('name',''))}"
+                if phone_link:
+                    caption += f"\n📞 {phone_link}"
                 await update.message.reply_photo(
                     photo=_io.BytesIO(card_bytes),
-                    caption=f"📅 {_e(dt_str)} — {_e(booking.get('name',''))}",
-                    reply_markup=kb_call,
+                    caption=caption,
                     parse_mode="HTML",
                 )
                 await status_msg.delete()
@@ -478,8 +467,8 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 lines = [f"📅 <b>{_e(dt_str)}</b> — {_e(b.get('weekday',''))}",
                          f"👤 {_e(b.get('name','—'))}"]
                 if b.get("guests"): lines.append(f"👥 {b['guests']} гостей")
-                if phone:           lines.append(f"📞 {_e(phone)}")
-                await status_msg.edit_text("\n".join(lines), parse_mode="HTML", reply_markup=kb_call)
+                if phone_link:      lines.append(f"📞 {phone_link}")
+                await status_msg.edit_text("\n".join(lines), parse_mode="HTML")
             return
 
         # ── EDIT: изменить поля брони ────────────────────────────────────────
