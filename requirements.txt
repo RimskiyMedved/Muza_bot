@@ -7,6 +7,9 @@ httpx==0.27.0
 # Голосовые команды
 groq==0.11.0
 
+# Генерация карточек броней
+Pillow==10.4.0
+
 # Mini App API
 fastapi==0.111.0
 uvicorn[standard]==0.29.0

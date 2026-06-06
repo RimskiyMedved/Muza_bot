@@ -185,8 +185,9 @@ async def _parse_voice_command(text: str) -> dict:
         "action:\n"
         "  add    — добавить/записать/забронировать\n"
         "  delete — удалить/отменить бронь\n"
-        "  edit   — изменить/внести/редактировать/прачка/официанты/расходы\n"
+        "  edit   — изменить/внести изменения/редактировать/обнови/поставь/прачка/официанты/расходы/закупка\n"
         "  show   — покажи/что на/карточка/инфо о брони\n\n"
+        "ВАЖНО: если слышишь «внеси изменения», «внеси данные», «обнови», «поставь» — это ВСЕГДА edit.\n"
         "fields (только для edit, только упомянутые поля):\n"
         "  cost_laundry, cost_purchase, cost_extra — суммы расходов\n"
         "  staff_waiters, staff_cooks — целые числа\n"
@@ -235,8 +236,12 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             tmp_path = tmp.name
         await tg_file.download_to_drive(tmp_path)
 
+        import os as _os
+        audio_size = _os.path.getsize(tmp_path) if tmp_path else 0
+        audio_sec  = audio_size / 16000          # грубая оценка для OGG
         text = await _transcribe_voice(tmp_path)
         log.info("🎙 Транскрипция: %s", text)
+        database.log_voice_usage(audio_seconds=audio_sec, llm_call=False)
 
         # Персональное приветствие голосом
         _VOICE_GREETINGS = {"привет", "хай", "хеллоу", "hello", "hi",
@@ -272,27 +277,41 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             InlineKeyboardButton("❌ Нет", callback_data="voice:cancel"),
         ]])
 
-        # ── SHOW: показать карточку брони ────────────────────────────────────
+        # ── SHOW: красивая карточка брони ────────────────────────────────────
         if action == "show":
             booking = _booking_by_date(dt_str)
             if not booking:
                 await status_msg.edit_text(f"🎙 «{_e(text)}»\n\n❌ Бронь на {_e(dt_str)} не найдена.", parse_mode="HTML")
                 return
-            b = booking
-            lines = [
-                f"📅 <b>{_e(dt_str)}</b> — {_e(b.get('weekday',''))}",
-                f"👤 {_e(b.get('name','—'))}",
-            ]
-            if b.get("guests"):  lines.append(f"👥 {_e(str(b['guests']))} гостей")
-            if b.get("phone"):   lines.append(f"📞 {_e(b['phone'])}")
-            if b.get("source"):  lines.append(f"📢 {_e(b['source'])}")
-            if b.get("revenue_rent") or b.get("revenue_menu"):
-                rent = int(b.get("revenue_rent") or 0)
-                menu = int(b.get("revenue_menu") or 0)
-                lines.append(f"💰 Аренда: {rent:,} ₽  |  Меню: {menu:,} ₽".replace(",", " "))
-            if b.get("contract_date"): lines.append(f"📝 Договор: {_e(b['contract_date'])}")
-            if b.get("comment"):       lines.append(f"💬 {_e(b['comment'])}")
-            await status_msg.edit_text("\n".join(lines), parse_mode="HTML")
+            await status_msg.edit_text("🎙 Генерирую карточку…")
+            try:
+                from card_gen import generate_booking_card
+                card_bytes = generate_booking_card(booking)
+            except Exception:
+                card_bytes = None
+
+            phone = booking.get("phone") or ""
+            kb_call = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📞 Позвонить", url=f"tel:{phone}"),
+            ]]) if phone else None
+
+            if card_bytes:
+                import io as _io
+                await update.message.reply_photo(
+                    photo=_io.BytesIO(card_bytes),
+                    caption=f"📅 {_e(dt_str)} — {_e(booking.get('name',''))}",
+                    reply_markup=kb_call,
+                    parse_mode="HTML",
+                )
+                await status_msg.delete()
+            else:
+                # Фолбэк — текст если Pillow не установлен
+                b = booking
+                lines = [f"📅 <b>{_e(dt_str)}</b> — {_e(b.get('weekday',''))}",
+                         f"👤 {_e(b.get('name','—'))}"]
+                if b.get("guests"): lines.append(f"👥 {b['guests']} гостей")
+                if phone:           lines.append(f"📞 {_e(phone)}")
+                await status_msg.edit_text("\n".join(lines), parse_mode="HTML", reply_markup=kb_call)
             return
 
         # ── EDIT: изменить поля брони ────────────────────────────────────────
@@ -393,6 +412,21 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     try:
         if action == "add":
+            # Предупреждение если бронь уже существует
+            if not pending.get("overwrite_ok"):
+                existing = _booking_by_date(dt_str)
+                if existing:
+                    context.user_data["voice_pending"] = {**pending, "overwrite_ok": True}
+                    await q.edit_message_text(
+                        f"⚠️ На <b>{_e(dt_str)}</b> уже есть бронь — <b>{_e(existing.get('name',''))}</b>!\n\n"
+                        f"Перезаписать?",
+                        parse_mode="HTML",
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("✅ Да, перезаписать", callback_data="voice:confirm"),
+                            InlineKeyboardButton("❌ Отмена",           callback_data="voice:cancel"),
+                        ]]),
+                    )
+                    return
             weekday = _WD[d.weekday()]
             from sheets import add_booking as _add_booking
             _add_booking(

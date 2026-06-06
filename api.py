@@ -820,4 +820,15 @@ async def admin_remove_user(row_id: int, user: dict = Depends(_require_superadmi
 
 @app.get("/api/admin/summary")
 async def admin_get_summary(user: dict = Depends(_require_superadmin)):
-    return database.get_admin_summary()
+    summary = database.get_admin_summary()
+    # Groq usage
+    usage = database.get_voice_usage(days=7)
+    today_row = usage[0] if usage else {}
+    summary["groq"] = {
+        "today_transcriptions": today_row.get("transcriptions", 0),
+        "today_audio_sec":      round(today_row.get("audio_seconds", 0)),
+        "limit_audio_sec":      7200,
+        "limit_transcriptions": 500,
+        "week": usage,
+    }
+    return summary

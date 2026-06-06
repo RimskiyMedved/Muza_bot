@@ -2698,7 +2698,27 @@ async function loadAdminActivity() {
           <div class="s-value">${s.managers_count}</div>
           <div class="s-label">Менеджеров</div>
         </div>
-      </div>${actPart}`;
+      </div>${actPart}${s.groq ? (() => {
+        const g = s.groq;
+        const pct = Math.min(100, Math.round(g.today_audio_sec / g.limit_audio_sec * 100));
+        return `<div style="margin-top:14px">
+          <div class="admin-section-title" style="margin-bottom:8px">Groq Voice API — сегодня</div>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <div style="flex:1;background:rgba(0,0,0,.04);border-radius:10px;padding:10px;text-align:center;border:0.5px solid rgba(196,168,130,.1)">
+              <div style="font-size:18px;font-weight:700;color:var(--text)">${g.today_transcriptions}</div>
+              <div style="font-size:10px;color:var(--hint);margin-top:2px">войсов</div>
+            </div>
+            <div style="flex:1;background:rgba(0,0,0,.04);border-radius:10px;padding:10px;text-align:center;border:0.5px solid rgba(196,168,130,.1)">
+              <div style="font-size:18px;font-weight:700;color:var(--text)">${g.today_audio_sec}с</div>
+              <div style="font-size:10px;color:var(--hint);margin-top:2px">из ${g.limit_audio_sec}с</div>
+            </div>
+          </div>
+          <div style="background:rgba(0,0,0,.06);border-radius:100px;height:6px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:var(--gold);border-radius:100px"></div>
+          </div>
+          <div style="font-size:10px;color:var(--hint);margin-top:4px;text-align:right">${pct}% лимита</div>
+        </div>`;
+      })() : ""}`;
   } catch(e) {
     wrap.innerHTML = `<div class="admin-empty">Ошибка: ${escHtml(e.message)}</div>`;
   }

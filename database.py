@@ -232,6 +232,13 @@ def init_db() -> None:
                 value TEXT DEFAULT ''
             );
 
+            CREATE TABLE IF NOT EXISTS voice_usage (
+                day          TEXT PRIMARY KEY,
+                transcriptions INTEGER DEFAULT 0,
+                audio_seconds  REAL    DEFAULT 0,
+                llm_calls      INTEGER DEFAULT 0
+            );
+
             CREATE TABLE IF NOT EXISTS avito_chat_state (
                 chat_id          TEXT PRIMARY KEY,
                 greeted          INTEGER DEFAULT 0,
@@ -645,6 +652,34 @@ def get_free_dates(limit: int = 10) -> list[str]:
             (today_iso, limit),
         ).fetchall()
     return [row["date"] for row in rows]
+
+
+# ─── Groq Voice Usage ─────────────────────────────────────────────────────────
+
+def log_voice_usage(audio_seconds: float = 0, llm_call: bool = False) -> None:
+    """Записывает использование Groq API за сегодня."""
+    today = date.today().isoformat()
+    with _conn() as con:
+        con.execute("""
+            INSERT INTO voice_usage (day, transcriptions, audio_seconds, llm_calls)
+            VALUES (?, 1, ?, ?)
+            ON CONFLICT(day) DO UPDATE SET
+                transcriptions = transcriptions + 1,
+                audio_seconds  = audio_seconds  + excluded.audio_seconds,
+                llm_calls      = llm_calls      + excluded.llm_calls
+        """, (today, audio_seconds, 1 if llm_call else 0))
+
+
+def get_voice_usage(days: int = 7) -> list[dict]:
+    """Статистика использования Groq за последние N дней."""
+    with _conn() as con:
+        rows = con.execute("""
+            SELECT day, transcriptions, audio_seconds, llm_calls
+            FROM voice_usage
+            ORDER BY day DESC
+            LIMIT ?
+        """, (days,)).fetchall()
+    return [dict(r) for r in rows]
 
 
 def add_free_date(target: date, weekday: str) -> None:
