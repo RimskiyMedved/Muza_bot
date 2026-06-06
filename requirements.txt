@@ -13,6 +13,7 @@ Pillow==10.4.0
 # Mini App API
 fastapi==0.111.0
 uvicorn[standard]==0.29.0
+slowapi==0.1.9
 
 # Dev / тесты
 pytest==8.2.0

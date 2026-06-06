@@ -9,5 +9,20 @@
 #   • На порту 80/443 ничего не запущено (nginx и т.п. — остановить)
 
 ВАШ_ДОМЕН {
+    # ── Security headers ──────────────────────────────────────────────────────
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Mini App грузится в iframe Telegram Web — XFO нельзя, разрешаем только Telegram
+        Content-Security-Policy "frame-ancestors https://web.telegram.org https://*.telegram.org"
+        -Server
+    }
+
+    # ── Лимит размера тела запроса ────────────────────────────────────────────
+    request_body {
+        max_size 10MB
+    }
+
     reverse_proxy muza_api:8001
 }

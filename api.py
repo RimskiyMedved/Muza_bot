@@ -35,10 +35,15 @@ from pathlib import Path
 from urllib.parse import parse_qsl
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
 import database
 
@@ -81,7 +86,26 @@ async def lifespan(app: FastAPI):
 
 # ─── FastAPI app ───────────────────────────────────────────────────────────────
 
-app = FastAPI(title="Муза API", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(
+    title="Муза API",
+    docs_url=None, redoc_url=None, openapi_url=None,  # схема API не отдаётся наружу
+    lifespan=lifespan,
+)
+
+# ─── Rate limiting ──────────────────────────────────────────────────────────────
+# За Caddy реальный IP приходит в X-Forwarded-For; берём первый адрес из цепочки.
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return get_remote_address(request)
+
+limiter = Limiter(key_func=_client_ip, default_limits=["120/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# Middleware применяет default_limits ко всем запросам ДО разбора зависимостей,
+# то есть до проверки HMAC initData — анонимный флуд отсекается дёшево.
+app.add_middleware(SlowAPIMiddleware)
 
 _ALLOWED_ORIGINS = [
     "https://web.telegram.org",
