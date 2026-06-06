@@ -139,25 +139,64 @@ async def _transcribe_voice(file_path: str) -> str:
     return str(result).strip()
 
 
+# Читаемые названия полей для diff-отображения
+_FIELD_LABELS = {
+    "cost_laundry":  "Прачка",
+    "cost_purchase": "Закупка",
+    "cost_extra":    "Доп. расходы",
+    "staff_waiters": "Официанты",
+    "staff_cooks":   "Повара",
+    "revenue_rent":  "Аренда",
+    "revenue_menu":  "Меню",
+    "guests":        "Гости",
+    "name":          "Имя",
+    "phone":         "Телефон",
+    "source":        "Источник",
+}
+_MONEY_FIELDS = {"cost_laundry", "cost_purchase", "cost_extra", "revenue_rent", "revenue_menu"}
+
+
+def _fmt_field_val(field: str, value) -> str:
+    if value is None or value == "" or value == 0:
+        return "—"
+    if field in _MONEY_FIELDS:
+        return f"{int(value):,} ₽".replace(",", " ")
+    return str(value)
+
+
+def _booking_by_date(dt_str: str) -> dict | None:
+    for b in database.get_all_bookings():
+        if b["date"] == dt_str:
+            return b
+    return None
+
+
 async def _parse_voice_command(text: str) -> dict:
     """Извлекает из транскрипции все поля брони через Groq LLM."""
     today = date.today()
+    y = today.year
     system = (
-        f"Сегодня {today.strftime('%d.%m.%Y')}. Ты помощник для управления бронированиями зала.\n"
-        "Из текста извлеки поля и верни ТОЛЬКО JSON без пояснений:\n"
-        "{\n"
-        '  "action": "add" или "delete",\n'
-        '  "name": "имя клиента или null",\n'
-        '  "date": "ДД.ММ.ГГГГ или null",\n'
-        '  "guests": число гостей или null,\n'
-        '  "phone": "номер телефона или null",\n'
-        '  "source": "источник рекламы (ВКонтакте/Авито/Инстаграм/Яндекс/...) или null"\n'
-        "}\n\n"
+        f"Сегодня {today.strftime('%d.%m.%Y')}. Управляешь бронированиями зала «Муза».\n"
+        "Из текста извлеки действие и верни ТОЛЬКО JSON:\n"
+        '{"action":"add"/"delete"/"edit"/"show",'
+        '"date":"ДД.ММ.ГГГГ или null",'
+        '"name":null,"guests":null,"phone":null,"source":null,'
+        '"fields":{}}\n\n'
+        "action:\n"
+        "  add    — добавить/записать/забронировать\n"
+        "  delete — удалить/отменить бронь\n"
+        "  edit   — изменить/внести/редактировать/прачка/официанты/расходы\n"
+        "  show   — покажи/что на/карточка/инфо о брони\n\n"
+        "fields (только для edit, только упомянутые поля):\n"
+        "  cost_laundry, cost_purchase, cost_extra — суммы расходов\n"
+        "  staff_waiters, staff_cooks — целые числа\n"
+        "  revenue_rent, revenue_menu — суммы доходов\n"
+        "  guests — строка\n\n"
+        "Суммы: «20 тысяч»=20000, «5к»=5000, «полтора»=1500\n\n"
         "Примеры:\n"
-        f'"добавь Иван 50 гостей 15 июня телефон 9001234567 источник ВКонтакте" → '
-        f'{{"action":"add","name":"Иван","date":"15.06.{today.year}","guests":50,"phone":"+79001234567","source":"ВКонтакте"}}\n'
-        f'"удали на 20 июля" → {{"action":"delete","name":null,"date":"20.07.{today.year}","guests":null,"phone":null,"source":null}}\n'
-        f'"запиши Мария Петрова третье августа сто гостей" → {{"action":"add","name":"Мария Петрова","date":"03.08.{today.year}","guests":100,"phone":null,"source":null}}'
+        f'"прачка 20 тысяч официанты 2 на 15 июня" → {{"action":"edit","date":"15.06.{y}","name":null,"guests":null,"phone":null,"source":null,"fields":{{"cost_laundry":20000,"staff_waiters":2}}}}\n'
+        f'"покажи бронь 10 июля" → {{"action":"show","date":"10.07.{y}","name":null,"guests":null,"phone":null,"source":null,"fields":{{}}}}\n'
+        f'"добавь Иван 50 гостей 15 июня" → {{"action":"add","date":"15.06.{y}","name":"Иван","guests":50,"phone":null,"source":null,"fields":{{}}}}'
     )
     loop = asyncio.get_event_loop()
     def _do():
@@ -168,7 +207,7 @@ async def _parse_voice_command(text: str) -> dict:
                 {"role": "user",   "content": text},
             ],
             temperature=0,
-            max_tokens=150,
+            max_tokens=200,
         )
     resp = await loop.run_in_executor(None, _do)
     raw = resp.choices[0].message.content.strip()
@@ -220,13 +259,81 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await status_msg.edit_text(
                 f"🎙 Распознал: «{_e(text)}»\n\n"
                 "❓ Не понял команду. Попробуй:\n"
-                "• «Добавь бронь Иван 50 гостей 15 июня»\n"
+                "• «Добавь Иван 50 гостей 15 июня»\n"
+                "• «Прачка 20 тысяч официанты 2 на 15 июня»\n"
+                "• «Покажи бронь 10 июля»\n"
                 "• «Удали бронь на 20 июля»",
                 parse_mode="HTML",
             )
             return
 
-        # Сохраняем данные в user_data (не в callback — лимит 64 байта)
+        kb_confirm = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Да",  callback_data="voice:confirm"),
+            InlineKeyboardButton("❌ Нет", callback_data="voice:cancel"),
+        ]])
+
+        # ── SHOW: показать карточку брони ────────────────────────────────────
+        if action == "show":
+            booking = _booking_by_date(dt_str)
+            if not booking:
+                await status_msg.edit_text(f"🎙 «{_e(text)}»\n\n❌ Бронь на {_e(dt_str)} не найдена.", parse_mode="HTML")
+                return
+            b = booking
+            lines = [
+                f"📅 <b>{_e(dt_str)}</b> — {_e(b.get('weekday',''))}",
+                f"👤 {_e(b.get('name','—'))}",
+            ]
+            if b.get("guests"):  lines.append(f"👥 {_e(str(b['guests']))} гостей")
+            if b.get("phone"):   lines.append(f"📞 {_e(b['phone'])}")
+            if b.get("source"):  lines.append(f"📢 {_e(b['source'])}")
+            if b.get("revenue_rent") or b.get("revenue_menu"):
+                rent = int(b.get("revenue_rent") or 0)
+                menu = int(b.get("revenue_menu") or 0)
+                lines.append(f"💰 Аренда: {rent:,} ₽  |  Меню: {menu:,} ₽".replace(",", " "))
+            if b.get("contract_date"): lines.append(f"📝 Договор: {_e(b['contract_date'])}")
+            if b.get("comment"):       lines.append(f"💬 {_e(b['comment'])}")
+            await status_msg.edit_text("\n".join(lines), parse_mode="HTML")
+            return
+
+        # ── EDIT: изменить поля брони ────────────────────────────────────────
+        if action == "edit":
+            fields = parsed.get("fields") or {}
+            if not fields:
+                await status_msg.edit_text(
+                    f"🎙 «{_e(text)}»\n\n❓ Не распознал что изменить.\n"
+                    "Пример: «прачка 20 тысяч официанты 2 на 15 июня»",
+                    parse_mode="HTML",
+                )
+                return
+            booking = _booking_by_date(dt_str)
+            if not booking:
+                await status_msg.edit_text(f"🎙 «{_e(text)}»\n\n❌ Бронь на {_e(dt_str)} не найдена.", parse_mode="HTML")
+                return
+
+            diff_lines = []
+            for k, new_val in fields.items():
+                label   = _FIELD_LABELS.get(k, k)
+                old_val = _fmt_field_val(k, booking.get(k))
+                new_fmt = _fmt_field_val(k, new_val)
+                diff_lines.append(f"  {label}: {old_val} → <b>{new_fmt}</b>")
+
+            context.user_data["voice_pending"] = {
+                "action": "edit", "date": dt_str,
+                "fields": fields,
+                "booking_name": booking.get("name", ""),
+                "transcript": text,
+            }
+            await status_msg.edit_text(
+                f"🎙 «{_e(text)}»\n\n"
+                f"✏️ <b>Изменить бронь?</b>\n"
+                f"📅 {_e(dt_str)} — {_e(booking.get('name',''))}\n\n"
+                + "\n".join(diff_lines),
+                parse_mode="HTML",
+                reply_markup=kb_confirm,
+            )
+            return
+
+        # ── ADD / DELETE ──────────────────────────────────────────────────────
         context.user_data["voice_pending"] = {
             "action": action, "name": name, "date": dt_str,
             "guests": str(guests) if guests else "",
@@ -240,14 +347,10 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         if phone:   lines.append(f"📞 {_e(phone)}")
         if source:  lines.append(f"📢 {_e(source)}")
 
-        kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ Да",  callback_data="voice:confirm"),
-            InlineKeyboardButton("❌ Нет", callback_data="voice:cancel"),
-        ]])
         await status_msg.edit_text(
             f"🎙 «{_e(text)}»\n\n<b>{action_label}?</b>\n" + "\n".join(lines),
             parse_mode="HTML",
-            reply_markup=kb,
+            reply_markup=kb_confirm,
         )
 
     except Exception as exc:
@@ -325,6 +428,26 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 f"✅ Бронь удалена\n📅 {_e(dt_str)}", parse_mode="HTML",
             )
             log.info("🎙 -бронь голосом: %s (@%s)", dt_str, uname)
+
+        elif action == "edit":
+            fields = pending.get("fields") or {}
+            if not fields:
+                await q.edit_message_text("❌ Нет полей для обновления.")
+                return
+            # Обновляем SQLite
+            database.update_booking_fields(d, changed_by=uname, **fields)
+            # Синхронизируем в Sheets
+            from sheets import edit_booking as _edit_booking
+            try:
+                _edit_booking(target=d, changed_by=uname, **fields)
+            except Exception as _se:
+                log.warning("Sheets sync after voice edit: %s", _se)
+            # Формируем итог
+            result_lines = [f"✅ <b>Обновлено</b>\n📅 {_e(dt_str)}"]
+            for k, v in fields.items():
+                result_lines.append(f"  {_FIELD_LABELS.get(k,k)}: {_fmt_field_val(k,v)}")
+            await q.edit_message_text("\n".join(result_lines), parse_mode="HTML")
+            log.info("🎙 edit голосом: %s %s (@%s)", dt_str, fields, uname)
 
     except Exception as exc:
         log.exception("Ошибка выполнения голосовой команды")
