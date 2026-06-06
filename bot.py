@@ -141,28 +141,40 @@ async def _transcribe_voice(file_path: str) -> str:
 
 # Читаемые названия полей для diff-отображения
 _FIELD_LABELS = {
-    "cost_laundry":  "Прачка",
-    "cost_purchase": "Закупка",
-    "cost_extra":    "Доп. расходы",
-    "staff_waiters": "Официанты",
-    "staff_cooks":   "Повара",
-    "revenue_rent":  "Аренда",
-    "revenue_menu":  "Меню",
-    "guests":        "Гости",
-    "name":          "Имя",
-    "phone":         "Телефон",
-    "source":        "Источник",
+    "name":              "Имя",
+    "phone":             "Телефон",
+    "source":            "Источник",
+    "guests":            "Гости",
+    "comment":           "Комментарий",
+    "contract_date":     "Дата договора",
+    "revenue_rent":      "Аренда",
+    "revenue_menu":      "Меню",
+    "paid_advance":      "Аванс",
+    "paid_advance_date": "Дата аванса",
+    "paid_rent":         "Оплата аренды",
+    "paid_rent_date":    "Дата оплаты аренды",
+    "paid_final":        "Итоговая оплата",
+    "paid_final_date":   "Дата итоговой",
+    "staff_waiters":     "Официанты",
+    "staff_cooks":       "Повара",
+    "cost_laundry":      "Прачка",
+    "cost_purchase":     "Закупка",
+    "cost_extra":        "Доп. расходы",
+    "new_date":          "Новая дата брони",
 }
-_MONEY_FIELDS = {"cost_laundry", "cost_purchase", "cost_extra", "revenue_rent", "revenue_menu"}
+_MONEY_FIELDS = {
+    "cost_laundry", "cost_purchase", "cost_extra",
+    "revenue_rent", "revenue_menu",
+    "paid_advance", "paid_rent", "paid_final",
+}
 
 
 def _fmt_field_val(field: str, value) -> str:
     if value is None or value == "" or value == 0:
         return "—"
     if field in _MONEY_FIELDS:
-        return f"{int(value):,} ₽".replace(",", " ")
+        return f"{int(float(value)):,} ₽".replace(",", " ")
     return str(value)
-
 
 def _booking_by_date(dt_str: str) -> dict | None:
     for b in database.get_all_bookings():
@@ -189,10 +201,19 @@ async def _parse_voice_command(text: str) -> dict:
         "  show   — покажи/что на/карточка/инфо о брони\n\n"
         "ВАЖНО: если слышишь «внеси изменения», «внеси данные», «обнови», «поставь» — это ВСЕГДА edit.\n"
         "fields (только для edit, только упомянутые поля):\n"
-        "  cost_laundry, cost_purchase, cost_extra — суммы расходов\n"
+        "  name — имя клиента\n"
+        "  phone — телефон\n"
+        "  source — источник рекламы\n"
+        "  guests — кол-во гостей (строка)\n"
+        "  comment — комментарий\n"
+        "  contract_date — дата договора (ДД.ММ.ГГГГ)\n"
+        "  revenue_rent, revenue_menu — суммы аренды и меню\n"
+        "  paid_advance — аванс, paid_advance_date — дата аванса (ДД.ММ.ГГГГ)\n"
+        "  paid_rent — оплата аренды, paid_rent_date — дата оплаты (ДД.ММ.ГГГГ)\n"
+        "  paid_final — итоговая, paid_final_date — дата итоговой (ДД.ММ.ГГГГ)\n"
         "  staff_waiters, staff_cooks — целые числа\n"
-        "  revenue_rent, revenue_menu — суммы доходов\n"
-        "  guests — строка\n\n"
+        "  cost_laundry, cost_purchase, cost_extra — расходы\n"
+        "  new_date — новая дата брони (ДД.ММ.ГГГГ) если просят перенести/сменить дату\n\n"
         "Суммы: «20 тысяч»=20000, «5к»=5000, «полтора»=1500\n\n"
         "Примеры:\n"
         f'"прачка 20 тысяч официанты 2 на 15 июня" → {{"action":"edit","date":"15.06.{y}","name":null,"guests":null,"phone":null,"source":null,"fields":{{"cost_laundry":20000,"staff_waiters":2}}}}\n'
@@ -400,7 +421,7 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     name    = pending["name"]
     guests  = pending["guests"]
     phone   = pending["phone"]
-    source  = pending["source"] or "Голос"
+    source  = pending["source"] or ""
     transcript = pending.get("transcript", "")
     uname   = q.from_user.username or str(q.from_user.id)
 
@@ -448,7 +469,7 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             if name:   lines.append(f"👤 {_e(name)}")
             if guests: lines.append(f"👥 {guests} гостей")
             if phone:  lines.append(f"📞 {_e(phone)}")
-            if source != "Голос": lines.append(f"📢 {_e(source)}")
+            if source: lines.append(f"📢 {_e(source)}")
             await q.edit_message_text(
                 "✅ Бронь добавлена\n" + "\n".join(lines), parse_mode="HTML",
             )
@@ -468,15 +489,45 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             if not fields:
                 await q.edit_message_text("❌ Нет полей для обновления.")
                 return
-            # Обновляем SQLite
+
+            # Перенос даты брони (new_date — особый случай)
+            new_date_str = fields.pop("new_date", None)
+            if new_date_str:
+                try:
+                    new_d = datetime.strptime(new_date_str, "%d.%m.%Y").date()
+                except ValueError:
+                    await q.edit_message_text(f"❌ Неверная новая дата: {_e(new_date_str)}", parse_mode="HTML")
+                    return
+                # Переносим: копируем бронь на новую дату, удаляем старую
+                booking = _booking_by_date(dt_str)
+                if booking:
+                    weekday_new = _WD[new_d.weekday()]
+                    merged = {**booking, **fields, "date": new_date_str, "weekday": weekday_new}
+                    from sheets import add_booking as _add_b, remove_booking as _del_b
+                    try:
+                        _add_b(target=new_d, guests=merged.get("guests",""), name=merged.get("name",""),
+                               phone=merged.get("phone",""), source=merged.get("source",""),
+                               client_type=merged.get("client_type",""), comment=merged.get("comment",""),
+                               changed_by=uname)
+                        _del_b(target=d)
+                    except Exception as _se:
+                        log.warning("Sheets date-move: %s", _se)
+                    database.upsert_booking(target=new_d, name=merged.get("name",""),
+                                            weekday=weekday_new, changed_by=uname)
+                    database.delete_booking(target=d)
+                await q.edit_message_text(
+                    f"✅ <b>Дата брони перенесена</b>\n{_e(dt_str)} → <b>{_e(new_date_str)}</b>",
+                    parse_mode="HTML")
+                log.info("🎙 перенос даты голосом: %s→%s (@%s)", dt_str, new_date_str, uname)
+                return
+
+            # Обычное редактирование полей
             database.update_booking_fields(d, changed_by=uname, **fields)
-            # Синхронизируем в Sheets
             from sheets import edit_booking as _edit_booking
             try:
                 _edit_booking(target=d, changed_by=uname, **fields)
             except Exception as _se:
                 log.warning("Sheets sync after voice edit: %s", _se)
-            # Формируем итог
             result_lines = [f"✅ <b>Обновлено</b>\n📅 {_e(dt_str)}"]
             for k, v in fields.items():
                 result_lines.append(f"  {_FIELD_LABELS.get(k,k)}: {_fmt_field_val(k,v)}")
