@@ -183,6 +183,43 @@ def _booking_by_date(dt_str: str) -> dict | None:
     return None
 
 
+_DATE_FIELDS = {
+    "contract_date", "paid_advance_date", "paid_rent_date",
+    "paid_final_date", "new_date",
+}
+
+
+def _normalize_voice_date(s) -> str | None:
+    """Чинит дату от LLM: «12.12.null» / «12.12» → «12.12.2026» (текущий год)."""
+    if not s:
+        return None
+    s = str(s).strip()
+    if s.lower() in ("null", "none", ""):
+        return None
+    m = re.match(r"^(\d{1,2})[.\-/](\d{1,2})(?:[.\-/](\S+))?$", s)
+    if not m:
+        return s  # необычный формат — пусть валидация ниже решает
+    d, mo, y = m.group(1), m.group(2), m.group(3)
+    yr = date.today().year
+    if y and y.isdigit():
+        yr = int(y)
+        if yr < 100:
+            yr += 2000
+    return f"{int(d):02d}.{int(mo):02d}.{yr}"
+
+
+def _tel_url(phone: str) -> str | None:
+    """Чистый tel:-URL из телефона (Telegram отклоняет дефисы/скобки)."""
+    digits = re.sub(r"\D", "", phone or "")
+    if not digits:
+        return None
+    if len(digits) == 11 and digits[0] == "8":
+        digits = "7" + digits[1:]   # 8XXX… → 7XXX… (РФ)
+    elif len(digits) == 10:
+        digits = "7" + digits       # без кода страны → +7XXX… (РФ)
+    return "tel:+" + digits
+
+
 def _merge_edit_fields(parsed: dict) -> dict:
     """Для edit: переносит name/guests/phone/source с верхнего уровня в fields.
 
@@ -279,7 +316,15 @@ async def _parse_voice_command(text: str) -> dict:
     m = re.search(r'\{.*\}', raw, re.DOTALL)
     if not m:
         raise ValueError(f"LLM вернул неожиданный ответ: {raw}")
-    return _json.loads(m.group())
+    data = _json.loads(m.group())
+    # Нормализуем даты: модель иногда возвращает «12.12.null» или без года
+    data["date"] = _normalize_voice_date(data.get("date"))
+    flds = data.get("fields") or {}
+    for k in _DATE_FIELDS:
+        if k in flds:
+            flds[k] = _normalize_voice_date(flds[k])
+    data["fields"] = flds
+    return data
 
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -413,9 +458,10 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 card_bytes = None
 
             phone = booking.get("phone") or ""
+            _turl = _tel_url(phone)
             kb_call = InlineKeyboardMarkup([[
-                InlineKeyboardButton("📞 Позвонить", url=f"tel:{phone}"),
-            ]]) if phone else None
+                InlineKeyboardButton("📞 Позвонить", url=_turl),
+            ]]) if _turl else None
 
             if card_bytes:
                 import io as _io
