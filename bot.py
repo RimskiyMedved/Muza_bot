@@ -183,6 +183,48 @@ def _booking_by_date(dt_str: str) -> dict | None:
     return None
 
 
+def _merge_edit_fields(parsed: dict) -> dict:
+    """Для edit: переносит name/guests/phone/source с верхнего уровня в fields.
+
+    Маленькая LLM иногда кладёт эти поля наверх (как у add), а не в fields —
+    из-за чего правка «занеси имя и гостей» не распознавалась. Подстраховка кодом.
+    """
+    fields = dict(parsed.get("fields") or {})
+    for k in ("name", "guests", "phone", "source"):
+        v = parsed.get(k)
+        if v not in (None, "", []) and k not in fields:
+            fields[k] = str(v) if k == "guests" else v
+    return fields
+
+
+# Текст «что я умею» — общий для /help, /start и голосового вопроса «что ты умеешь?»
+_HELP_TEXT = (
+    "🎙 <b>Муза — что я умею</b>\n\n"
+    "Веду бронирования зала. Можно голосом, командами или через приложение.\n\n"
+    "📅 <b>Приложение</b>\n"
+    "/app — календарь, список броней, финансы и статистика.\n\n"
+    "🎙 <b>Голосом</b> (просто надиктуй):\n"
+    "• «Добавь Рамазан, 50 гостей, 31 декабря» — новая бронь\n"
+    "• «Покажи бронь на 10 июля» — карточка брони\n"
+    "• «Удали бронь на 20 июля» — отменить\n"
+    "• «Бронь 15 июня: прачка 20 тысяч, официанты 2» — изменить поля\n"
+    "• «Отредактируй бронь на 31 декабря» — спрошу, что поменять\n"
+    "• «Перенеси бронь с 5 на 8 августа» — сменить дату\n\n"
+    "⌨️ <b>Командами</b>\n"
+    "/add — добавить бронь\n"
+    "/edit — редактировать\n"
+    "/cancel_booking — снять бронь\n"
+    "/stats — статистика\n"
+    "/help — это сообщение\n\n"
+    "В правках можно менять что угодно: имя, гостей, телефон, источник, "
+    "оплаты, расходы, персонал."
+)
+_VOICE_HELP = {
+    "что ты умеешь", "что умеешь", "что ты можешь", "что можешь",
+    "что я умею", "помощь", "справка", "хелп", "help",
+}
+
+
 async def _parse_voice_command(text: str) -> dict:
     """Извлекает из транскрипции все поля брони через Groq LLM."""
     today = date.today()
@@ -217,6 +259,7 @@ async def _parse_voice_command(text: str) -> dict:
         "Суммы: «20 тысяч»=20000, «5к»=5000, «полтора»=1500\n\n"
         "Примеры:\n"
         f'"прачка 20 тысяч официанты 2 на 15 июня" → {{"action":"edit","date":"15.06.{y}","name":null,"guests":null,"phone":null,"source":null,"fields":{{"cost_laundry":20000,"staff_waiters":2}}}}\n'
+        f'"отредактируй бронь 31 декабря, имя Рамазан и 50 гостей" → {{"action":"edit","date":"31.12.{y}","name":null,"guests":null,"phone":null,"source":null,"fields":{{"name":"Рамазан","guests":"50"}}}}\n'
         f'"покажи бронь 10 июля" → {{"action":"show","date":"10.07.{y}","name":null,"guests":null,"phone":null,"source":null,"fields":{{}}}}\n'
         f'"добавь Иван 50 гостей 15 июня" → {{"action":"add","date":"15.06.{y}","name":"Иван","guests":50,"phone":null,"source":null,"fields":{{}}}}'
     )
@@ -273,13 +316,18 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await status_msg.edit_text(f"Привет, {first}! 👋")
             return
 
+        # Вопрос «что ты умеешь?» голосом → справка
+        if text.lower().strip().rstrip("!.?") in _VOICE_HELP:
+            await status_msg.edit_text(_HELP_TEXT, parse_mode="HTML")
+            return
+
         # ── Доуточнение правок: ждём, какие поля менять у ранее названной брони ──
         pending_edit = context.user_data.get("pending_edit_date")
         if pending_edit:
             # Текст пользователя — это перечисление полей; подставляем сохранённую дату
             augmented = f"{text} на {pending_edit}"
             parsed_e  = await _parse_voice_command(augmented)
-            fields_e  = parsed_e.get("fields") or {}
+            fields_e  = _merge_edit_fields(parsed_e)
             booking   = _booking_by_date(pending_edit)
             if not booking:
                 context.user_data.pop("pending_edit_date", None)
@@ -390,7 +438,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
         # ── EDIT: изменить поля брони ────────────────────────────────────────
         if action == "edit":
-            fields = parsed.get("fields") or {}
+            fields = _merge_edit_fields(parsed)
             booking = _booking_by_date(dt_str)
             if not booking:
                 await status_msg.edit_text(f"🎙 «{_e(text)}»\n\n❌ Бронь на {_e(dt_str)} не найдена.", parse_mode="HTML")
@@ -920,14 +968,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     if is_adm:
-        text = (
-            "<b>Команды бота</b>\n\n"
-            "/app — 📅 открыть мини-приложение\n\n"
-            "/add — добавить бронь\n"
-            "/edit — редактировать бронь\n"
-            "/cancel_booking — снять бронь\n"
-            "/stats — статистика"
-        )
+        text = _HELP_TEXT
     else:
         text = "<b>Команды бота</b>\n\nНапишите дату — я проверю, свободна ли она."
     await update.message.reply_text(text, parse_mode="HTML")
