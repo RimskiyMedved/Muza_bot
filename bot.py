@@ -140,17 +140,24 @@ async def _transcribe_voice(file_path: str) -> str:
 
 
 async def _parse_voice_command(text: str) -> dict:
-    """Извлекает из транскрипции действие, имя и дату через Groq LLM."""
+    """Извлекает из транскрипции все поля брони через Groq LLM."""
     today = date.today()
     system = (
-        f"Сегодня {today.strftime('%d.%m.%Y')}. Ты помощник для управления бронированиями.\n"
-        "Из текста извлеки действие (add=добавить, delete=удалить), имя клиента и дату.\n"
-        "Верни ТОЛЬКО JSON без пояснений:\n"
-        '{"action":"add" или "delete","name":"имя или null","date":"ДД.ММ.ГГГГ или null"}\n'
+        f"Сегодня {today.strftime('%d.%m.%Y')}. Ты помощник для управления бронированиями зала.\n"
+        "Из текста извлеки поля и верни ТОЛЬКО JSON без пояснений:\n"
+        "{\n"
+        '  "action": "add" или "delete",\n'
+        '  "name": "имя клиента или null",\n'
+        '  "date": "ДД.ММ.ГГГГ или null",\n'
+        '  "guests": число гостей или null,\n'
+        '  "phone": "номер телефона или null",\n'
+        '  "source": "источник рекламы (ВКонтакте/Авито/Инстаграм/Яндекс/...) или null"\n'
+        "}\n\n"
         "Примеры:\n"
-        f'"добавь Иван 15 июня" → {{"action":"add","name":"Иван","date":"15.06.{today.year}"}}\n'
-        f'"удали на 20 июля" → {{"action":"delete","name":null,"date":"20.07.{today.year}"}}\n'
-        f'"запиши Мария Петрова третье августа" → {{"action":"add","name":"Мария Петрова","date":"03.08.{today.year}"}}'
+        f'"добавь Иван 50 гостей 15 июня телефон 9001234567 источник ВКонтакте" → '
+        f'{{"action":"add","name":"Иван","date":"15.06.{today.year}","guests":50,"phone":"+79001234567","source":"ВКонтакте"}}\n'
+        f'"удали на 20 июля" → {{"action":"delete","name":null,"date":"20.07.{today.year}","guests":null,"phone":null,"source":null}}\n'
+        f'"запиши Мария Петрова третье августа сто гостей" → {{"action":"add","name":"Мария Петрова","date":"03.08.{today.year}","guests":100,"phone":null,"source":null}}'
     )
     loop = asyncio.get_event_loop()
     def _do():
@@ -161,7 +168,7 @@ async def _parse_voice_command(text: str) -> dict:
                 {"role": "user",   "content": text},
             ],
             temperature=0,
-            max_tokens=80,
+            max_tokens=150,
         )
     resp = await loop.run_in_executor(None, _do)
     raw = resp.choices[0].message.content.strip()
@@ -192,31 +199,53 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         text = await _transcribe_voice(tmp_path)
         log.info("🎙 Транскрипция: %s", text)
 
-        parsed   = await _parse_voice_command(text)
-        action   = parsed.get("action")
-        name     = parsed.get("name") or ""
-        dt_str   = parsed.get("date")
+        # Персональное приветствие голосом
+        _VOICE_GREETINGS = {"привет", "хай", "хеллоу", "hello", "hi",
+                            "здравствуй", "здравствуйте", "добрый день",
+                            "добрый вечер", "доброе утро", "ку"}
+        if text.lower().strip().rstrip("!.") in _VOICE_GREETINGS:
+            first = update.effective_user.first_name or "друг"
+            await status_msg.edit_text(f"Привет, {first}! 👋")
+            return
+
+        parsed  = await _parse_voice_command(text)
+        action  = parsed.get("action")
+        name    = parsed.get("name")    or ""
+        dt_str  = parsed.get("date")
+        guests  = parsed.get("guests")
+        phone   = parsed.get("phone")   or ""
+        source  = parsed.get("source")  or ""
 
         if not action or not dt_str:
             await status_msg.edit_text(
                 f"🎙 Распознал: «{_e(text)}»\n\n"
                 "❓ Не понял команду. Попробуй:\n"
-                "• «Добавь бронь Иван 15 июня»\n"
+                "• «Добавь бронь Иван 50 гостей 15 июня»\n"
                 "• «Удали бронь на 20 июля»",
                 parse_mode="HTML",
             )
             return
 
+        # Сохраняем данные в user_data (не в callback — лимит 64 байта)
+        context.user_data["voice_pending"] = {
+            "action": action, "name": name, "date": dt_str,
+            "guests": str(guests) if guests else "",
+            "phone": phone, "source": source, "transcript": text,
+        }
+
         action_label = "➕ Добавить бронь" if action == "add" else "🗑 Удалить бронь"
-        details = f"📅 {_e(dt_str)}" + (f"\n👤 {_e(name)}" if name else "")
-        cb_data = f"voice:{action}:{dt_str}:{name}"
+        lines = [f"📅 {_e(dt_str)}"]
+        if name:    lines.append(f"👤 {_e(name)}")
+        if guests:  lines.append(f"👥 {guests} гостей")
+        if phone:   lines.append(f"📞 {_e(phone)}")
+        if source:  lines.append(f"📢 {_e(source)}")
 
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ Да",  callback_data=cb_data),
-            InlineKeyboardButton("❌ Нет", callback_data="voice:cancel::"),
+            InlineKeyboardButton("✅ Да",  callback_data="voice:confirm"),
+            InlineKeyboardButton("❌ Нет", callback_data="voice:cancel"),
         ]])
         await status_msg.edit_text(
-            f"🎙 «{_e(text)}»\n\n<b>{action_label}?</b>\n{details}",
+            f"🎙 «{_e(text)}»\n\n<b>{action_label}?</b>\n" + "\n".join(lines),
             parse_mode="HTML",
             reply_markup=kb,
         )
@@ -233,16 +262,25 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     """Подтверждение/отмена голосовой команды."""
     q = update.callback_query
     await q.answer()
-    parts  = q.data.split(":", 3)           # voice:action:date:name
-    action = parts[1] if len(parts) > 1 else "cancel"
 
-    if action == "cancel":
+    if q.data == "voice:cancel":
+        context.user_data.pop("voice_pending", None)
         await q.edit_message_text("❌ Отменено.")
         return
 
-    dt_str = parts[2] if len(parts) > 2 else ""
-    name   = parts[3] if len(parts) > 3 else ""
-    uname  = q.from_user.username or str(q.from_user.id)
+    pending = context.user_data.pop("voice_pending", None)
+    if not pending:
+        await q.edit_message_text("❌ Данные устарели — отправь голосовое заново.")
+        return
+
+    action  = pending["action"]
+    dt_str  = pending["date"]
+    name    = pending["name"]
+    guests  = pending["guests"]
+    phone   = pending["phone"]
+    source  = pending["source"] or "Голос"
+    transcript = pending.get("transcript", "")
+    uname   = q.from_user.username or str(q.from_user.id)
 
     try:
         d = datetime.strptime(dt_str, "%d.%m.%Y").date()
@@ -255,19 +293,29 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             weekday = _WD[d.weekday()]
             from sheets import add_booking as _add_booking
             _add_booking(
-                target=d, guests="", name=name, phone="",
-                source="Голос", client_type="", comment="",
+                target=d,
+                guests=guests,
+                name=name,
+                phone=phone,
+                source=source,
+                client_type="",
+                comment=f"[Голос] {transcript}" if transcript else "",
                 changed_by=uname,
             )
             database.upsert_booking(
-                target=d, name=name, source="Голос",
-                weekday=weekday, changed_by=uname,
+                target=d, name=name, guests=guests, phone=phone,
+                source=source, weekday=weekday, changed_by=uname,
+                comment=f"[Голос] {transcript}" if transcript else "",
             )
+            lines = [f"📅 {_e(dt_str)}"]
+            if name:   lines.append(f"👤 {_e(name)}")
+            if guests: lines.append(f"👥 {guests} гостей")
+            if phone:  lines.append(f"📞 {_e(phone)}")
+            if source != "Голос": lines.append(f"📢 {_e(source)}")
             await q.edit_message_text(
-                f"✅ Бронь добавлена\n📅 {_e(dt_str)}" + (f"\n👤 {_e(name)}" if name else ""),
-                parse_mode="HTML",
+                "✅ Бронь добавлена\n" + "\n".join(lines), parse_mode="HTML",
             )
-            log.info("🎙 +бронь голосом: %s %s (@%s)", dt_str, name, uname)
+            log.info("🎙 +бронь голосом: %s %s г.%s (@%s)", dt_str, name, guests, uname)
 
         elif action == "delete":
             from sheets import remove_booking as _remove_booking
@@ -506,6 +554,15 @@ async def auto_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     # ── Стандартная логика (лично или админ в группе) ────────────────────────
     tl = text.lower().strip()
+
+    # Персональное приветствие для администраторов
+    _GREETINGS = {"привет", "хай", "хеллоу", "hello", "hi", "здравствуй",
+                  "здравствуйте", "добрый день", "добрый вечер", "доброе утро", "ку"}
+    if tl in _GREETINGS and is_admin(update):
+        first = update.effective_user.first_name or "друг"
+        await update.message.reply_text(f"Привет, {first}! 👋")
+        return
+
     if tl in ("старт", "start", "начать", "привет", "hello"):
         log.info("   ↳ Ключевое слово: старт")
         await cmd_help(update, context)
