@@ -273,6 +273,59 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await status_msg.edit_text(f"Привет, {first}! 👋")
             return
 
+        # ── Доуточнение правок: ждём, какие поля менять у ранее названной брони ──
+        pending_edit = context.user_data.get("pending_edit_date")
+        if pending_edit:
+            # Текст пользователя — это перечисление полей; подставляем сохранённую дату
+            augmented = f"{text} на {pending_edit}"
+            parsed_e  = await _parse_voice_command(augmented)
+            fields_e  = parsed_e.get("fields") or {}
+            booking   = _booking_by_date(pending_edit)
+            if not booking:
+                context.user_data.pop("pending_edit_date", None)
+                context.user_data.pop("pending_edit_name", None)
+                await status_msg.edit_text(
+                    f"❌ Бронь на {_e(pending_edit)} не найдена.", parse_mode="HTML")
+                return
+            if fields_e:
+                context.user_data.pop("pending_edit_date", None)
+                context.user_data.pop("pending_edit_name", None)
+                diff_lines = []
+                for k, new_val in fields_e.items():
+                    label   = _FIELD_LABELS.get(k, k)
+                    old_val = _fmt_field_val(k, booking.get(k))
+                    new_fmt = _fmt_field_val(k, new_val)
+                    diff_lines.append(f"  {label}: {old_val} → <b>{new_fmt}</b>")
+                context.user_data["voice_pending"] = {
+                    "action": "edit", "date": pending_edit,
+                    "fields": fields_e,
+                    "booking_name": booking.get("name", ""),
+                    "transcript": text,
+                }
+                await status_msg.edit_text(
+                    f"🎙 «{_e(text)}»\n\n"
+                    f"✏️ <b>Изменить бронь?</b>\n"
+                    f"📅 {_e(pending_edit)} — {_e(booking.get('name',''))}\n\n"
+                    + "\n".join(diff_lines),
+                    parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("✅ Да",  callback_data="voice:confirm"),
+                        InlineKeyboardButton("❌ Нет", callback_data="voice:cancel"),
+                    ]]),
+                )
+                return
+            # Поля не распознаны — переспрашиваем, не сбрасывая режим
+            await status_msg.edit_text(
+                f"🎙 «{_e(text)}»\n\n"
+                f"❓ Не понял, что изменить в брони на {_e(pending_edit)}.\n"
+                "Скажи ещё раз, например: «аванс 50 тысяч» или «телефон 9161234567».",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("❌ Отмена", callback_data="voice:edit_cancel"),
+                ]]),
+            )
+            return
+
         parsed  = await _parse_voice_command(text)
         action  = parsed.get("action")
         name    = parsed.get("name")    or ""
@@ -338,16 +391,23 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         # ── EDIT: изменить поля брони ────────────────────────────────────────
         if action == "edit":
             fields = parsed.get("fields") or {}
-            if not fields:
-                await status_msg.edit_text(
-                    f"🎙 «{_e(text)}»\n\n❓ Не распознал что изменить.\n"
-                    "Пример: «прачка 20 тысяч официанты 2 на 15 июня»",
-                    parse_mode="HTML",
-                )
-                return
             booking = _booking_by_date(dt_str)
             if not booking:
                 await status_msg.edit_text(f"🎙 «{_e(text)}»\n\n❌ Бронь на {_e(dt_str)} не найдена.", parse_mode="HTML")
+                return
+            if not fields:
+                # Дата есть, бронь есть, но поля не названы — переходим в режим доуточнения
+                context.user_data["pending_edit_date"] = dt_str
+                context.user_data["pending_edit_name"] = booking.get("name", "")
+                await status_msg.edit_text(
+                    f"🎙 «{_e(text)}»\n\n"
+                    f"✏️ Бронь на <b>{_e(dt_str)}</b> — {_e(booking.get('name',''))}.\n"
+                    "Что изменить? Скажи, например: «аванс 50 тысяч», «официанты 3», «телефон 9161234567».",
+                    parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("❌ Отмена", callback_data="voice:edit_cancel"),
+                    ]]),
+                )
                 return
 
             diff_lines = []
@@ -406,8 +466,10 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     q = update.callback_query
     await q.answer()
 
-    if q.data == "voice:cancel":
+    if q.data in ("voice:cancel", "voice:edit_cancel"):
         context.user_data.pop("voice_pending", None)
+        context.user_data.pop("pending_edit_date", None)
+        context.user_data.pop("pending_edit_name", None)
         await q.edit_message_text("❌ Отменено.")
         return
 
@@ -418,10 +480,10 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     action  = pending["action"]
     dt_str  = pending["date"]
-    name    = pending["name"]
-    guests  = pending["guests"]
-    phone   = pending["phone"]
-    source  = pending["source"] or ""
+    name    = pending.get("name", "")
+    guests  = pending.get("guests", "")
+    phone   = pending.get("phone", "")
+    source  = pending.get("source") or ""
     transcript = pending.get("transcript", "")
     uname   = q.from_user.username or str(q.from_user.id)
 
