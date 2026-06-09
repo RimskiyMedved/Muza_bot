@@ -157,6 +157,7 @@ _FIELD_LABELS = {
     "paid_final_date":   "Дата итоговой",
     "staff_waiters":     "Официанты",
     "staff_cooks":       "Повара",
+    "staff_cleaning":    "Клининг",
     "cost_laundry":      "Прачка",
     "cost_purchase":     "Закупка",
     "cost_extra":        "Доп. расходы",
@@ -278,7 +279,7 @@ async def _parse_voice_command(text: str) -> dict:
         "  paid_advance — аванс, paid_advance_date — дата аванса (ДД.ММ.ГГГГ)\n"
         "  paid_rent — оплата аренды, paid_rent_date — дата оплаты (ДД.ММ.ГГГГ)\n"
         "  paid_final — итоговая, paid_final_date — дата итоговой (ДД.ММ.ГГГГ)\n"
-        "  staff_waiters, staff_cooks — целые числа\n"
+        "  staff_waiters, staff_cooks, staff_cleaning — целые числа (клининг = staff_cleaning)\n"
         "  cost_laundry, cost_purchase, cost_extra — расходы\n"
         "  new_date — новая дата брони (ДД.ММ.ГГГГ) если просят перенести/сменить дату\n\n"
         "Суммы: «20 тысяч»=20000, «5к»=5000, «полтора»=1500\n\n"

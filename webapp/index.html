@@ -1730,6 +1730,10 @@ function _buildInfoTabHtml(b) {
     ["Источник",    b.source,       null  ],
     ["Тип",         b.client_type,  null  ],
     ["Договор",     b.contract_date,null  ],
+    ["Меню",        b.menu_url,
+      (b.menu_url && /^https?:\/\//i.test(b.menu_url))
+        ? `<a href="${escHtml(b.menu_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--gold);text-decoration:none;font-weight:600">Открыть меню</a>`
+        : null],
     ["Комментарий", b.comment,      null  ],
   ].filter(([, v]) => v);
   return `<div class="booking-detail">
@@ -1754,12 +1758,14 @@ function _buildFinanceTabHtml(b) {
   const cost_assistant  = parseFloat(b.cost_assistant)  || 0;
   const cost_waiters    = parseFloat(b.cost_waiters)    || 0;
   const cost_cooks      = parseFloat(b.cost_cooks)      || 0;
+  const cost_cleaning   = parseFloat(b.cost_cleaning)   || 0;
   const agency_fee      = parseFloat(b.agency_fee)      || 0;
   const cost_laundry    = parseFloat(b.cost_laundry)    || 0;
   const cost_purchase   = parseFloat(b.cost_purchase)   || 0;
   const cost_extra      = parseFloat(b.cost_extra)      || 0;
   const staff_w         = parseInt(b.staff_waiters)     || 0;
   const staff_c         = parseInt(b.staff_cooks)       || 0;
+  const staff_cl        = parseInt(b.staff_cleaning)    || 0;
 
   if (!total_income && !b.paid_advance && !b.paid_rent && !b.paid_final) {
     return `<div class="fin-empty" style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px 0">
@@ -1798,6 +1804,7 @@ function _buildFinanceTabHtml(b) {
         ${cost_assistant > 0 ? `<div class="fin-row"><span class="fin-lbl">Помощник</span><span class="fin-val">${fmtMoney(cost_assistant)}</span></div>` : ""}
         ${cost_waiters   > 0 ? `<div class="fin-row"><span class="fin-lbl">Официанты ×${staff_w}</span><span class="fin-val">${fmtMoney(cost_waiters)}</span></div>` : ""}
         ${cost_cooks     > 0 ? `<div class="fin-row"><span class="fin-lbl">Повара ×${staff_c}</span><span class="fin-val">${fmtMoney(cost_cooks)}</span></div>`     : ""}
+        ${cost_cleaning  > 0 ? `<div class="fin-row"><span class="fin-lbl">Клининг ×${staff_cl}</span><span class="fin-val">${fmtMoney(cost_cleaning)}</span></div>` : ""}
         ${agency_fee     > 0 ? `<div class="fin-row"><span class="fin-lbl">Агентский %</span><span class="fin-val">${fmtMoney(agency_fee)}</span></div>`  : ""}
         ${cost_laundry   > 0 ? `<div class="fin-row"><span class="fin-lbl">Прачка</span><span class="fin-val">${fmtMoney(cost_laundry)}</span></div>`     : ""}
         ${cost_purchase  > 0 ? `<div class="fin-row"><span class="fin-lbl">Закупка${b.cost_purchase_comment ? ' · ' + escHtml(b.cost_purchase_comment) : ''}</span><span class="fin-val">${fmtMoney(cost_purchase)}</span></div>` : ""}
@@ -2021,6 +2028,12 @@ function buildForm(data, showDateField) {
              placeholder="дд.мм.гггг" readonly
              value="${data.contract_date||""}" />
     </div>
+    <div class="form-group">
+      <label class="form-label">Меню (ссылка)</label>
+      <input class="form-input" id="f-menu_url" type="url" inputmode="url"
+             placeholder="https://disk.yandex.ru/…"
+             value="${escHtml(data.menu_url||"")}" />
+    </div>
     <div class="section-sep">Детали</div>
     <div class="form-group">
       <label class="form-label">Источник рекламы</label>
@@ -2176,6 +2189,28 @@ function buildForm(data, showDateField) {
           </div>
         </div>
       </div>
+      <div style="display:flex;gap:12px;padding:4px 0">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px">
+            Клининг
+            <span id="f-staff_cleaning-cost" style="font-size:11px;color:var(--hint);margin-left:4px;font-weight:400">${data.staff_cleaning>0&&data.rate_cleaner>0?fmtMoney(data.staff_cleaning*data.rate_cleaner):""}</span>
+          </div>
+          <div class="stepper">
+            <button class="step-btn" type="button" style="width:36px;height:44px"
+                    ${data.contract_date?"":"disabled"}
+                    onclick="stepField('f-staff_cleaning',-1);updateStaffCost('f-staff_cleaning',${data.rate_cleaner||5000})">−</button>
+            <input class="step-input" id="f-staff_cleaning" type="number" min="0"
+                   inputmode="numeric" placeholder="0" style="width:32px;flex:none"
+                   ${data.contract_date?"":"disabled"}
+                   value="${data.staff_cleaning > 0 ? data.staff_cleaning : ""}"
+                   oninput="updateStaffCost('f-staff_cleaning',${data.rate_cleaner||5000})" />
+            <button class="step-btn" type="button" style="width:36px;height:44px"
+                    ${data.contract_date?"":"disabled"}
+                    onclick="stepField('f-staff_cleaning',1);updateStaffCost('f-staff_cleaning',${data.rate_cleaner||5000})">+</button>
+          </div>
+        </div>
+        <div style="flex:1"></div>
+      </div>
     </div>
 
     <div class="section-sep">Доп. расходы</div>
@@ -2306,6 +2341,7 @@ function getFormData() {
     client_type:       isAgency ? "Агентство" : "",
     comment:           document.getElementById("f-comment")?.value.trim()           || "",
     contract_date:     document.getElementById("f-contract_date")?.value            || "",
+    menu_url:          (document.getElementById("f-menu_url")?.value || "").trim(),
     revenue_rent:      parseFloat(document.getElementById("f-revenue_rent")?.value)  || 0,
     revenue_menu:      parseFloat(document.getElementById("f-revenue_menu")?.value)  || 0,
     paid_advance:      parseFloat(document.getElementById("f-paid_advance")?.value)  || 0,
@@ -2319,6 +2355,7 @@ function getFormData() {
     has_assistant:          staffEnabled ? (document.getElementById("f-has_assistant")?.value  === "1" ? 1 : 0) : 1,
     staff_waiters:          staffEnabled ? (parseInt(document.getElementById("f-staff_waiters")?.value) || 0) : 0,
     staff_cooks:            staffEnabled ? (parseInt(document.getElementById("f-staff_cooks")?.value)   || 0) : 0,
+    staff_cleaning:         staffEnabled ? (parseInt(document.getElementById("f-staff_cleaning")?.value) || 0) : 0,
     cost_laundry:           parseFloat(document.getElementById("f-cost_laundry")?.value)          || 0,
     cost_purchase:          parseFloat(document.getElementById("f-cost_purchase")?.value)         || 0,
     cost_purchase_comment:  document.getElementById("f-cost_purchase_comment")?.value.trim()      || "",

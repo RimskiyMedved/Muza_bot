@@ -294,6 +294,7 @@ class BookingIn(BaseModel):
     paid_final:        float = 0
     staff_waiters:     int   = 0
     staff_cooks:       int   = 0
+    staff_cleaning:    int   = 0
     paid_advance_date:      str   = ""
     paid_rent_date:         str   = ""
     paid_final_date:        str   = ""
@@ -305,6 +306,7 @@ class BookingIn(BaseModel):
     has_manager:            int   = 1
     has_chef:               int   = 1
     has_assistant:          int   = 1
+    menu_url:               str   = ""
 
 
 class SettingIn(BaseModel):
@@ -332,6 +334,7 @@ async def create_booking(body: BookingIn, user: dict = Depends(_require_admin)):
                   paid_advance=body.paid_advance, paid_rent=body.paid_rent,
                   paid_final=body.paid_final,
                   staff_waiters=body.staff_waiters, staff_cooks=body.staff_cooks,
+                  staff_cleaning=body.staff_cleaning,
                   paid_advance_date=body.paid_advance_date,
                   paid_rent_date=body.paid_rent_date,
                   paid_final_date=body.paid_final_date,
@@ -343,6 +346,7 @@ async def create_booking(body: BookingIn, user: dict = Depends(_require_admin)):
                   has_manager=body.has_manager,
                   has_chef=body.has_chef,
                   has_assistant=body.has_assistant,
+                  menu_url=body.menu_url,
                   changed_by=username)
 
     database.log_access(user.get("id", 0), username, f"create:{body.date}")
@@ -370,6 +374,7 @@ async def update_booking(date_str: str, body: BookingIn, user: dict = Depends(_r
                   paid_advance=body.paid_advance, paid_rent=body.paid_rent,
                   paid_final=body.paid_final,
                   staff_waiters=body.staff_waiters, staff_cooks=body.staff_cooks,
+                  staff_cleaning=body.staff_cleaning,
                   paid_advance_date=body.paid_advance_date,
                   paid_rent_date=body.paid_rent_date,
                   paid_final_date=body.paid_final_date,
@@ -381,6 +386,7 @@ async def update_booking(date_str: str, body: BookingIn, user: dict = Depends(_r
                   has_manager=body.has_manager,
                   has_chef=body.has_chef,
                   has_assistant=body.has_assistant,
+                  menu_url=body.menu_url,
                   changed_by=username)
 
     database.log_access(user.get("id", 0), username, f"edit:{date_str}")
@@ -495,6 +501,7 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 paid_final=kwargs.get("paid_final", 0),
                 staff_waiters=kwargs.get("staff_waiters", 0),
                 staff_cooks=kwargs.get("staff_cooks", 0),
+                staff_cleaning=kwargs.get("staff_cleaning", 0),
                 paid_advance_date=kwargs.get("paid_advance_date", ""),
                 paid_rent_date=kwargs.get("paid_rent_date", ""),
                 paid_final_date=kwargs.get("paid_final_date", ""),
@@ -506,6 +513,7 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 has_manager=kwargs.get("has_manager", 1),
                 has_chef=kwargs.get("has_chef", 1),
                 has_assistant=kwargs.get("has_assistant", 1),
+                menu_url=kwargs.get("menu_url", ""),
             )
         elif action == "edit":
             edit_booking(
@@ -525,6 +533,7 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 paid_final=kwargs.get("paid_final", 0),
                 staff_waiters=kwargs.get("staff_waiters", 0),
                 staff_cooks=kwargs.get("staff_cooks", 0),
+                staff_cleaning=kwargs.get("staff_cleaning", 0),
                 paid_advance_date=kwargs.get("paid_advance_date", ""),
                 paid_rent_date=kwargs.get("paid_rent_date", ""),
                 paid_final_date=kwargs.get("paid_final_date", ""),
@@ -536,6 +545,7 @@ def _sheets_write(action: str, d: date, changed_by: str = "", **kwargs) -> None:
                 has_manager=kwargs.get("has_manager", 1),
                 has_chef=kwargs.get("has_chef", 1),
                 has_assistant=kwargs.get("has_assistant", 1),
+                menu_url=kwargs.get("menu_url", ""),
             )
         elif action == "remove":
             remove_booking(target=d)

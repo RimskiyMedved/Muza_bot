@@ -75,6 +75,10 @@ HEADERS_BOOKINGS = [
     "Доп. расходы, ₽", "Доп. расходы, коммент",
     # 26-28: флаги персонала (v5)
     "Менеджер участвовал", "Шеф участвовал", "Помощник участвовал",
+    # 29: ссылка на меню (v6)
+    "Ссылка на меню",
+    # 30: клининг (v7)
+    "Кол-во клинеров",
 ]
 
 # Индексы финансовых колонок в строке Sheets
@@ -98,6 +102,8 @@ _FIN = {
     "has_manager":           26,
     "has_chef":              27,
     "has_assistant":         28,
+    "menu_url":              29,
+    "staff_cleaning":        30,
 }
 
 HEADERS_FREE  = ["Дата", "День недели"]
@@ -316,6 +322,7 @@ def get_all_bookings() -> list[dict]:
                 "paid_final":    vf(_FIN["paid_final"]),
                 "staff_waiters":      vi(_FIN["staff_waiters"]),
                 "staff_cooks":        vi(_FIN["staff_cooks"]),
+                "staff_cleaning":     vi(_FIN["staff_cleaning"]),
                 "paid_advance_date":     v(_FIN["paid_advance_date"]),
                 "paid_rent_date":        v(_FIN["paid_rent_date"]),
                 "paid_final_date":       v(_FIN["paid_final_date"]),
@@ -327,6 +334,7 @@ def get_all_bookings() -> list[dict]:
                 "has_manager":   int(v(_FIN["has_manager"])   or "1") if v(_FIN["has_manager"])   != "" else 1,
                 "has_chef":      int(v(_FIN["has_chef"])      or "1") if v(_FIN["has_chef"])      != "" else 1,
                 "has_assistant": int(v(_FIN["has_assistant"]) or "1") if v(_FIN["has_assistant"]) != "" else 1,
+                "menu_url":              v(_FIN["menu_url"]),
                 "future":                d >= today,
             })
         except ValueError:
@@ -352,6 +360,7 @@ def add_booking(
     paid_final: float = 0,
     staff_waiters: int = 0,
     staff_cooks: int = 0,
+    staff_cleaning: int = 0,
     paid_advance_date: str = "",
     paid_rent_date: str = "",
     paid_final_date: str = "",
@@ -363,6 +372,7 @@ def add_booking(
     has_manager: int = 1,
     has_chef: int = 1,
     has_assistant: int = 1,
+    menu_url: str = "",
 ) -> None:
     """
     Добавляет или перезаписывает бронь.
@@ -383,6 +393,8 @@ def add_booking(
         cost_laundry, cost_purchase, cost_purchase_comment,
         cost_extra, cost_extra_comment,
         has_manager, has_chef, has_assistant,
+        menu_url,
+        staff_cleaning,
     ]
     rows = _data_rows(ws)
     found = False
@@ -391,6 +403,7 @@ def add_booking(
             # Сохраняем финансы если новая строка их не содержит
             if len(row) > 10 and not any([revenue_rent, revenue_menu, paid_advance,
                                           paid_rent, paid_final, staff_waiters, staff_cooks,
+                                          staff_cleaning,
                                           paid_advance_date, paid_rent_date, paid_final_date,
                                           cost_laundry, cost_purchase, cost_extra,
                                           has_manager != 1, has_chef != 1, has_assistant != 1]):
@@ -416,10 +429,12 @@ def add_booking(
                 revenue_rent=revenue_rent, revenue_menu=revenue_menu,
                 paid_advance=paid_advance, paid_rent=paid_rent, paid_final=paid_final,
                 staff_waiters=staff_waiters, staff_cooks=staff_cooks,
+                staff_cleaning=staff_cleaning,
                 cost_laundry=cost_laundry, cost_purchase=cost_purchase,
                 cost_purchase_comment=cost_purchase_comment,
                 cost_extra=cost_extra, cost_extra_comment=cost_extra_comment,
                 has_manager=has_manager, has_chef=has_chef, has_assistant=has_assistant,
+                menu_url=menu_url,
             )
             _db.remove_free_date(target)
         except Exception as _e:
