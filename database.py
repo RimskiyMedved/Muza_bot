@@ -145,8 +145,13 @@ def _to_iso(date_str: str) -> str:
 
 @contextmanager
 def _conn():
-    con = sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(DB_PATH, timeout=10)
     con.row_factory = sqlite3.Row
+    # Надёжность при двух службах (bot + api) на одном файле:
+    # WAL — читатели не блокируют писателей; busy_timeout — ждать блокировку, а не падать.
+    con.execute("PRAGMA busy_timeout=10000")
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("PRAGMA synchronous=NORMAL")
     try:
         yield con
         con.commit()
@@ -403,8 +408,11 @@ def sync_from_sheets() -> None:
                      revenue_rent, revenue_menu, paid_advance, paid_rent, paid_final,
                      staff_waiters, staff_cooks, staff_cleaning,
                      paid_advance_date, paid_rent_date, paid_final_date,
+                     cost_laundry, cost_purchase, cost_purchase_comment,
+                     cost_extra, cost_extra_comment,
+                     has_manager, has_chef, has_assistant,
                      menu_url)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (b["date"], _to_iso(b["date"]), b["guests"], b["name"], b["phone"],
                       b["source"], b["client_type"], b["comment"],
                       b.get("weekday", ""), "", "", now,
@@ -414,6 +422,9 @@ def sync_from_sheets() -> None:
                       b.get("staff_waiters", 0), b.get("staff_cooks", 0), b.get("staff_cleaning", 0),
                       b.get("paid_advance_date", ""), b.get("paid_rent_date", ""),
                       b.get("paid_final_date", ""),
+                      b.get("cost_laundry", 0), b.get("cost_purchase", 0), b.get("cost_purchase_comment", ""),
+                      b.get("cost_extra", 0), b.get("cost_extra_comment", ""),
+                      b.get("has_manager", 1), b.get("has_chef", 1), b.get("has_assistant", 1),
                       b.get("menu_url", "")))
         log.info("✅ Синхронизировано бронирований: %d", len(bookings))
 
