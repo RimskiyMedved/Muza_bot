@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Три бота, одно лето — дневник разработки</title>
+<style>
+  :root{
+    --bg:#FBF7EF; --bg2:#F3ECDB; --card:#FFFFFF; --line:#E8DFCB;
+    --tx:#2B2519; --mut:#7C6F58; --hint:#A2967D;
+    --avito:#10A079; --avito-s:#E2F4ED;
+    --art:#6A5BD6; --art-s:#ECEAFB;
+    --muza:#D8642F; --muza-s:#FBEBE2;
+    --gold:#C2871A;
+    --maxw:780px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1200px 500px at 80% -100px, #FFF6E2 0%, rgba(255,246,226,0) 60%),
+      radial-gradient(900px 500px at -100px 200px, #F0F6EE 0%, rgba(240,246,238,0) 55%),
+      var(--bg);
+    color:var(--tx);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.72; font-size:17px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:60px 22px 96px;}
+
+  /* hero */
+  .kick{display:inline-block; font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold);
+    background:#FBEFD2; border:1px solid #F0DCA8; padding:5px 13px; border-radius:999px; margin-bottom:20px; font-weight:600;}
+  h1{font-size:clamp(36px,6.5vw,56px); line-height:1.04; font-weight:800; letter-spacing:-.025em; margin-bottom:20px;}
+  h1 .em{background:linear-gradient(120deg,var(--avito),var(--art) 55%,var(--muza)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .lede{font-size:20px; color:var(--mut); max-width:60ch;}
+  .meta{display:flex; flex-wrap:wrap; gap:9px; margin-top:30px;}
+  .pill{font-size:13px; color:var(--mut); background:var(--card); border:1px solid var(--line); border-radius:999px; padding:6px 14px;}
+
+  /* nav cards */
+  .nav{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:44px 0 8px;}
+  .nav a{text-decoration:none; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; display:block;
+    box-shadow:0 1px 2px rgba(80,60,20,.04); transition:transform .16s, box-shadow .16s, border-color .16s;}
+  .nav a:hover{transform:translateY(-4px); box-shadow:0 10px 26px rgba(120,90,30,.12);}
+  .nav .n1{border-top:3px solid var(--avito);} .nav .n2{border-top:3px solid var(--art);} .nav .n3{border-top:3px solid var(--muza);}
+  .nav .nt{font-size:18px; font-weight:700; color:var(--tx); margin-bottom:3px;}
+  .nav .nd{font-size:14px; color:var(--mut);}
+
+  /* chapter */
+  .chap{margin-top:88px; scroll-margin-top:24px;}
+  .chap-head{padding-top:22px; border-top:2px solid;}
+  .s1 .chap-head{border-color:var(--avito);} .s2 .chap-head{border-color:var(--art);} .s3 .chap-head{border-color:var(--muza);}
+  .chap-num{font-size:14px; letter-spacing:.15em; text-transform:uppercase; font-weight:700;}
+  .s1 .chap-num{color:var(--avito);} .s2 .chap-num{color:var(--art);} .s3 .chap-num{color:var(--muza);}
+  .chap h2{font-size:clamp(30px,5vw,42px); font-weight:800; letter-spacing:-.02em; margin:8px 0 6px;}
+  .chap-dates{color:var(--hint); font-size:15px;}
+
+  /* short card */
+  .tldr{background:var(--card); border:1px solid var(--line); border-radius:18px; padding:24px 26px; margin:26px 0 6px;
+    box-shadow:0 1px 2px rgba(80,60,20,.04);}
+  .tldr .lbl{font-size:12px; letter-spacing:.15em; text-transform:uppercase; color:var(--hint); margin-bottom:10px; font-weight:700;}
+  .tldr p{font-size:17px; color:var(--tx);}
+  .s1 .tldr{border-left:4px solid var(--avito);} .s2 .tldr{border-left:4px solid var(--art);} .s3 .tldr{border-left:4px solid var(--muza);}
+
+  /* detail */
+  .detail{margin-top:32px;}
+  .detail h3{font-size:14px; letter-spacing:.07em; text-transform:uppercase; color:var(--mut); margin:32px 0 2px; font-weight:700;}
+  .detail p{margin:15px 0; color:#41382a;}
+  .detail .date{color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums;}
+  .detail em{color:var(--mut); font-style:italic;}
+  .quote{position:relative; padding:6px 0 6px 22px; margin:22px 0; color:var(--tx); font-size:19px; font-style:italic; border-left:3px solid;}
+  .s1 .quote{border-color:var(--avito);} .s2 .quote{border-color:var(--art);} .s3 .quote{border-color:var(--muza);}
+
+  /* feature chips */
+  .feats{display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 4px;}
+  .feat{font-size:13px; padding:6px 12px; border-radius:8px; background:var(--bg2); border:1px solid var(--line); color:var(--mut);}
+
+  /* ===== faux UI mockups ===== */
+  .mock{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin:26px 0 4px;
+    box-shadow:0 6px 20px rgba(120,90,30,.08);}
+  .mock-bar{display:flex; align-items:center; gap:6px; margin-bottom:12px;}
+  .dot{width:10px; height:10px; border-radius:50%; background:#E4D9C2;}
+  .mock-cap{font-size:12px; color:var(--hint); margin-top:10px; text-align:center;}
+  /* chat (avito) */
+  .bubl{max-width:78%; padding:9px 13px; border-radius:14px; font-size:14.5px; margin:7px 0; line-height:1.5;}
+  .bubl.in{background:var(--bg2); color:var(--tx); border-bottom-left-radius:4px;}
+  .bubl.out{background:var(--avito); color:#fff; margin-left:auto; border-bottom-right-radius:4px;}
+  .unread{text-align:center; font-size:11px; color:var(--avito); margin:10px 0; position:relative;}
+  .unread::before,.unread::after{content:""; position:absolute; top:50%; width:32%; height:1px; background:#CFE8DD;}
+  .unread::before{left:0} .unread::after{right:0}
+  /* event card (arthaos) */
+  .evt{border:1px solid var(--line); border-radius:12px; padding:13px 15px;}
+  .evt .et{font-weight:700; font-size:16px;}
+  .evt .ed{font-size:13px; color:var(--mut); margin:3px 0 9px;}
+  .tag{display:inline-block; font-size:12px; font-weight:600; padding:3px 10px; border-radius:999px;
+    background:var(--art-s); color:var(--art); margin-right:6px;}
+  /* calendar + voice (muza) */
+  .cal{display:grid; grid-template-columns:repeat(7,1fr); gap:5px;}
+  .cal div{aspect-ratio:1; border-radius:7px; background:var(--bg2); display:flex; align-items:center; justify-content:center;
+    font-size:12px; color:var(--mut);}
+  .cal div.bk{background:var(--muza-s); color:var(--muza); font-weight:700; border:1px solid #F1CDB7;}
+  .voice{display:flex; align-items:center; gap:11px; margin-top:13px; background:var(--muza-s); border:1px solid #F2D3BF;
+    border-radius:12px; padding:11px 14px;}
+  .micbtn{width:34px; height:34px; border-radius:50%; background:var(--muza); flex:0 0 auto; position:relative;}
+  .micbtn::before{content:""; position:absolute; left:50%; top:8px; transform:translateX(-50%); width:8px; height:11px; border-radius:5px; background:#fff;}
+  .micbtn::after{content:""; position:absolute; left:50%; bottom:8px; transform:translateX(-50%); width:14px; height:7px;
+    border:2px solid #fff; border-top:0; border-radius:0 0 9px 9px;}
+  .wave{display:flex; align-items:center; gap:3px; height:24px;}
+  .wave span{width:3px; border-radius:3px; background:var(--muza); opacity:.65;}
+  .vtxt{font-size:13px; color:var(--muza); font-weight:600;}
+
+  /* outro */
+  .outro{margin-top:96px; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:34px 30px;
+    box-shadow:0 1px 2px rgba(80,60,20,.04);}
+  .outro h2{font-size:26px; font-weight:800; margin-bottom:14px;}
+  .outro p{color:var(--mut); margin:13px 0;}
+  .sign{margin-top:24px; color:var(--hint); font-size:14px;}
+  a.up{color:var(--gold); text-decoration:none; font-weight:600;}
+</style>
+</head>
+<body>
+<div class="wrap" id="top">
+
+  <span class="kick">Дневник разработки · апрель — июнь 2026</span>
+  <h1>Три бота, <span class="em">одна весна и лето</span></h1>
+  <p class="lede">Первой ещё в апреле появилась Муза — система броней. А к лету рядом выросли ещё два живых Telegram-бота: один воюет с переписками на Авито, другой держит на себе целое арт-пространство. Истории — без приукрас, прямо как было.</p>
+  <div class="meta">
+    <span class="pill">3 проекта</span>
+    <span class="pill">первая — Муза, с 17 апреля</span>
+    <span class="pill">112+ коммитов</span>
+    <span class="pill">бессонные ночи прилагаются</span>
+  </div>
+
+  <div class="nav">
+    <a href="#avito" class="n1"><div class="nt">Онлайн Авито</div><div class="nd">Никогда не спит, всегда отвечает</div></a>
+    <a href="#arthaos" class="n2"><div class="nt">АртХаос</div><div class="nd">Порядок в творческом хаосе</div></a>
+    <a href="#muza" class="n3"><div class="nt">Муза</div><div class="nd">Бронь голосом? Легко</div></a>
+  </div>
+
+  <!-- ============ AVITO ============ -->
+  <section class="chap s1" id="avito">
+    <div class="chap-head">
+      <div class="chap-num">Бот 01</div>
+      <h2>Онлайн Авито</h2>
+      <div class="chap-dates">9 мая — 1 июня 2026 · 19 коммитов · «тот, кто всегда на связи»</div>
+    </div>
+
+    <div class="tldr">
+      <div class="lbl">Если коротко</div>
+      <p>Представь продавца, который никогда не спит, не устаёт и отвечает клиенту через секунду — в любое время суток. Это он. Поллер тянет сообщения с Авито, зеркалит чаты в Telegram, сам отвечает по FAQ и аккуратно складывает всё в базу. А потом ещё и обзавёлся собственным веб-чатом с разделителем непрочитанных. Девиз — ни одно сообщение не уходит без ответа.</p>
+    </div>
+
+    <!-- mockup: chat -->
+    <div class="mock">
+      <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="bubl in">Здравствуйте! Ещё актуально? Какая цена?</div>
+      <div class="unread">непрочитанные ниже</div>
+      <div class="bubl out">Здравствуйте! Да, актуально 🙂 Цена 4 500 ₽. Подскажите дату — проверю свободные слоты.</div>
+      <div class="bubl in">Супер, на субботу можно?</div>
+      <div class="mock-cap">примерно так выглядел веб-чат · реконструкция по коду</div>
+    </div>
+
+    <div class="detail">
+      <p>Всё началось с боли, знакомой каждому, кто продаёт на Авито: сообщений вал, а руки не успевают. Идея простая до наглости — <em>пусть бот ведёт переписку сам, а человек подключается только когда реально нужно.</em></p>
+
+      <h3>Сразу ва-банк</h3>
+      <p><span class="date">9 мая</span> — никаких «сначала прототипчик». Сразу большой initial commit: поллер Авито, зеркало чатов в Telegram, Google Sheets, FAQ-матчинг, SQLite и админка. Всё ядро — за один присест. <em>(Код этого бота лежит в отдельном репозитории; что было до 9 мая — на этой машине не сохранилось, так что начинаю с первой надёжной даты.)</em></p>
+      <p><span class="date">13 мая</span> — и понеслось: посыпались первые баги с фото и приветствиями. Тогда же в проект ворвался Саша со своими правками — соло превратилось в дуэт.</p>
+
+      <div class="quote">Бот ответил клиенту в три часа ночи, а ты утром просто читаешь happy end. Ради этого и затевалось.</div>
+
+      <h3>Ночи веб-чата</h3>
+      <p><span class="date">14–15 мая</span> — самый угар: переписали веб-интерфейс целиком. Веб-чат, localStorage, разделитель непрочитанных — коммиты падали буквально час за часом, глубокой ночью. Заодно научили FAQ отвечать на несколько вопросов в одном сообщении (а то клиенты любят всё сразу).</p>
+
+      <h3>Деньги и порядок</h3>
+      <p><span class="date">26 мая</span> — подключили финансовую аналитику: баланс по аккаунтам и расходы по месяцам.</p>
+      <p><span class="date">27 мая</span> — день для души перфекциониста: docker-compose, права <em>user_operations</em>, человеческие тексты ошибок API. Теперь проект поднимается одной командой.</p>
+      <p><span class="date">28 мая — 1 июня</span> — финальная шлифовка: семь коммитов подряд на «новый вид диалога» и красоту карточек в Telegram.</p>
+
+      <div class="feats">
+        <span class="feat">поллер Авито</span><span class="feat">зеркало в Telegram</span>
+        <span class="feat">FAQ-матчинг (мультитема)</span><span class="feat">веб-чат + непрочитанные</span>
+        <span class="feat">финансы по аккаунтам</span><span class="feat">docker-compose</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ARTHAOS ============ -->
+  <section class="chap s2" id="arthaos">
+    <div class="chap-head">
+      <div class="chap-num">Бот 02</div>
+      <h2>АртХаос</h2>
+      <div class="chap-dates">9 мая — 2 июня 2026 · 9 фаз · «порядок в творческом хаосе»</div>
+    </div>
+
+    <div class="tldr">
+      <div class="lbl">Если коротко</div>
+      <p>Этот — про живое пространство, а не про переписку. Он помнит все события, знает каждого резидента в лицо, отвечает гостям через фирменную базу «АртеFAQ» и присматривает за финансами. Рос рывками: был дикий спринт 20–22 мая — 39 коммитов за три дня. Бывает же.</p>
+    </div>
+
+    <!-- mockup: event card -->
+    <div class="mock">
+      <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="evt">
+        <div class="et">Вечер виниловых сетов</div>
+        <div class="ed">сб · 19:00 · большой зал</div>
+        <span class="tag">резидент: DJ Лора</span><span class="tag">12 гостей</span>
+      </div>
+      <div class="mock-cap">карточка события · реконструкция по коду</div>
+    </div>
+
+    <div class="detail">
+      <p>Если Авито-бот ловит входящий трафик, то АртХаос отвечает на вопрос изнутри: <em>как вести саму жизнь пространства — события, резидентов, ответы на вечные вопросы гостей.</em></p>
+
+      <h3>Три дня, которые всё решили</h3>
+      <p><span class="date">9 мая</span> — отсюда начинается git: бот, база, FAQ. Это дата создания репозитория, а не обязательно первый день работы — код АртХаоса в отдельном месте, и что было до 9 мая, на этой машине проверить нельзя. Так что начинаю с первой надёжной даты.</p>
+      <p><span class="date">20–22 мая</span> — те самые легендарные три дня: <strong>39 коммитов</strong>. CRUD событий, профили резидентов, финансовый блок, перевод базы в WAL-режим (чтобы ничего не падало под нагрузкой) и фирменный ребрендинг FAQ в «АртеFAQ». За три дня заготовка стала рабочим инструментом.</p>
+
+      <div class="quote">Бывают дни, когда код будто пишется сам. Три дня, тридцать девять коммитов — и проект не узнать.</div>
+
+      <h3>Паузы — тоже часть работы</h3>
+      <p>После 22 мая — пять дней тишины. Иногда самое полезное для проекта — дать ему отлежаться и посмотреть свежим взглядом.</p>
+      <p><span class="date">27–28 мая</span> — фото-спринт: целиком ушли в работу с изображениями.</p>
+
+      <h3>Дверь для своих</h3>
+      <p><span class="date">2 июня</span> — второй по плотности день, 19 коммитов: веб-вход через Telegram Login Widget и капитальный ремонт интерфейса. Команда получила нормальную дверь, а бот — причёску.</p>
+
+      <div class="feats">
+        <span class="feat">CRUD событий</span><span class="feat">профили резидентов</span>
+        <span class="feat">АртеFAQ</span><span class="feat">финансы</span>
+        <span class="feat">WAL-режим SQLite</span><span class="feat">Telegram Login Widget</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MUZA ============ -->
+  <section class="chap s3" id="muza">
+    <div class="chap-head">
+      <div class="chap-num">Бот 03 · нулевой пациент</div>
+      <h2>Муза</h2>
+      <div class="chap-dates">17 апреля — 6 июня 2026 · самая первая · 74 коммита · «бот, который тебя слушает»</div>
+    </div>
+
+    <div class="tldr">
+      <div class="lbl">Если коротко</div>
+      <p>Самый прокачанный из троицы. В сердце — календарь броней с именами и источниками, рядом Mini App с динамическими ценами. Потом приехали финансы (доходы, расходы, прибыль, долги), а под занавес — голос: говоришь «забронируй субботу на четверых» и бот рисует готовую карточку. Текущая версия — Муза 3.1.</p>
+    </div>
+
+    <!-- mockup: calendar + voice -->
+    <div class="mock">
+      <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="cal">
+        <div>пн</div><div>вт</div><div>ср</div><div>чт</div><div>пт</div><div>сб</div><div>вс</div>
+        <div>1</div><div>2</div><div>3</div><div class="bk">4</div><div>5</div><div class="bk">6</div><div>7</div>
+        <div>8</div><div>9</div><div class="bk">10</div><div>11</div><div>12</div><div class="bk">13</div><div>14</div>
+      </div>
+      <div class="voice">
+        <span class="micbtn"></span>
+        <span class="wave"><span style="height:8px"></span><span style="height:16px"></span><span style="height:22px"></span><span style="height:12px"></span><span style="height:19px"></span><span style="height:7px"></span><span style="height:14px"></span></span>
+        <span class="vtxt">«забронируй субботу, 4 гостя…»</span>
+      </div>
+      <div class="mock-cap">календарь + голосовая бронь · реконструкция по коду</div>
+    </div>
+
+    <div class="detail">
+      <p>Муза отвечала на самый денежный вопрос из трёх: <em>кто придёт, когда, сколько заплатит — и сколько мы в плюсе.</em></p>
+
+      <h3>Апрель: Муза рождается</h3>
+      <p><span class="date">17 апреля</span> — день рождения проекта. Завели бота, прикрутили доступы к Google, написали инструкцию запуска. И уже тогда это была не «болталка», а заготовка системы броней.</p>
+      <p><span class="date">24–25 апреля</span> — выгрузили реальные диалоги и собрали свод тест-кейсов. В нём уже больше шестидесяти упоминаний броней, календаря и гостей — то есть про бронирования думали с самого начала, а не пришли к ним позже. Весь этот апрельский фундамент потом целиком переехал в первый git-коммит.</p>
+
+      <h3>Май: git и первый разгон</h3>
+      <p><span class="date">9 мая</span> — наконец завели git (первый коммит — в четыре утра, всё как полагается). Это не старт с нуля, а апрельские наработки под версионным контролем.</p>
+
+      <h3>Календарь и Mini App</h3>
+      <p>Центром сразу стал календарь броней: имена клиентов прямо в ячейках, бейджи источника, мини-статистика сверху.</p>
+      <p><span class="date">15 мая</span> — день, когда всё выросло: Telegram Mini App со статистикой, динамические цены по сезону и дню недели, график по месяцам. У бронирования появилось лицо.</p>
+
+      <h3>День большого редизайна</h3>
+      <p><span class="date">3 июня</span> — рекорд проекта, 22 коммита за день: премиальная тёмная тема, админка с правами и логом входов, вид списком, API броней, навигация по статистике. Бот стал выглядеть как продукт.</p>
+
+      <h3>Финансы</h3>
+      <p><span class="date">5 июня</span> — «Большое обновление. Финансы»: доходы, расходы, прибыль, оплаты с уведомлениями, агентские, валидация дат, бейдж долга с фильтром. А перед этим — честный бета-разбор всей системы: сами искали критические баги до того, как их найдут пользователи.</p>
+
+      <div class="quote">Говоришь боту: «суббота, четверо, на имя такое-то» — а он показывает готовую карточку. Вот тут понимаешь, что живёшь в будущем.</div>
+
+      <h3>Голос и взрослость</h3>
+      <p><span class="date">6 июня</span> — финальный аккорд лета. Groq Whisper слышит, LLM понимает: бронь можно создать, поменять любое поле и удалить голосом — с подтверждением и красивой карточкой через Pillow. В тот же день — взрослая аналитика (средний чек, загрузка, долги, рост к прошлому месяцу, выручка по источникам) и безопасность: rate-limiting, скрытая схема OpenAPI, security-заголовки.</p>
+
+      <div class="feats">
+        <span class="feat">календарь броней</span><span class="feat">Mini App + цены</span>
+        <span class="feat">тёмная тема + админка</span><span class="feat">финансы и долги</span>
+        <span class="feat">голосовые брони</span><span class="feat">аналитика MoM</span>
+        <span class="feat">rate-limit + security</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ OUTRO ============ -->
+  <section class="outro">
+    <h2>Что в сухом остатке</h2>
+    <p>Три бота, выросшие за весну и лето. Первой, ещё в апреле, родилась Муза; в мае к ней присоединились Авито и АртХаос. Авито учился не терять клиентов, АртХаос — держать на себе пространство, Муза — считать брони и слушать голос. Задачи разные, а ДНК общая: Telegram, Python, SQLite и упрямая привычка чинить всё, что мешает живым людям.</p>
+    <p>Скринов старых версий, увы, не сохранилось — поэтому интерфейсы выше нарисованы по памяти из кода. Если будешь делать новые скриншоты, кидай их сюда — вставлю настоящие.</p>
+    <p>Эта страница — первая в библиотеке проектных дневников. Сюда же дальше лягут календари и заметки по новым ботам.</p>
+    <div class="sign">— дневник проектов · обновлено 7 июня 2026 &nbsp;·&nbsp; <a class="up" href="#top">наверх ↑</a></div>
+  </section>
+
+</div>
+</body>
+</html>
