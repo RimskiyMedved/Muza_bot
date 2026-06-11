@@ -2695,7 +2695,7 @@ async function loadAnalytics() {
        ${sub ? `<div style="font-size:11px;color:var(--hint);margin-top:1px">${sub}</div>` : ""}
      </div>`;
 
-  let html = `<div class="admin-section"><div class="admin-section-title">Итоги за 12 месяцев</div>
+  let html = `<div class="admin-section"><div class="admin-section-title">Итоги (±10 месяцев)</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${card("Прибыль", fmtMoney(t.profit))}
       ${card("Маржа", t.margin + "%")}
@@ -2723,7 +2723,7 @@ async function loadAnalytics() {
   });
   html += `</div>`;
 
-  html += `<div class="admin-section"><div class="admin-section-title">Структура расходов (12 мес)</div>`;
+  html += `<div class="admin-section"><div class="admin-section-title">Структура расходов (±10 мес)</div>`;
   if (!f.expense_structure.length) html += '<div class="admin-empty">Нет расходов</div>';
   f.expense_structure.forEach(c => {
     html += `<div style="padding:6px 0">

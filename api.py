@@ -903,21 +903,20 @@ async def admin_get_summary(user: dict = Depends(_require_superadmin)):
 
 @app.get("/api/admin/analytics")
 async def admin_get_analytics(user: dict = Depends(_require_superadmin)):
-    """Глубокая аналитика за 12 месяцев по дате мероприятия: действия + финансы."""
+    """Глубокая аналитика по дате мероприятия (окно ±10 месяцев): действия + финансы."""
     from collections import defaultdict
     from datetime import date as date_cls
 
     actions = database.get_admin_action_analytics(activity_days=30)
 
     today = date_cls.today()
+    # окно ±10 месяцев от текущего: прошлые 10 + текущий + предстоящие 10
     months_keys = []
-    y, m = today.year, today.month
-    for _ in range(12):
+    for delta in range(-10, 11):
+        m = today.month + delta
+        y = today.year + (m - 1) // 12
+        m = ((m - 1) % 12) + 1
         months_keys.append((m, y))
-        m -= 1
-        if m == 0:
-            m, y = 12, y - 1
-    months_keys.reverse()
     keyset = {f"{mm:02d}.{yy}" for mm, yy in months_keys}
 
     def _mkey(b) -> str:
