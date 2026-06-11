@@ -910,20 +910,25 @@ async def admin_get_analytics(user: dict = Depends(_require_superadmin)):
     actions = database.get_admin_action_analytics(activity_days=30)
 
     today = date_cls.today()
-    # окно ±10 месяцев от текущего: прошлые 10 + текущий + предстоящие 10
-    months_keys = []
-    for delta in range(-10, 11):
-        m = today.month + delta
-        y = today.year + (m - 1) // 12
-        m = ((m - 1) % 12) + 1
-        months_keys.append((m, y))
-    keyset = {f"{mm:02d}.{yy}" for mm, yy in months_keys}
+    START_YEAR = 2026
 
     def _mkey(b) -> str:
         d = b["date_obj"]
         return f"{d.month:02d}.{d.year}"
 
-    win = [b for b in database.get_all_bookings() if _mkey(b) in keyset]
+    # окно: все брони с START_YEAR и дальше (по дате мероприятия)
+    win = [b for b in database.get_all_bookings() if b["date_obj"].year >= START_YEAR]
+
+    # помесячный ряд: с января START_YEAR по последний месяц с данными (или текущий)
+    last = max([b["date_obj"] for b in win], default=today)
+    end_y, end_m = max((last.year, last.month), (today.year, today.month))
+    months_keys = []
+    yy, mm = START_YEAR, 1
+    while (yy, mm) <= (end_y, end_m):
+        months_keys.append((mm, yy))
+        mm += 1
+        if mm == 13:
+            mm, yy = 1, yy + 1
 
     CATS = [
         ("Менеджер", "cost_manager"), ("Шеф", "cost_chef"), ("Помощник", "cost_assistant"),
@@ -1013,9 +1018,36 @@ async def admin_get_analytics(user: dict = Depends(_require_superadmin)):
     for ct in ctypes.values():
         ct["revenue"] = round(ct["revenue"]); ct["profit"] = round(ct["profit"])
 
+    # ── По годам (с START_YEAR) ──
+    years_map: dict = {}
+    for b in win:
+        yr = b["date_obj"].year
+        ya = years_map.setdefault(yr, {"income": 0.0, "expenses": 0.0, "profit": 0.0,
+                                       "count": 0, "income_count": 0, "days": set()})
+        inc = float(b.get("total_income") or 0)
+        ya["income"]   += inc
+        ya["expenses"] += float(b.get("total_expenses") or 0)
+        ya["profit"]   += float(b.get("profit") or 0)
+        ya["count"]    += 1
+        if inc > 0:
+            ya["income_count"] += 1
+        ya["days"].add(b["date"])
+    years = []
+    for yr in sorted(years_map):
+        ya = years_map[yr]
+        inc, pro, cnt, icnt = ya["income"], ya["profit"], ya["count"], ya["income_count"]
+        years.append({
+            "year": yr, "income": round(inc), "expenses": round(ya["expenses"]),
+            "profit": round(pro), "margin": round(pro / inc * 100, 1) if inc else 0,
+            "count": cnt, "booked": len(ya["days"]),
+            "avg_check": round(inc / icnt) if icnt else 0,
+            "avg_profit": round(pro / cnt) if cnt else 0,
+        })
+
     return {
         "actions": actions,
         "finance": {
+            "years": years,
             "months": months,
             "expense_structure": expense_structure,
             "sources": sources,

@@ -85,7 +85,9 @@ def compute_financials(booking: dict, rates: dict | None = None) -> dict:
     staff_cooks    = int(booking.get("staff_cooks")     or 0)
     staff_cleaning = int(booking.get("staff_cleaning")  or 0)
     is_agency     = (booking.get("client_type") or "").strip() == "Агентство"
-    has_fin_data  = bool(booking.get("contract_date") or revenue_rent or revenue_menu)
+    # Фиксированные ставки (менеджер/шеф/помощник) считаем только при реальной выручке,
+    # а не просто при заполненной дате договора.
+    has_revenue   = (revenue_rent > 0) or (revenue_menu > 0)
 
     cost_assistant = float(rates.get("cost_assistant", SETTINGS_DEFAULTS["cost_assistant"]))
     cost_laundry   = float(booking.get("cost_laundry")  or 0)
@@ -102,18 +104,17 @@ def compute_financials(booking: dict, rates: dict | None = None) -> dict:
     cost_cleaning  = staff_cleaning * cost_cleaner
     agency_fee     = round(revenue_menu * agency_pct, 2) if is_agency else 0.0
     total_income   = revenue_rent + revenue_menu
-    # Фиксированные ставки считаем только если финансы реально заполнены
-    _fixed = (
-        (cost_manager   if has_manager_f   else 0.0) +
-        (cost_chef      if has_chef_f      else 0.0) +
-        (cost_assistant if has_assistant_f else 0.0)
-    ) if has_fin_data else 0.0
+    # Фиксированные ставки считаем только если есть реальная выручка
+    _mgr = cost_manager   if (has_manager_f   and has_revenue) else 0.0
+    _chf = cost_chef      if (has_chef_f      and has_revenue) else 0.0
+    _ast = cost_assistant if (has_assistant_f and has_revenue) else 0.0
+    _fixed = _mgr + _chf + _ast
     total_expenses = _fixed + cost_waiters + cost_cooks + cost_cleaning + agency_fee + cost_laundry + cost_purchase + cost_extra
     return {
         "total_income":    total_income,
-        "cost_manager":    cost_manager   if has_manager_f   else 0.0,
-        "cost_chef":       cost_chef      if has_chef_f      else 0.0,
-        "cost_assistant":  cost_assistant if has_assistant_f else 0.0,
+        "cost_manager":    _mgr,
+        "cost_chef":       _chf,
+        "cost_assistant":  _ast,
         "cost_waiters":    cost_waiters,
         "cost_cooks":      cost_cooks,
         "cost_cleaning":   cost_cleaning,

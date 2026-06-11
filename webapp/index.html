@@ -2695,7 +2695,7 @@ async function loadAnalytics() {
        ${sub ? `<div style="font-size:11px;color:var(--hint);margin-top:1px">${sub}</div>` : ""}
      </div>`;
 
-  let html = `<div class="admin-section"><div class="admin-section-title">Итоги (±10 месяцев)</div>
+  let html = `<div class="admin-section"><div class="admin-section-title">Итоги (с 2026)</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${card("Прибыль", fmtMoney(t.profit))}
       ${card("Маржа", t.margin + "%")}
@@ -2704,6 +2704,22 @@ async function loadAnalytics() {
       ${card("Прибыль/банкет", fmtMoney(t.avg_profit))}
       ${card("Банкетов", t.count)}
     </div></div>`;
+
+  html += `<div class="admin-section"><div class="admin-section-title">По годам</div>`;
+  (f.years || []).forEach(yr => {
+    html += `<div style="padding:8px 0;border-bottom:1px solid rgba(60,46,34,.07)">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-size:15px;font-weight:700">${yr.year}</span>
+        <span style="font-size:14px"><b>${fmtMoney(yr.profit)}</b> <span style="color:var(--hint);font-size:11px">маржа ${yr.margin}%</span></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--hint);margin-top:2px">
+        <span>выручка ${fmtMoney(yr.income)} · расходы ${fmtMoney(yr.expenses)}</span>
+        <span>${yr.count} бан · чек ${fmtMoney(yr.avg_check)}</span>
+      </div>
+    </div>`;
+  });
+  if (!(f.years || []).length) html += '<div class="admin-empty">Нет данных с 2026</div>';
+  html += `</div>`;
 
   const maxP = Math.max(1, ...f.months.map(m => Math.abs(m.profit)));
   html += `<div class="admin-section"><div class="admin-section-title">Прибыль и маржа по месяцам</div>`;
@@ -2723,7 +2739,7 @@ async function loadAnalytics() {
   });
   html += `</div>`;
 
-  html += `<div class="admin-section"><div class="admin-section-title">Структура расходов (±10 мес)</div>`;
+  html += `<div class="admin-section"><div class="admin-section-title">Структура расходов (с 2026)</div>`;
   if (!f.expense_structure.length) html += '<div class="admin-empty">Нет расходов</div>';
   f.expense_structure.forEach(c => {
     html += `<div style="padding:6px 0">
