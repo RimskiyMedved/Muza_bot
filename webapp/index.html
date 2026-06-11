@@ -1007,6 +1007,10 @@
   </div>
 </div>
 
+<div id="analyticsView" style="display:none">
+  <div id="analyticsContent"><div class="admin-empty">Загружаем…</div></div>
+</div>
+
 <!-- FAB -->
 <button class="fab" id="fabBtn" title="Добавить бронь">
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
@@ -1061,6 +1065,12 @@
       <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
     </svg>
     Админ
+  </button>
+  <button class="nav-tab" id="tab-analytics" onclick="switchView('analytics')" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12a9 9 0 1 1-9-9v9z"/><path d="M21 8a9 9 0 0 0-5-5v5z"/>
+    </svg>
+    Аналитика
   </button>
 </nav>
 
@@ -1173,6 +1183,7 @@ function switchView(view) {
   document.getElementById("calendarView").style.display  = view === "calendar" ? "block" : "none";
   document.getElementById("statsView").style.display     = view === "stats"    ? "block" : "none";
   document.getElementById("adminView").style.display     = view === "admin"    ? "block" : "none";
+  document.getElementById("analyticsView").style.display = view === "analytics"? "block" : "none";
   document.getElementById("listView").style.display      = view === "list"     ? "block" : "none";
   document.getElementById("calHeader").style.display     = view === "calendar" ? "block" : "none";
   document.getElementById("fabBtn").style.display        = (view === "calendar" || view === "list") ? "flex" : "none";
@@ -1183,6 +1194,7 @@ function switchView(view) {
   if (view === "stats") loadStats();
   if (view === "list")  loadList();
   if (view === "admin") loadAdminPanel();
+  if (view === "analytics") loadAnalytics();
 }
 
 // ─── Year / month ──────────────────────────────────────────────────────────────
@@ -2654,6 +2666,128 @@ const SUPERADMIN_ID = 45028744;
 const myId = twa?.initDataUnsafe?.user?.id || 0;
 if (myId === SUPERADMIN_ID) {
   document.getElementById("tab-admin").style.display = "";
+  document.getElementById("tab-analytics").style.display = "";
+}
+
+// ─── Аналитика (суперадмин) ────────────────────────────────────────────────
+function _momArrow(pct) {
+  if (pct === null || pct === undefined) return '<span style="color:var(--hint)">—</span>';
+  if (pct > 0) return `<span style="color:#1d9e75;font-weight:600">▲${pct}%</span>`;
+  if (pct < 0) return `<span style="color:#d8642f;font-weight:600">▼${Math.abs(pct)}%</span>`;
+  return '<span style="color:var(--hint)">0%</span>';
+}
+function _bar(pct, color) {
+  const w = Math.max(0, Math.min(100, pct));
+  return `<div style="height:6px;background:rgba(60,46,34,.1);border-radius:3px;overflow:hidden;margin-top:4px"><div style="height:100%;width:${w}%;background:${color}"></div></div>`;
+}
+async function loadAnalytics() {
+  const wrap = document.getElementById("analyticsContent");
+  wrap.innerHTML = '<div class="admin-empty">Загружаем…</div>';
+  let d;
+  try { d = await apiFetch("GET", "/api/admin/analytics"); }
+  catch (e) { wrap.innerHTML = `<div class="admin-empty">Ошибка: ${escHtml(e.message)}</div>`; return; }
+
+  const f = d.finance, a = d.actions, t = f.totals;
+  const card = (lbl, val, sub) =>
+    `<div style="flex:1;min-width:120px;background:var(--card);border:1px solid var(--line,rgba(60,46,34,.12));border-radius:14px;padding:12px 14px">
+       <div style="font-size:19px;font-weight:700;color:var(--text)">${val}</div>
+       <div style="font-size:11px;color:var(--hint);margin-top:2px">${lbl}</div>
+       ${sub ? `<div style="font-size:11px;color:var(--hint);margin-top:1px">${sub}</div>` : ""}
+     </div>`;
+
+  let html = `<div class="admin-section"><div class="admin-section-title">Итоги за 12 месяцев</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${card("Прибыль", fmtMoney(t.profit))}
+      ${card("Маржа", t.margin + "%")}
+      ${card("Выручка", fmtMoney(t.income))}
+      ${card("Средний чек", fmtMoney(t.avg_check))}
+      ${card("Прибыль/банкет", fmtMoney(t.avg_profit))}
+      ${card("Банкетов", t.count)}
+    </div></div>`;
+
+  const maxP = Math.max(1, ...f.months.map(m => Math.abs(m.profit)));
+  html += `<div class="admin-section"><div class="admin-section-title">Прибыль и маржа по месяцам</div>`;
+  f.months.forEach(m => {
+    if (m.count === 0 && m.profit === 0) return;
+    html += `<div style="padding:7px 0;border-bottom:1px solid rgba(60,46,34,.07)">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-size:13px;font-weight:500">${m.label}</span>
+        <span style="font-size:13px"><b>${fmtMoney(m.profit)}</b> &nbsp; ${_momArrow(m.mom_profit_pct)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--hint);margin-top:1px">
+        <span>маржа ${m.margin}% · чек ${fmtMoney(m.avg_check)} · ${m.count} бан.</span>
+        <span>выручка ${fmtMoney(m.income)}</span>
+      </div>
+      ${_bar(m.profit / maxP * 100, m.profit >= 0 ? '#1d9e75' : '#d8642f')}
+    </div>`;
+  });
+  html += `</div>`;
+
+  html += `<div class="admin-section"><div class="admin-section-title">Структура расходов (12 мес)</div>`;
+  if (!f.expense_structure.length) html += '<div class="admin-empty">Нет расходов</div>';
+  f.expense_structure.forEach(c => {
+    html += `<div style="padding:6px 0">
+      <div style="display:flex;justify-content:space-between;font-size:13px"><span>${escHtml(c.label)}</span><span><b>${fmtMoney(c.amount)}</b> <span style="color:var(--hint);font-size:11px">${c.pct}%</span></span></div>
+      ${_bar(c.pct, '#bb8930')}
+    </div>`;
+  });
+  html += `</div>`;
+
+  html += `<div class="admin-section"><div class="admin-section-title">Загрузка по месяцам</div>`;
+  f.months.forEach(m => {
+    if (m.booked === 0) return;
+    html += `<div style="padding:6px 0">
+      <div style="display:flex;justify-content:space-between;font-size:13px"><span>${m.label}</span><span><b>${m.occ_pct}%</b> <span style="color:var(--hint);font-size:11px">${m.booked} дн (будни ${m.weekday} / вых ${m.weekend})</span></span></div>
+      ${_bar(m.occ_pct, '#6a5bd6')}
+    </div>`;
+  });
+  html += `</div>`;
+
+  const ag = f.client_types.agency, di = f.client_types.direct;
+  html += `<div class="admin-section"><div class="admin-section-title">Источники денег</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      ${card("Агентства", fmtMoney(ag.revenue), `${ag.count} бан · приб ${fmtMoney(ag.profit)}`)}
+      ${card("Прямые", fmtMoney(di.revenue), `${di.count} бан · приб ${fmtMoney(di.profit)}`)}
+    </div>`;
+  f.sources.forEach(s => {
+    html += `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(60,46,34,.07);font-size:13px">
+      <span>${escHtml(s.source)} <span style="color:var(--hint);font-size:11px">×${s.count}</span></span>
+      <span><b>${fmtMoney(s.revenue)}</b> <span style="color:var(--hint);font-size:11px">чек ${fmtMoney(s.avg_check)}</span></span>
+    </div>`;
+  });
+  html += `</div>`;
+
+  html += `<div class="admin-section"><div class="admin-section-title">Действия менеджеров</div>`;
+  if (!a.managers.length) html += '<div class="admin-empty">Пока нет действий</div>';
+  a.managers.forEach(m => {
+    const since = m.days_since === null ? "—" : (m.days_since === 0 ? "сегодня" : `${m.days_since} дн назад`);
+    const stale = m.days_since !== null && m.days_since >= 14;
+    html += `<div style="padding:7px 0;border-bottom:1px solid rgba(60,46,34,.07)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span style="font-weight:500">${escHtml(m.username)}</span>
+        <span style="color:${stale ? '#d8642f' : 'var(--hint)'};font-size:11px">был(а): ${since}</span>
+      </div>
+      <div style="font-size:11px;color:var(--hint);margin-top:2px">создал ${m.create} · изменил ${m.edit} · отменил ${m.delete} · настройки ${m.settings} · всего ${m.total}</div>
+    </div>`;
+  });
+  const maxA = Math.max(1, ...a.activity.map(x => x.count));
+  html += `<div style="margin-top:10px"><div style="font-size:11px;color:var(--hint);margin-bottom:4px">Активность за 30 дней</div>
+    <div style="display:flex;align-items:flex-end;gap:2px;height:36px">
+      ${a.activity.map(x => `<div title="${x.date}: ${x.count}" style="flex:1;background:${x.count ? '#6a5bd6' : 'rgba(60,46,34,.08)'};height:${Math.max(6, x.count / maxA * 100)}%;border-radius:2px"></div>`).join('')}
+    </div></div></div>`;
+
+  html += `<div class="admin-section"><div class="admin-section-title">Правки задним числом${a.backdated_total ? ` (${a.backdated_total})` : ''}</div>`;
+  if (!a.backdated.length) html += '<div class="admin-empty">Нет правок задним числом</div>';
+  a.backdated.forEach(b => {
+    const verb = b.action === "create" ? "создал" : "изменил";
+    html += `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(60,46,34,.07);font-size:13px">
+      <span>${escHtml(b.username)} ${verb} бронь <b>${b.booking_date}</b></span>
+      <span style="color:var(--hint);font-size:11px">${escHtml(b.when || "")} · +${b.days_late} дн</span>
+    </div>`;
+  });
+  html += `</div>`;
+
+  wrap.innerHTML = html;
 }
 
 // ─── Admin panel ──────────────────────────────────────────────────────────────

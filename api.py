@@ -897,3 +897,130 @@ async def admin_get_summary(user: dict = Depends(_require_superadmin)):
         "week": usage,
     }
     return summary
+
+
+# ─── Admin: аналитика (суперадмин) ────────────────────────────────────────────
+
+@app.get("/api/admin/analytics")
+async def admin_get_analytics(user: dict = Depends(_require_superadmin)):
+    """Глубокая аналитика за 12 месяцев по дате мероприятия: действия + финансы."""
+    from collections import defaultdict
+    from datetime import date as date_cls
+
+    actions = database.get_admin_action_analytics(activity_days=30)
+
+    today = date_cls.today()
+    months_keys = []
+    y, m = today.year, today.month
+    for _ in range(12):
+        months_keys.append((m, y))
+        m -= 1
+        if m == 0:
+            m, y = 12, y - 1
+    months_keys.reverse()
+    keyset = {f"{mm:02d}.{yy}" for mm, yy in months_keys}
+
+    def _mkey(b) -> str:
+        d = b["date_obj"]
+        return f"{d.month:02d}.{d.year}"
+
+    win = [b for b in database.get_all_bookings() if _mkey(b) in keyset]
+
+    CATS = [
+        ("Менеджер", "cost_manager"), ("Шеф", "cost_chef"), ("Помощник", "cost_assistant"),
+        ("Официанты", "cost_waiters"), ("Повара", "cost_cooks"), ("Клининг", "cost_cleaning"),
+        ("Прачка", "cost_laundry"), ("Закупка", "cost_purchase"), ("Доп. расходы", "cost_extra"),
+        ("Агентские", "agency_fee"),
+    ]
+
+    fin_m  = {f"{mm:02d}.{yy}": {"income": 0.0, "expenses": 0.0, "profit": 0.0,
+                                 "count": 0, "income_count": 0} for mm, yy in months_keys}
+    struct = {field: 0.0 for _, field in CATS}
+    occ    = {f"{mm:02d}.{yy}": {"days": set(), "wd": set(), "we": set()} for mm, yy in months_keys}
+    src    = defaultdict(lambda: {"count": 0, "revenue": 0.0})
+    ctypes = {"agency": {"count": 0, "revenue": 0.0, "profit": 0.0},
+              "direct": {"count": 0, "revenue": 0.0, "profit": 0.0}}
+
+    for b in win:
+        k   = _mkey(b)
+        inc = float(b.get("total_income")   or 0)
+        exp = float(b.get("total_expenses") or 0)
+        pro = float(b.get("profit")         or 0)
+        fm = fin_m[k]
+        fm["income"] += inc; fm["expenses"] += exp; fm["profit"] += pro; fm["count"] += 1
+        if inc > 0:
+            fm["income_count"] += 1
+        for _, field in CATS:
+            struct[field] += float(b.get(field) or 0)
+        d = b["date_obj"]
+        o = occ[k]; o["days"].add(b["date"])
+        (o["we"] if d.weekday() >= 5 else o["wd"]).add(b["date"])
+        s = b.get("source") or "Не указан"
+        src[s]["count"] += 1; src[s]["revenue"] += inc
+        ct = "agency" if (b.get("client_type") or "").strip() == "Агентство" else "direct"
+        ctypes[ct]["count"] += 1; ctypes[ct]["revenue"] += inc; ctypes[ct]["profit"] += pro
+
+    months = []
+    prev_profit = None
+    for mm, yy in months_keys:
+        fm = fin_m[f"{mm:02d}.{yy}"]
+        inc, exp, pro = fm["income"], fm["expenses"], fm["profit"]
+        cnt, icnt = fm["count"], fm["income_count"]
+        mom = None
+        if prev_profit is not None and prev_profit != 0:
+            mom = round((pro - prev_profit) / abs(prev_profit) * 100)
+        prev_profit = pro
+        days_in = _cal.monthrange(yy, mm)[1]
+        o = occ[f"{mm:02d}.{yy}"]
+        months.append({
+            "key": f"{mm:02d}.{yy}", "label": MONTH_NAMES[mm - 1][:3] + f" {yy}",
+            "income": round(inc), "expenses": round(exp), "profit": round(pro),
+            "margin": round(pro / inc * 100, 1) if inc > 0 else 0,
+            "count": cnt,
+            "avg_check": round(inc / icnt) if icnt else 0,
+            "avg_profit": round(pro / cnt) if cnt else 0,
+            "mom_profit_pct": mom,
+            "occ_pct": round(len(o["days"]) / days_in * 100),
+            "booked": len(o["days"]), "weekday": len(o["wd"]), "weekend": len(o["we"]),
+        })
+
+    total_struct = sum(struct.values()) or 1
+    expense_structure = sorted(
+        [{"label": lbl, "amount": round(struct[field]),
+          "pct": round(struct[field] / total_struct * 100, 1)}
+         for lbl, field in CATS if struct[field] > 0],
+        key=lambda x: x["amount"], reverse=True,
+    )
+
+    sources = sorted(
+        [{"source": s, "count": v["count"], "revenue": round(v["revenue"]),
+          "avg_check": round(v["revenue"] / v["count"]) if v["count"] else 0}
+         for s, v in src.items()],
+        key=lambda x: x["revenue"], reverse=True,
+    )
+
+    tot_inc  = sum(m["income"]   for m in months)
+    tot_exp  = sum(m["expenses"] for m in months)
+    tot_pro  = sum(m["profit"]   for m in months)
+    tot_cnt  = sum(m["count"]    for m in months)
+    tot_icnt = sum(1 for b in win if float(b.get("total_income") or 0) > 0)
+    totals = {
+        "income": tot_inc, "expenses": tot_exp, "profit": tot_pro,
+        "margin": round(tot_pro / tot_inc * 100, 1) if tot_inc else 0,
+        "count": tot_cnt,
+        "avg_check": round(tot_inc / tot_icnt) if tot_icnt else 0,
+        "avg_profit": round(tot_pro / tot_cnt) if tot_cnt else 0,
+    }
+    for ct in ctypes.values():
+        ct["revenue"] = round(ct["revenue"]); ct["profit"] = round(ct["profit"])
+
+    return {
+        "actions": actions,
+        "finance": {
+            "months": months,
+            "expense_structure": expense_structure,
+            "sources": sources,
+            "client_types": ctypes,
+            "totals": totals,
+        },
+    }

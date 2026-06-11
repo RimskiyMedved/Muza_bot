@@ -14,7 +14,7 @@ import logging
 import os
 import sqlite3
 from contextlib import contextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from utils import normalize_phone
 
@@ -890,6 +890,96 @@ def get_access_log(limit: int = 100) -> list[dict]:
             "SELECT * FROM access_log ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def get_admin_action_analytics(activity_days: int = 30, backdated_limit: int = 50) -> dict:
+    """
+    Аналитика действий менеджеров для суперадмина:
+      - разбивка по типам (create/edit/delete/settings) на каждого,
+      - последняя активность и сколько дней назад,
+      - активность по дням за activity_days,
+      - правки «задним числом» (бронь, дата которой уже прошла на момент действия).
+    """
+    TS_FMT = "%d.%m.%Y %H:%M"
+    TYPES = ("create", "edit", "delete", "settings")
+    today = date.today()
+    cutoff = today - timedelta(days=activity_days)
+
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT username, action, timestamp FROM access_log ORDER BY id"
+        ).fetchall()
+
+    per_user: dict = {}
+    by_day: dict = {}
+    backdated: list = []
+
+    for r in rows:
+        uname  = r["username"] or "—"
+        action = r["action"] or ""
+        atype  = action.split(":", 1)[0]
+        if atype not in TYPES:
+            atype = "other"
+        try:
+            when = datetime.strptime(r["timestamp"] or "", TS_FMT)
+        except ValueError:
+            when = None
+
+        u = per_user.setdefault(
+            uname,
+            {"create": 0, "edit": 0, "delete": 0, "settings": 0, "other": 0,
+             "total": 0, "last": None},
+        )
+        u[atype] += 1
+        u["total"] += 1
+        if when and (u["last"] is None or when > u["last"]):
+            u["last"] = when
+
+        if when and when.date() >= cutoff:
+            k = when.date().isoformat()
+            by_day[k] = by_day.get(k, 0) + 1
+
+        # правки задним числом: дата брони < даты действия
+        if atype in ("edit", "create") and when and ":" in action:
+            tail = action.split(":", 1)[1].strip()
+            try:
+                bdate = datetime.strptime(tail, "%d.%m.%Y").date()
+                if bdate < when.date():
+                    backdated.append({
+                        "username": uname,
+                        "action": atype,
+                        "booking_date": tail,
+                        "when": r["timestamp"],
+                        "days_late": (when.date() - bdate).days,
+                    })
+            except ValueError:
+                pass
+
+    managers = []
+    for uname, u in per_user.items():
+        managers.append({
+            "username": uname,
+            "create": u["create"], "edit": u["edit"],
+            "delete": u["delete"], "settings": u["settings"],
+            "total": u["total"],
+            "last_activity": u["last"].strftime(TS_FMT) if u["last"] else None,
+            "days_since": (today - u["last"].date()).days if u["last"] else None,
+        })
+    managers.sort(key=lambda m: m["total"], reverse=True)
+
+    activity = [
+        {"date": (today - timedelta(days=i)).isoformat(),
+         "count": by_day.get((today - timedelta(days=i)).isoformat(), 0)}
+        for i in range(activity_days - 1, -1, -1)
+    ]
+
+    backdated.sort(key=lambda b: b["when"] or "", reverse=True)
+    return {
+        "managers": managers,
+        "activity": activity,
+        "backdated": backdated[:backdated_limit],
+        "backdated_total": len(backdated),
+    }
 
 
 # ─── Seen users (авто-приветствие) ───────────────────────────────────────────
