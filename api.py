@@ -37,7 +37,7 @@ from urllib.parse import parse_qsl
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -192,6 +192,37 @@ async def serve_index() -> FileResponse:
         "Pragma": "no-cache",
         "Expires": "0",
     })
+
+
+# ─── Health (для внешнего мониторинга: UptimeRobot и т.п.) ────────────────────
+
+HEALTH_MAX_AGE_SEC = 300  # бот считается живым, если heartbeat не старше 5 минут
+
+@app.get("/health")
+@limiter.exempt
+async def health(request: Request) -> JSONResponse:
+    """
+    Публичный health-check. 200 — API жив и бот пишет heartbeat не старше 5 мин.
+    503 — бот завис/мёртв (heartbeat устарел или отсутствует). Авторизация не нужна.
+    """
+    hb = database.get_bot_heartbeat()
+    age = None
+    bot_ok = False
+    if hb:
+        try:
+            age = (datetime.now() - datetime.fromisoformat(hb)).total_seconds()
+            bot_ok = age < HEALTH_MAX_AGE_SEC
+        except (ValueError, TypeError):
+            bot_ok = False
+    return JSONResponse(
+        {
+            "status": "ok" if bot_ok else "stale",
+            "api": "up",
+            "bot": "up" if bot_ok else "down",
+            "bot_heartbeat_age_sec": int(age) if age is not None else None,
+        },
+        status_code=200 if bot_ok else 503,
+    )
 
 
 # ─── Calendar ─────────────────────────────────────────────────────────────────

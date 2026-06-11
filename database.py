@@ -381,6 +381,28 @@ def update_setting(key: str, value: float) -> bool:
     return True
 
 
+# ─── Heartbeat бота (для /health и внешнего мониторинга) ──────────────────────
+
+def set_bot_heartbeat() -> None:
+    """Бот пишет отметку «я жив» (ISO-время). Используется эндпоинтом /health."""
+    ts = datetime.now().isoformat()
+    with _conn() as con:
+        con.execute(
+            "INSERT INTO settings (key, value) VALUES ('_bot_heartbeat', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (ts,),
+        )
+
+
+def get_bot_heartbeat() -> str | None:
+    """Возвращает ISO-время последнего heartbeat бота или None."""
+    with _conn() as con:
+        row = con.execute(
+            "SELECT value FROM settings WHERE key='_bot_heartbeat'"
+        ).fetchone()
+    return row["value"] if row else None
+
+
 # ─── Синхронизация из Google Sheets ──────────────────────────────────────────
 
 def sync_from_sheets() -> None:

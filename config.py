@@ -42,3 +42,10 @@ AVITO_POLL_BROAD_CHATS_LIMIT:      int = int(os.getenv("AVITO_POLL_BROAD_CHATS_L
 AVITO_POLL_MESSAGES_LIMIT:         int = int(os.getenv("AVITO_POLL_MESSAGES_LIMIT", "100"))
 AVITO_POLL_MAX_INBOUND_BURST:      int = int(os.getenv("AVITO_POLL_MAX_INBOUND_BURST", "15"))
 AVITO_POLL_RECOVERY_PENDING_LIMIT: int = int(os.getenv("AVITO_POLL_RECOVERY_PENDING_LIMIT", "3"))
+
+# ─── Мониторинг / health ──────────────────────────────────────────────────────
+# Healthchecks.io: уникальный ping-URL. Если пинги прекратятся — сервис пришлёт тревогу.
+HEALTHCHECK_URL:            str = os.getenv("HEALTHCHECK_URL", "")
+HEALTHCHECK_PING_INTERVAL:  int = int(os.getenv("HEALTHCHECK_PING_INTERVAL", "300"))  # сек
+# Час ежедневного отчёта «я жив» админу (0–23, по времени сервера)
+HEARTBEAT_HOUR:             int = int(os.getenv("HEARTBEAT_HOUR", "10"))
