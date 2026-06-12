@@ -599,6 +599,12 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                     )
                     return
             weekday = _WD[d.weekday()]
+            # Если бронь на эту дату уже есть (перезапись) — сохраняем её финансы,
+            # обновляя только базовые поля. add_booking сам зеркалит в SQLite,
+            # поэтому отдельный upsert_booking не нужен (он бы обнулил финансы).
+            _ex = database.check_date(d)
+            if not _ex.get("found"):
+                _ex = {}
             from sheets import add_booking as _add_booking
             _add_booking(
                 target=d,
@@ -606,14 +612,26 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 name=name,
                 phone=phone,
                 source=source,
-                client_type="",
-                comment=f"[Голос] {transcript}" if transcript else "",
+                client_type=_ex.get("client_type", ""),
+                comment=f"[Голос] {transcript}" if transcript else _ex.get("comment", ""),
                 changed_by=uname,
-            )
-            database.upsert_booking(
-                target=d, name=name, guests=guests, phone=phone,
-                source=source, weekday=weekday, changed_by=uname,
-                comment=f"[Голос] {transcript}" if transcript else "",
+                contract_date=_ex.get("contract_date", ""),
+                revenue_rent=_ex.get("revenue_rent", 0), revenue_menu=_ex.get("revenue_menu", 0),
+                paid_advance=_ex.get("paid_advance", 0), paid_rent=_ex.get("paid_rent", 0),
+                paid_final=_ex.get("paid_final", 0),
+                staff_waiters=_ex.get("staff_waiters", 0), staff_cooks=_ex.get("staff_cooks", 0),
+                staff_cleaning=_ex.get("staff_cleaning", 0),
+                paid_advance_date=_ex.get("paid_advance_date", ""),
+                paid_rent_date=_ex.get("paid_rent_date", ""),
+                paid_final_date=_ex.get("paid_final_date", ""),
+                cost_laundry=_ex.get("cost_laundry", 0),
+                cost_purchase=_ex.get("cost_purchase", 0),
+                cost_purchase_comment=_ex.get("cost_purchase_comment", ""),
+                cost_extra=_ex.get("cost_extra", 0),
+                cost_extra_comment=_ex.get("cost_extra_comment", ""),
+                has_manager=_ex.get("has_manager", 1), has_chef=_ex.get("has_chef", 1),
+                has_assistant=_ex.get("has_assistant", 1),
+                menu_url=_ex.get("menu_url", ""),
             )
             lines = [f"📅 {_e(dt_str)}"]
             if name:   lines.append(f"👤 {_e(name)}")
@@ -655,15 +673,34 @@ async def voice_confirm_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                     merged = {**booking, **fields, "date": new_date_str, "weekday": weekday_new}
                     from sheets import add_booking as _add_b, remove_booking as _del_b
                     try:
-                        _add_b(target=new_d, guests=merged.get("guests",""), name=merged.get("name",""),
-                               phone=merged.get("phone",""), source=merged.get("source",""),
-                               client_type=merged.get("client_type",""), comment=merged.get("comment",""),
-                               changed_by=uname)
+                        # переносим бронь со ВСЕМИ полями (включая финансы); add_booking зеркалит в SQLite
+                        _add_b(
+                            target=new_d,
+                            guests=merged.get("guests",""), name=merged.get("name",""),
+                            phone=merged.get("phone",""), source=merged.get("source",""),
+                            client_type=merged.get("client_type",""), comment=merged.get("comment",""),
+                            changed_by=uname,
+                            contract_date=merged.get("contract_date",""),
+                            revenue_rent=merged.get("revenue_rent",0), revenue_menu=merged.get("revenue_menu",0),
+                            paid_advance=merged.get("paid_advance",0), paid_rent=merged.get("paid_rent",0),
+                            paid_final=merged.get("paid_final",0),
+                            staff_waiters=merged.get("staff_waiters",0), staff_cooks=merged.get("staff_cooks",0),
+                            staff_cleaning=merged.get("staff_cleaning",0),
+                            paid_advance_date=merged.get("paid_advance_date",""),
+                            paid_rent_date=merged.get("paid_rent_date",""),
+                            paid_final_date=merged.get("paid_final_date",""),
+                            cost_laundry=merged.get("cost_laundry",0),
+                            cost_purchase=merged.get("cost_purchase",0),
+                            cost_purchase_comment=merged.get("cost_purchase_comment",""),
+                            cost_extra=merged.get("cost_extra",0),
+                            cost_extra_comment=merged.get("cost_extra_comment",""),
+                            has_manager=merged.get("has_manager",1), has_chef=merged.get("has_chef",1),
+                            has_assistant=merged.get("has_assistant",1),
+                            menu_url=merged.get("menu_url",""),
+                        )
                         _del_b(target=d)
                     except Exception as _se:
                         log.warning("Sheets date-move: %s", _se)
-                    database.upsert_booking(target=new_d, name=merged.get("name",""),
-                                            weekday=weekday_new, changed_by=uname)
                     database.delete_booking(target=d)
                 await q.edit_message_text(
                     f"✅ <b>Дата брони перенесена</b>\n{_e(dt_str)} → <b>{_e(new_date_str)}</b>",
@@ -756,12 +793,11 @@ def _build_calendar(
     month: int,
     booked: set,
     free: set,
-    prefix: str,          # "fcal" для /free, "acal" для /add
+    prefix: str = "acal",   # "acal" для /add (единственный используемый)
 ) -> InlineKeyboardMarkup:
     """
     Шаг 2: сетка дней выбранного месяца.
-    prefix="fcal" → даты не кликабельны (только просмотр)
-    prefix="acal" → свободные и незанятые даты кликабельны
+    Свободные и незанятые даты кликабельны (ведут на acal_date:).
     """
     today = date.today()
     rows: list[list[InlineKeyboardButton]] = [
@@ -783,20 +819,14 @@ def _build_calendar(
                 continue
             d = date(year, month, day)
             if d < today:
-                # В /add прошедшие даты кликабельны (запись задним числом)
-                cb = f"acal_date:{d.isoformat()}" if prefix == "acal" else f"{prefix}_no"
-                row.append(InlineKeyboardButton(f"·{day}·", callback_data=cb))
+                # Прошедшие даты кликабельны (запись задним числом)
+                row.append(InlineKeyboardButton(f"·{day}·", callback_data=f"acal_date:{d.isoformat()}"))
             elif d in booked:
                 row.append(InlineKeyboardButton(f"❌{day}", callback_data=f"{prefix}_no"))
             elif d in free:
-                if prefix == "fcal":
-                    cb = f"fbook:{d.isoformat()}"   # клик → начать бронирование
-                else:
-                    cb = f"acal_date:{d.isoformat()}"
-                row.append(InlineKeyboardButton(f"✅{day}", callback_data=cb))
+                row.append(InlineKeyboardButton(f"✅{day}", callback_data=f"acal_date:{d.isoformat()}"))
             else:
-                cb = f"{prefix}_no" if prefix == "fcal" else f"acal_date:{d.isoformat()}"
-                row.append(InlineKeyboardButton(str(day), callback_data=cb))
+                row.append(InlineKeyboardButton(str(day), callback_data=f"acal_date:{d.isoformat()}"))
         rows.append(row)
 
     return InlineKeyboardMarkup(rows)
@@ -1660,6 +1690,13 @@ async def _daily_heartbeat_loop(application) -> None:
         if target <= now:
             target += timedelta(days=1)
         await asyncio.sleep((target - now).total_seconds())
+        # Дедуп: не слать отчёт дважды в один календарный день (на случай рестартов)
+        today_iso = date.today().isoformat()
+        try:
+            if database.get_meta("_last_daily_report") == today_iso:
+                continue
+        except Exception:
+            pass
         try:
             s = database.get_admin_summary()
             txt = (
@@ -1674,6 +1711,10 @@ async def _daily_heartbeat_loop(application) -> None:
                 f"(не удалось собрать статистику: {html.escape(str(e)[:200])})"
             )
         await _notify_admin(application, txt)
+        try:
+            database.set_meta("_last_daily_report", today_iso)
+        except Exception:
+            pass
 
 
 async def _heartbeat_write_loop(application) -> None:

@@ -404,6 +404,22 @@ def get_bot_heartbeat() -> str | None:
     return row["value"] if row else None
 
 
+def get_meta(key: str) -> str | None:
+    """Служебное key-value (внутренние пометки, не настройки-ставки)."""
+    with _conn() as con:
+        row = con.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_meta(key: str, value: str) -> None:
+    with _conn() as con:
+        con.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, value),
+        )
+
+
 # ─── Синхронизация из Google Sheets ──────────────────────────────────────────
 
 def sync_from_sheets() -> None:

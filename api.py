@@ -779,8 +779,8 @@ async def get_stats(source: str = None, month: str = None, user: dict = Depends(
 # ─── Settings (admin) ────────────────────────────────────────────────────────
 
 @app.get("/api/settings")
-async def get_settings(user: dict = Depends(_require_admin)):
-    """Возвращает все настройки ставок."""
+async def get_settings(user: dict = Depends(_require_superadmin)):
+    """Возвращает все настройки ставок (только суперадмин)."""
     settings = database.get_settings()
     return {
         k: {"value": v, "label": database.SETTINGS_LABELS.get(k, k)}
@@ -789,8 +789,8 @@ async def get_settings(user: dict = Depends(_require_admin)):
 
 
 @app.put("/api/settings/{key}")
-async def update_setting(key: str, body: SettingIn, user: dict = Depends(_require_admin)):
-    """Обновляет одну настройку."""
+async def update_setting(key: str, body: SettingIn, user: dict = Depends(_require_superadmin)):
+    """Обновляет одну настройку (только суперадмин — ставки влияют на все расчёты)."""
     if body.value < 0:
         raise HTTPException(400, "Value must be non-negative")
     ok = database.update_setting(key, body.value)
@@ -903,7 +903,7 @@ async def admin_get_summary(user: dict = Depends(_require_superadmin)):
 
 @app.get("/api/admin/analytics")
 async def admin_get_analytics(user: dict = Depends(_require_superadmin)):
-    """Глубокая аналитика по дате мероприятия (окно ±10 месяцев): действия + финансы."""
+    """Глубокая аналитика по дате мероприятия (по годам с 2026): действия + финансы."""
     from collections import defaultdict
     from datetime import date as date_cls
 

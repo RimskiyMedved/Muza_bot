@@ -406,6 +406,7 @@ def add_booking(
                                           staff_cleaning,
                                           paid_advance_date, paid_rent_date, paid_final_date,
                                           cost_laundry, cost_purchase, cost_extra,
+                                          cost_purchase_comment, cost_extra_comment, menu_url,
                                           has_manager != 1, has_chef != 1, has_assistant != 1]):
                 new_row[10:] = row[10:]
             rows[i] = new_row
