@@ -234,6 +234,10 @@ _poll_idle_cycles: int = 0
 # Дедупликация уведомлений об ошибках
 _last_error_ts:  float = 0.0
 _last_error_txt: str   = ""
+_error_notified: bool  = False
+# Повтор ОДНОЙ И ТОЙ ЖЕ ошибки шлём не чаще, чем раз в этот интервал (сек),
+# чтобы при постоянной поломке (например, 403 от Авито) не спамить каждую минуту.
+_SAME_ERROR_COOLDOWN = 1800  # 30 минут
 
 
 # ─── Уведомление об ошибках в TG ─────────────────────────────────────────────
@@ -241,27 +245,34 @@ _last_error_txt: str   = ""
 async def _notify_critical_error(application, error: Exception, context: str = "") -> None:
     """
     Отправляет уведомление об ошибке в TG-группу.
-    Дедупликация: одна и та же ошибка не шлётся чаще раза в 60 секунд.
+    Первое появление ошибки — сразу; повтор той же ошибки — не чаще раза в 30 минут.
+    При восстановлении вызывается _notify_recovery (сообщение «снова работает»).
     """
-    global _last_error_ts, _last_error_txt
+    global _last_error_ts, _last_error_txt, _error_notified
     if not AVITO_NOTIFY_GROUP:
         return
     import traceback
     err_txt = f"{type(error).__name__}: {error}"
     now = time.time()
-    if err_txt == _last_error_txt and now - _last_error_ts < 60:
-        return   # та же ошибка — молчим
+    if err_txt == _last_error_txt and now - _last_error_ts < _SAME_ERROR_COOLDOWN:
+        return   # та же ошибка в пределах окна — молчим
     _last_error_ts  = now
     _last_error_txt = err_txt
+    _error_notified = True
     tb = traceback.format_exc()
     tb_short = tb[-600:] if len(tb) > 600 else tb
     ctx_line = f"\n📍 {_e(context)}" if context else ""
+    # Подсказка для частых случаев доступа к Авито
+    hint = ""
+    if "403" in err_txt or "401" in err_txt:
+        hint = ("\n\n⚠️ Похоже, у бота нет доступа к Авито (истёк/отозван токен или права "
+                "приложения). Проверьте ключи Авито и переавторизуйте аккаунт.")
     try:
         await application.bot.send_message(
             chat_id=AVITO_NOTIFY_GROUP,
             text=(
                 f"🚨 <b>Ошибка бота</b>{ctx_line}\n"
-                f"<code>{_e(err_txt)}</code>\n\n"
+                f"<code>{_e(err_txt)}</code>{hint}\n\n"
                 f"<pre>{_e(tb_short)}</pre>"
             ),
             parse_mode="HTML",
@@ -269,6 +280,25 @@ async def _notify_critical_error(application, error: Exception, context: str = "
         log.info("   ↳ Уведомление об ошибке отправлено в TG")
     except Exception as tg_err:
         log.warning("   ↳ Не удалось отправить ошибку в TG: %s", tg_err)
+
+
+async def _notify_recovery(application) -> None:
+    """Если ранее уведомляли об ошибке — сообщаем один раз, что всё снова работает."""
+    global _error_notified, _last_error_txt, _last_error_ts
+    if not _error_notified or not AVITO_NOTIFY_GROUP:
+        return
+    _error_notified = False
+    _last_error_txt = ""
+    _last_error_ts  = 0.0
+    try:
+        await application.bot.send_message(
+            chat_id=AVITO_NOTIFY_GROUP,
+            text="✅ <b>Авито снова отвечает</b> — поллер восстановился.",
+            parse_mode="HTML",
+        )
+        log.info("   ↳ Уведомление о восстановлении отправлено в TG")
+    except Exception as tg_err:
+        log.warning("   ↳ Не удалось отправить recovery в TG: %s", tg_err)
 
 
 # ─── Сохранение / загрузка состояния ─────────────────────────────────────────
@@ -1697,6 +1727,7 @@ async def avito_polling_loop(client: AvitoClient, application) -> None:
             # Каждый цикл — видно в логах, что поллер жив (grep «опрос:»)
             if chats is not None:
                 log.info("[%s] опрос: непрочитанных чатов = %d", client.name, len(chats))
+                await _notify_recovery(application)   # был сбой → сообщить, что восстановились
             else:
                 log.warning(
                     "[%s] опрос: get_chats вернул None (все попытки без успешного ответа)",
