@@ -3,11 +3,6 @@ networks:
   muza_net:
     driver: bridge
 
-# ─── Тома для Caddy ───────────────────────────────────────────────────────────
-volumes:
-  caddy_data:     # сертификаты Let's Encrypt (сохраняются между перезапусками)
-  caddy_config:   # внутренний конфиг Caddy
-
 services:
 
   # ── Telegram-бот ────────────────────────────────────────────────────────────
@@ -23,6 +18,7 @@ services:
       # bot_state.json удалён — состояние теперь в SQLite
 
   # ── FastAPI для Mini App ─────────────────────────────────────────────────────
+  # Наружу отдаётся системным nginx на https://bot.muzal-moscow.ru → 127.0.0.1:8001.
   muza_api:
     build: .
     command: >
@@ -35,7 +31,7 @@ services:
     restart: unless-stopped
     networks: [muza_net]
     ports:
-      - "8001:8001"   # нужен для ngrok (до появления домена + Caddy)
+      - "127.0.0.1:8001:8001"   # только localhost — наружу проксирует nginx
     volumes:
       - ./database.db:/app/database.db
       - ./credentials.json:/app/credentials.json
@@ -46,16 +42,4 @@ services:
       - ./utils.py:/app/utils.py
       - ./config.py:/app/config.py
 
-  # ── Caddy — HTTPS reverse proxy ──────────────────────────────────────────────
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    networks: [muza_net]
-    ports:
-      - "80:80"      # нужен для HTTP-challenge Let's Encrypt
-      - "443:443"    # HTTPS
-      - "443:443/udp"  # HTTP/3 (опционально, можно убрать)
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile   # наш конфиг
-      - caddy_data:/data                   # сертификаты (персистентны)
-      - caddy_config:/config               # кэш конфига
+  # HTTPS обслуживает системный nginx (Caddy убран — порты 80/443 заняты nginx).
