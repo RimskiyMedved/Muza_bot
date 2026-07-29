@@ -211,6 +211,9 @@ FAQ_FOOD = (
 # ─── Состояние сессии ────────────────────────────────────────────────────────
 
 _start_ts:         float           = 0.0
+# Сообщения старше запуска, но пришедшие в этом окне (простой бота: 403/деплой/краш),
+# не автоотвечаем, но УВЕДОМЛЯЕМ менеджера — чтобы лиды не терялись незаметно.
+_CATCHUP_WINDOW_SEC: float          = 24 * 3600  # 24 часа
 _last_handled:     dict[str, str]  = {}  # avito_chat_id → последний обработанный avito_msg_id
 _msg_content:      dict[str, str]  = {}  # avito_msg_id  → текст (для определения редактирования)
 _msg_id_to_tg:     dict[str, int]  = {}  # avito_msg_id  → tg_msg_id (для редактирования карточки)
@@ -1167,9 +1170,26 @@ async def _process_chat(
     )
 
     if msg_ts < _start_ts:
-        log.info("   [dbg] → сообщение старее запуска — только last_handled и следующий в очереди")
-        _last_handled[chat_id] = msg_id
         _msg_content[msg_id] = body_for_card
+        age = time.time() - msg_ts
+        if age <= _CATCHUP_WINDOW_SEC:
+            # Пришло, пока бот был в простое (403 Авито / деплой / краш). НЕ автоотвечаем —
+            # человек мог ответить вручную, — но уведомляем менеджера, чтобы лид не потерялся.
+            log.info("   [dbg] → старше запуска, но в окне догона (%.1f ч) — уведомляем без автоответа", age / 3600)
+            try:
+                card = _format_client_msg(
+                    chat_info, last_in, uid_self, account_name, messages, include_meta=True,
+                )
+                await _send_tg_msg(
+                    application, chat_id, msg_id,
+                    "⏳ <b>Пропущено, пока бот был офлайн</b> — ответьте, пожалуйста, вручную:\n\n" + card,
+                    keyboard=_build_keyboard(chat_id),
+                )
+            except Exception as _e:
+                log.warning("   ↳ не удалось уведомить о догнанном сообщении: %s", _e)
+        else:
+            log.info("   [dbg] → старее запуска и окна догона (%.1f ч) — молча пропускаем", age / 3600)
+        _last_handled[chat_id] = msg_id
         _save_state(chat_id)
         await _process_chat(
             client, {"id": chat_id}, application, uid_self, account_name,
