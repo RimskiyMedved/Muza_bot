@@ -1625,6 +1625,19 @@ async def handle_tg_reply_to_avito(
         # связка могла потеряться при перезапуске — берём из БД
         chat_id = database.get_tg_avito_map(msg.reply_to_message.message_id)
     if not chat_id:
+        # надёжный запасной вариант: chat_id зашит в кнопки карточки (av_*:{chat_id}),
+        # поэтому реплай работает даже на старых карточках без сохранённой связки
+        rm = msg.reply_to_message.reply_markup
+        if rm:
+            for row in rm.inline_keyboard:
+                for btn in row:
+                    cb = btn.callback_data or ""
+                    if cb.startswith("av_") and ":" in cb:
+                        chat_id = cb.split(":", 1)[1]
+                        break
+                if chat_id:
+                    break
+    if not chat_id:
         return   # не Авито-карточка — пропускаем
 
     if not is_admin(update):
