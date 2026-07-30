@@ -939,6 +939,12 @@ async def auto_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         if not is_admin(update):
             log.info("   ↳ Группа, не админ и не Авито-бот — пропускаем")
             return
+        # Реплай в группе — это ОТВЕТ менеджера в Авито (его пересылает
+        # handle_tg_reply_to_avito). Не запускаем авто-проверку даты/FAQ,
+        # иначе бот отвечает на собственное сообщение менеджера.
+        if update.message.reply_to_message:
+            log.info("   ↳ Реплай в группе — ответ в Авито, авто-проверку пропускаем")
+            return
 
     # ── Стандартная логика (лично или админ в группе) ────────────────────────
     tl = text.lower().strip()
@@ -1614,6 +1620,9 @@ async def handle_tg_reply_to_avito(
 
     tg_to_avito: dict[int, str] = context.bot_data.get("tg_to_avito", {})
     chat_id = tg_to_avito.get(msg.reply_to_message.message_id)
+    if not chat_id:
+        # связка могла потеряться при перезапуске — берём из БД
+        chat_id = database.get_tg_avito_map(msg.reply_to_message.message_id)
     if not chat_id:
         return   # не Авито-карточка — пропускаем
 

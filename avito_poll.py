@@ -864,6 +864,11 @@ async def _send_tg_msg(
         )
         tg_id = msg.message_id
         tg_to_avito[tg_id] = avito_chat_id
+        try:
+            from database import set_tg_avito_map
+            set_tg_avito_map(tg_id, avito_chat_id)   # переживает перезапуски бота
+        except Exception as _e:
+            log.warning("   ↳ не удалось сохранить связку TG↔Авито: %s", _e)
         if avito_msg_id:
             _msg_id_to_tg[avito_msg_id] = tg_id
         log.info("   ↳ 📤 TG msg=%d отправлено", tg_id)

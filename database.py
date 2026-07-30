@@ -254,6 +254,14 @@ def init_db() -> None:
                 llm_calls      INTEGER DEFAULT 0
             );
 
+            -- Связка «карточка Авито в Telegram → чат Авито» для ответов-реплаев.
+            -- Переживает перезапуски, поэтому реплаи не теряются после рестарта бота.
+            CREATE TABLE IF NOT EXISTS tg_avito_map (
+                tg_msg_id     INTEGER PRIMARY KEY,
+                avito_chat_id TEXT DEFAULT '',
+                created_at    TEXT DEFAULT ''
+            );
+
             CREATE TABLE IF NOT EXISTS avito_chat_state (
                 chat_id          TEXT PRIMARY KEY,
                 greeted          INTEGER DEFAULT 0,
@@ -409,6 +417,31 @@ def get_meta(key: str) -> str | None:
     with _conn() as con:
         row = con.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
     return row["value"] if row else None
+
+
+def set_tg_avito_map(tg_msg_id: int, avito_chat_id: str) -> None:
+    """Сохраняет связку «карточка в TG → чат Авито» (переживает перезапуски)."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with _conn() as con:
+        con.execute(
+            "INSERT INTO tg_avito_map (tg_msg_id, avito_chat_id, created_at) VALUES (?,?,?) "
+            "ON CONFLICT(tg_msg_id) DO UPDATE SET avito_chat_id=excluded.avito_chat_id",
+            (int(tg_msg_id), avito_chat_id, now),
+        )
+        # не даём таблице расти вечно — чистим связки старше 60 дней
+        con.execute(
+            "DELETE FROM tg_avito_map WHERE created_at < ?",
+            ((datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d %H:%M:%S"),),
+        )
+
+
+def get_tg_avito_map(tg_msg_id: int) -> str | None:
+    """Возвращает chat_id Авито для реплая на карточку, или None."""
+    with _conn() as con:
+        row = con.execute(
+            "SELECT avito_chat_id FROM tg_avito_map WHERE tg_msg_id = ?", (int(tg_msg_id),)
+        ).fetchone()
+    return row["avito_chat_id"] if row and row["avito_chat_id"] else None
 
 
 def set_meta(key: str, value: str) -> None:
