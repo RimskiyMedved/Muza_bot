@@ -503,7 +503,8 @@ _MONTHS = MONTHS
 
 def _is_price_question(text: str) -> bool:
     t = text.lower()
-    return any(kw in t for kw in _PRICE_KEYWORDS)
+    # по границам слов, иначе «почем» ловится внутри «почему» и т.п.
+    return any(re.search(r"\b" + re.escape(kw) + r"\b", t) for kw in _PRICE_KEYWORDS)
 
 
 def _is_capacity_question(text: str) -> bool:
