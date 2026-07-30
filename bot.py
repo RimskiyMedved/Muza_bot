@@ -1638,6 +1638,15 @@ async def handle_tg_reply_to_avito(
                 if chat_id:
                     break
     if not chat_id:
+        # Реплай на сообщение бота в группе, но чат Авито не определить
+        # (старая карточка без сохранённой связки + кнопки уже нажаты) —
+        # честно предупреждаем админа, а не молчим.
+        rt_from = getattr(msg.reply_to_message, "from_user", None)
+        if rt_from and rt_from.is_bot and is_admin(update):
+            await msg.reply_text(
+                "⚠️ Не смог определить чат Авито (старая карточка / кнопки уже нажаты). "
+                "Ответьте, пожалуйста, прямо в Авито."
+            )
         return   # не Авито-карточка — пропускаем
 
     if not is_admin(update):
