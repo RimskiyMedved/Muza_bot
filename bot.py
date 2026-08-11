@@ -34,6 +34,7 @@ from datetime import date, datetime, timedelta
 from enum import Enum, auto
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, Update, WebAppInfo
+from telegram.error import NetworkError, TimedOut
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -1695,6 +1696,10 @@ async def on_bot_error(update, context) -> None:
     """Глобальный обработчик ошибок: логирует и уведомляет админа (не чаще раза в 5 мин)."""
     global _last_error_notify_ts
     log.error("Необработанная ошибка: %s", context.error, exc_info=context.error)
+    # Транзиентные сетевые сбои поллинга (ReadError / TimedOut / разрыв связи с Telegram)
+    # — норма, бот сам переподключается. Логируем, но админа не дёргаем.
+    if isinstance(context.error, (NetworkError, TimedOut)):
+        return
     now = _time.time()
     if now - _last_error_notify_ts < 300:
         return
