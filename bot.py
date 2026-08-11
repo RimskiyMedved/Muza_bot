@@ -1676,6 +1676,52 @@ async def handle_tg_reply_to_avito(
         await msg.reply_text("⚠️ Не удалось отправить сообщение в Авито.")
 
 
+async def cmd_catchup(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ответить автоматически на все непрочитанные чаты Авито (только суперадмин)."""
+    if not update.effective_user or update.effective_user.id != SUPERADMIN_ID:
+        return
+    client = context.application.bot_data.get("avito_client")
+    if not client:
+        await update.message.reply_text("⚠️ Авито-поллер не запущен.")
+        return
+    try:
+        chats = await client.get_chats(unread_only=True)
+    except Exception as exc:
+        await update.message.reply_text(
+            f"⚠️ Не удалось получить чаты Авито: {_e(str(exc))}", parse_mode="HTML")
+        return
+    n = len(chats or [])
+    if n == 0:
+        await update.message.reply_text("Непрочитанных чатов Авито нет 👍")
+        return
+    await update.message.reply_text(
+        f"Ответить автоматически на все непрочитанные чаты Авито (<b>{n}</b>)?\n"
+        "В каждом бот проверит дату и попросит телефон.",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton(f"✅ Ответить всем ({n})", callback_data="catchup:go"),
+            InlineKeyboardButton("❌ Отмена", callback_data="catchup:no"),
+        ]]),
+    )
+
+
+async def catchup_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    await q.answer()
+    if not q.from_user or q.from_user.id != SUPERADMIN_ID:
+        return
+    if q.data == "catchup:no":
+        await q.edit_message_text("Отменено.")
+        return
+    await q.edit_message_text("⏳ Отвечаю на непрочитанные чаты…")
+    from avito_poll import avito_catchup
+    n = await avito_catchup(context.application)
+    if n < 0:
+        await q.edit_message_text("⚠️ Авито-поллер не запущен — не смог обработать.")
+    else:
+        await q.edit_message_text(f"✅ Готово. Ответил в чатах: {n}.")
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  ЗАПУСК
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1894,11 +1940,13 @@ def main() -> None:
     app.add_handler(CommandHandler("start",    cmd_help))
     app.add_handler(CommandHandler("app",      cmd_app))
     app.add_handler(CommandHandler("stats",    cmd_stats))
+    app.add_handler(CommandHandler("catchup",  cmd_catchup))
     app.add_handler(add_conv)
     app.add_handler(edit_conv)
     app.add_handler(cancel_conv)
     app.add_handler(CallbackQueryHandler(avito_callback,   pattern=r"^av_"))
     app.add_handler(CallbackQueryHandler(voice_confirm_cb, pattern=r"^voice:"))
+    app.add_handler(CallbackQueryHandler(catchup_cb,       pattern=r"^catchup:"))
 
     # Голосовые команды (только для администраторов)
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))

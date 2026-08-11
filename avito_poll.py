@@ -1833,3 +1833,37 @@ async def send_avito_reply(application, chat_id: str, text: str) -> bool:
     except Exception as e:
         log.error("[Авито] ОШИБКА send_message %s: %s", chat_id, e)
         return False
+
+
+async def avito_catchup(application) -> int:
+    """
+    Отвечает автоматически на ВСЕ непрочитанные чаты Авито, как на свежие сообщения
+    (проверка даты + запрос телефона). Вызывается командой /catchup.
+    Возвращает число обработанных чатов, или -1 если поллер не запущен.
+    """
+    global _start_ts
+    client: "AvitoClient | None" = application.bot_data.get("avito_client")
+    if not client:
+        return -1
+    try:
+        uid_self = await client.get_user_id()
+        chats = await client.get_chats(unread_only=True)
+    except Exception as e:
+        log.error("[Авито] catchup: не удалось получить чаты: %s", e)
+        return -1
+    # На время догона считаем все сообщения «новыми» (сбрасываем _start_ts),
+    # чтобы бот отвечал, а не только уведомлял. По завершении — восстанавливаем.
+    saved_start = _start_ts
+    _start_ts = 0.0
+    n = 0
+    try:
+        for chat in (chats or []):
+            try:
+                await _process_chat(client, chat, application, uid_self, client.name)
+                n += 1
+            except Exception as e:
+                log.error("[Авито] catchup: ошибка чата %s: %s", chat.get("id", "?"), e)
+    finally:
+        _start_ts = saved_start
+    log.info("[Авито] catchup: обработано чатов %d", n)
+    return n
