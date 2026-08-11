@@ -122,10 +122,20 @@ certbot --nginx -d bot.muzal-moscow.ru      # email — свой; редирек
 
 ## 7. Запуск
 
+**Важно перед первым запуском:** файла `database.db` нет в git, а compose монтирует его как файл.
+Если файла нет — Docker создаст на его месте ПАПКУ, и API упадёт с `unable to open database file`.
+Поэтому сначала создаём пустой файл базы:
+
 ```bash
 cd ~/app/muza_bot
+touch database.db          # пустой файл БД (иначе Docker подсунет папку)
 docker compose up -d --build
 docker compose logs --tail=40 muza_bot
+```
+
+Если уже запускал без `touch` и словил ошибку — почини так:
+```bash
+docker compose down && rm -rf database.db && touch database.db && docker compose up -d --build
 ```
 
 Признаки успеха в логах:
