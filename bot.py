@@ -543,7 +543,16 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     except Exception as exc:
         log.exception("Ошибка голосовой команды")
-        await status_msg.edit_text(f"❌ Ошибка: {_e(str(exc))}", parse_mode="HTML")
+        s = str(exc)
+        if "403" in s or "Forbidden" in s or "PermissionDenied" in type(exc).__name__:
+            # Groq блокирует запрос по региону (сервер в РФ) — не пугаем пользователя 403
+            await status_msg.edit_text(
+                "🎙 Голосовые команды сейчас недоступны на этом сервере "
+                "(сервис распознавания речи не работает из текущего региона). "
+                "Пожалуйста, пользуйтесь мини-аппом или текстовыми командами."
+            )
+        else:
+            await status_msg.edit_text(f"❌ Ошибка: {_e(str(exc))}", parse_mode="HTML")
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
