@@ -1858,6 +1858,11 @@ async def avito_catchup(application) -> int:
     n = 0
     try:
         for chat in (chats or []):
+            cid = chat.get("id", "")
+            # Забыть, что чат уже «обработан» (при старте бот пометил его в окне догона),
+            # иначе _process_chat решит «новых нет» и не ответит.
+            if cid:
+                _last_handled.pop(cid, None)
             try:
                 await _process_chat(client, chat, application, uid_self, client.name)
                 n += 1
