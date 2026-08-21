@@ -1067,6 +1067,13 @@ async def cmd_app(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     Кнопка типа WebApp открывает встроенный браузер Telegram.
     WEBAPP_URL задаётся в .env — это HTTPS-адрес сервера muza_api.
     """
+    user = update.effective_user
+    # Привязать @ник → telegram_id, если пользователь добавлен по нику (без /start)
+    if user and user.username:
+        try:
+            database.update_allowed_user_id(user.username, user.id)
+        except Exception:
+            pass
     if not is_admin(update):
         await update.message.reply_text("🔒 Эта команда только для администраторов.")
         return

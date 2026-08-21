@@ -165,8 +165,16 @@ def _require_admin(x_init_data: str = Header(default=None, alias="x-init-data"))
     user = _verify_init_data(x_init_data)
     uid = user.get("id")
     if uid != SUPERADMIN_ID and not database.is_allowed_user(uid):
-        log.warning("Unauthorized access attempt: user_id=%s", uid)
-        raise HTTPException(403, "Admins only")
+        # Пользователь мог быть добавлен по @нику — привяжем его telegram_id и перепроверим
+        uname = user.get("username")
+        if uname:
+            try:
+                database.update_allowed_user_id(uname, uid)
+            except Exception:
+                pass
+        if not database.is_allowed_user(uid):
+            log.warning("Unauthorized access attempt: user_id=%s", uid)
+            raise HTTPException(403, "Admins only")
     # Логируем каждый вход в Mini App (раз в сессию достаточно, логируем здесь)
     return user
 

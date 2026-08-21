@@ -907,7 +907,8 @@ def update_allowed_user_id(username: str, telegram_id: int) -> None:
     username = username.lstrip("@")
     with _conn() as con:
         con.execute(
-            "UPDATE allowed_users SET telegram_id = ? WHERE username = ? AND (telegram_id IS NULL OR telegram_id = 0)",
+            "UPDATE allowed_users SET telegram_id = ? "
+            "WHERE LOWER(username) = LOWER(?) AND (telegram_id IS NULL OR telegram_id = 0)",
             (telegram_id, username)
         )
 
